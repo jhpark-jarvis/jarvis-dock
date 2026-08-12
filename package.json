@@ -1,0 +1,19 @@
+{
+  "name": "jarvis-dock",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "plugins/*"
+  ],
+  "scripts": {
+    "dev": "npm run start --workspace=@jarvis-dock/desktop",
+    "start": "npm run start --workspace=@jarvis-dock/desktop",
+    "typecheck": "npm run typecheck --workspace=@jarvis-dock/desktop",
+    "lint": "npm run lint --workspace=@jarvis-dock/desktop",
+    "check": "npm run typecheck && npm run lint",
+    "package": "npm run package --workspace=@jarvis-dock/desktop",
+    "make": "npm run make --workspace=@jarvis-dock/desktop",
+    "publish": "npm run publish --workspace=@jarvis-dock/desktop"
+  }
+}
