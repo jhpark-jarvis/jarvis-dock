@@ -13,7 +13,9 @@
     "lint": "npm run lint --workspace=@jarvis-dock/desktop",
     "format": "npm run format --workspace=@jarvis-dock/desktop",
     "format:check": "npm run format:check --workspace=@jarvis-dock/desktop",
-    "check": "npm run typecheck && npm run lint && npm run format:check",
+    "test:unit": "npm run test:unit --workspace=@jarvis-dock/desktop",
+    "test:unit:watch": "npm run test:unit:watch --workspace=@jarvis-dock/desktop",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test:unit",
     "package": "npm run package --workspace=@jarvis-dock/desktop",
     "make": "npm run make --workspace=@jarvis-dock/desktop",
     "publish": "npm run publish --workspace=@jarvis-dock/desktop"
