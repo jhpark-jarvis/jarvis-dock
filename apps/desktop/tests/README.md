@@ -11,4 +11,8 @@ tests/
 └─ smoke/
 ```
 
-테스트 도구는 아직 설치되지 않았다. 테스트 기반은 `docs/05_WORKFLOW.md`의 Phase F4에서 추가한다.
+`tests/e2e/`는 Playwright의 Electron API로 Main, Preload, Renderer의 실제 연결을 검증한다.
+
+- `npm run test:e2e`는 먼저 Forge Vite 번들을 만든 뒤, 개발용 Electron 실행 파일로 `.vite` 번들을 연다.
+- E2E는 패키징된 앱을 실행하지 않는다. production fuse를 약화하지 않기 위해 packaged smoke와 분리한다.
+- Electron 전용 E2E에는 Playwright 브라우저 binary 설치가 필요 없다.
