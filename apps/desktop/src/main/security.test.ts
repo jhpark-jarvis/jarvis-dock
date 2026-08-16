@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isTrustedRendererUrl } from './security';
+import {
+  isAllowedRendererNavigation,
+  isTrustedRendererUrl,
+  PRODUCTION_CONTENT_SECURITY_POLICY,
+  withContentSecurityPolicy,
+} from './security';
 
 describe('isTrustedRendererUrl', () => {
   it('accepts only the configured development renderer URL', () => {
@@ -30,5 +35,34 @@ describe('isTrustedRendererUrl', () => {
         'file:///app/renderer/main_window/index.html',
       ),
     ).toBe(false);
+  });
+
+  it('allows navigation only to the configured renderer URL', () => {
+    expect(
+      isAllowedRendererNavigation(
+        'file:///app/renderer/main_window/index.html',
+        'file:///app/renderer/main_window/index.html',
+      ),
+    ).toBe(true);
+    expect(
+      isAllowedRendererNavigation(
+        'https://example.com/',
+        'file:///app/renderer/main_window/index.html',
+      ),
+    ).toBe(false);
+  });
+
+  it('sets one restrictive Content-Security-Policy header', () => {
+    const headers = withContentSecurityPolicy({
+      'content-security-policy': ['default-src *'],
+      'Content-Type': ['text/html'],
+    });
+
+    expect(headers).toEqual({
+      'Content-Type': ['text/html'],
+      'Content-Security-Policy': [PRODUCTION_CONTENT_SECURITY_POLICY],
+    });
+    expect(PRODUCTION_CONTENT_SECURITY_POLICY).not.toContain('unsafe-eval');
+    expect(PRODUCTION_CONTENT_SECURITY_POLICY).not.toContain('unsafe-inline');
   });
 });

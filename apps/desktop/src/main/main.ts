@@ -1,8 +1,12 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, type WebContents } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import started from 'electron-squirrel-startup';
-import { isTrustedRendererUrl } from './security';
+import {
+  isAllowedRendererNavigation,
+  isTrustedRendererUrl,
+  withContentSecurityPolicy,
+} from './security';
 import { registerSystemHandlers } from './system-handlers';
 import { createMainWindowOptions } from './window-options';
 
@@ -16,12 +20,41 @@ const getRendererUrl = (): string => {
   ).toString();
 };
 
+const configureRendererSecurity = (
+  webContents: WebContents,
+  rendererUrl: string,
+  isDevelopment: boolean,
+): void => {
+  webContents.on('will-navigate', (event, targetUrl) => {
+    if (!isAllowedRendererNavigation(targetUrl, rendererUrl)) {
+      event.preventDefault();
+    }
+  });
+
+  webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
+  if (!isDevelopment) {
+    webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: withContentSecurityPolicy(details.responseHeaders),
+      });
+    });
+  }
+};
+
 const createWindow = () => {
   const mainWindow = new BrowserWindow(
     createMainWindowOptions(path.join(__dirname, 'preload.js')),
   );
+  const rendererUrl = getRendererUrl();
 
-  mainWindow.loadURL(getRendererUrl());
+  configureRendererSecurity(
+    mainWindow.webContents,
+    rendererUrl,
+    Boolean(MAIN_WINDOW_VITE_DEV_SERVER_URL),
+  );
+
+  mainWindow.loadURL(rendererUrl);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.webContents.openDevTools();
