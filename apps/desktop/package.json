@@ -15,6 +15,7 @@
     "test:unit:watch": "vitest --config vitest.config.ts",
     "test:e2e": "electron-forge package && playwright test --config playwright.config.ts",
     "test:e2e:watch": "playwright test --config playwright.config.ts --ui",
+    "test:smoke": "electron-forge package && node tests/smoke/packaged.smoke.cjs",
     "lint": "eslint --ext .ts,.tsx .",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.{ts,json,html}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"*.{ts,json,html}\""

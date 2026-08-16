@@ -17,6 +17,7 @@
     "test:unit:watch": "npm run test:unit:watch --workspace=@jarvis-dock/desktop",
     "test:e2e": "npm run test:e2e --workspace=@jarvis-dock/desktop",
     "test:e2e:watch": "npm run test:e2e:watch --workspace=@jarvis-dock/desktop",
+    "test:smoke": "npm run test:smoke --workspace=@jarvis-dock/desktop",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test:unit",
     "package": "npm run package --workspace=@jarvis-dock/desktop",
     "make": "npm run make --workspace=@jarvis-dock/desktop",
