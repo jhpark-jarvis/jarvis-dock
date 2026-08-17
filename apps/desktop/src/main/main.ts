@@ -1,4 +1,10 @@
-import { app, BrowserWindow, ipcMain, type WebContents } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  type WebContents,
+} from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import started from 'electron-squirrel-startup';
@@ -8,6 +14,7 @@ import {
   withContentSecurityPolicy,
 } from './security';
 import { registerSystemHandlers } from './system-handlers';
+import { registerWorkspaceHandlers } from './workspace-handlers';
 import { createMainWindowOptions } from './window-options';
 
 const getRendererUrl = (): string => {
@@ -65,6 +72,12 @@ const registerIpcHandlers = () => {
   registerSystemHandlers({
     ipcMain,
     getVersion: () => app.getVersion(),
+    isTrustedSender: (senderUrl) =>
+      isTrustedRendererUrl(senderUrl, getRendererUrl()),
+  });
+  registerWorkspaceHandlers({
+    ipcMain,
+    dialog,
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
   });

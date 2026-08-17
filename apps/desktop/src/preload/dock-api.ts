@@ -6,6 +6,17 @@ import {
   type HealthResult,
   VersionResultSchema,
   type VersionResult,
+  DocumentRequestSchema,
+  DocumentResultSchema,
+  DocumentWriteRequestSchema,
+  WorkspaceChooseResultSchema,
+  WorkspaceFilesResultSchema,
+  WorkspaceRequestSchema,
+  WriteResultEnvelopeSchema,
+  type DocumentResult,
+  type WorkspaceChooseResult,
+  type WorkspaceFilesResult,
+  type WriteResultEnvelope,
 } from '../shared/ipc';
 
 export interface IpcInvoker {
@@ -30,9 +41,102 @@ const invokeVersion = async (
   return result.success ? result.data : { ok: false, error: internalError() };
 };
 
+const invokeWorkspaceChoose = async (
+  ipcRenderer: IpcInvoker,
+): Promise<WorkspaceChooseResult> => {
+  const result = WorkspaceChooseResultSchema.safeParse(
+    await ipcRenderer.invoke(IPC.WORKSPACE_CHOOSE, {}),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
+const invokeWorkspaceFiles = async (
+  ipcRenderer: IpcInvoker,
+  request: unknown,
+): Promise<WorkspaceFilesResult> => {
+  const parsed = WorkspaceRequestSchema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = WorkspaceFilesResultSchema.safeParse(
+    await ipcRenderer.invoke(IPC.WORKSPACE_LIST_MARKDOWN_FILES, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
+const invokeDocumentRead = async (
+  ipcRenderer: IpcInvoker,
+  request: unknown,
+): Promise<DocumentResult> => {
+  const parsed = DocumentRequestSchema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = DocumentResultSchema.safeParse(
+    await ipcRenderer.invoke(IPC.DOCUMENT_READ, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
+const invokeDocumentWrite = async (
+  ipcRenderer: IpcInvoker,
+  channel: string,
+  request: unknown,
+): Promise<WriteResultEnvelope> => {
+  const parsed = DocumentWriteRequestSchema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = WriteResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(channel, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
 export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
   system: {
     health: () => invokeHealth(ipcRenderer),
     version: () => invokeVersion(ipcRenderer),
+  },
+  workspace: {
+    choose: () => invokeWorkspaceChoose(ipcRenderer),
+    listMarkdownFiles: (request) => invokeWorkspaceFiles(ipcRenderer, request),
+  },
+  document: {
+    read: (request) => invokeDocumentRead(ipcRenderer, request),
+    create: async (request) => {
+      const parsed = DocumentRequestSchema.safeParse(request);
+      if (!parsed.success)
+        return {
+          ok: false,
+          error: {
+            code: 'INVALID_REQUEST' as const,
+            message: 'The Dock request is invalid.',
+          },
+        };
+      const result = WriteResultEnvelopeSchema.safeParse(
+        await ipcRenderer.invoke(IPC.DOCUMENT_CREATE, parsed.data),
+      );
+      return result.success
+        ? result.data
+        : { ok: false, error: internalError() };
+    },
+    write: (request) =>
+      invokeDocumentWrite(ipcRenderer, IPC.DOCUMENT_WRITE, request),
   },
 });
