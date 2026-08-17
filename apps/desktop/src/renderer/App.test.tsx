@@ -54,4 +54,60 @@ describe('App', () => {
       '문서 목록을 불러오지 못했습니다.',
     );
   });
+
+  it('connects folder selection, opening, editing, and saving through the narrow API', async () => {
+    const choose = async () => ({
+      ok: true as const,
+      value: {
+        workspaceId: '11111111-1111-4111-8111-111111111111',
+        displayName: 'notes',
+      },
+    });
+    const listMarkdownFiles = async () => ({
+      ok: true as const,
+      value: { files: [{ relativePath: 'today.md', displayName: 'today.md' }] },
+    });
+    const read = async () => ({
+      ok: true as const,
+      value: { relativePath: 'today.md', content: '# Today' },
+    });
+    const write = async () => ({
+      ok: true as const,
+      value: { relativePath: 'today.md', bytesWritten: 8 },
+    });
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        system: {
+          health: async () => ({ ok: true, value: { status: 'ok' } }),
+          version: async () => ({ ok: true, value: { version: '1.0.0' } }),
+        },
+        workspace: { choose, listMarkdownFiles },
+        document: {
+          read,
+          create: async () => ({
+            ok: true,
+            value: { relativePath: 'today.md', bytesWritten: 0 },
+          }),
+          write,
+        },
+      },
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    expect(
+      await screen.findByRole('button', { name: 'today.md' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'today.md' }));
+    expect(await screen.findByDisplayValue('# Today')).toBeInTheDocument();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Markdown 편집기' }),
+      '\nEdited',
+    );
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    expect(
+      await screen.findByRole('button', { name: '저장됨' }),
+    ).toBeDisabled();
+  });
 });
