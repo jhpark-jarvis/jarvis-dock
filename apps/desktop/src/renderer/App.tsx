@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import type { MouseEvent } from 'react';
 import type { WorkspaceFile } from '../shared/ipc';
+import { renderMarkdownPreview } from './markdown-preview';
 
 export type ShellState = 'empty' | 'error' | 'loading';
 
@@ -94,6 +96,22 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   };
 
   const dirty = content !== savedContent;
+  const previewHtml = selectedPath ? renderMarkdownPreview(content) : '';
+
+  const handlePreviewClick = (event: MouseEvent<HTMLElement>) => {
+    const target = (event.target as HTMLElement).closest<HTMLElement>(
+      '[data-dock-document]',
+    );
+    if (!target || !selectedPath) return;
+    event.preventDefault();
+    const link = target.dataset.dockDocument;
+    if (!link) return;
+    const base = selectedPath.includes('/')
+      ? selectedPath.slice(0, selectedPath.lastIndexOf('/') + 1)
+      : '';
+    const nextPath = link.startsWith('./') ? `${base}${link.slice(2)}` : link;
+    if (!nextPath.split('/').includes('..')) void openDocument(nextPath);
+  };
 
   return (
     <main className="app-shell" aria-label="Dock 작업 공간">
@@ -176,7 +194,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             </div>
           </div>
           {selectedPath ? (
-            <pre className="preview-content">{content}</pre>
+            <div
+              className="preview-content"
+              onClick={handlePreviewClick}
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
+            />
           ) : (
             <div className="preview-empty">
               <p className="preview-empty__title">미리볼 문서가 없습니다.</p>
