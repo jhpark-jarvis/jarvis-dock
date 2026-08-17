@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react';
+import type { WorkspaceFile } from '../shared/ipc';
+
 export type ShellState = 'empty' | 'error' | 'loading';
 
 interface AppProps {
@@ -31,66 +34,166 @@ const WorkspaceState = ({ state }: Required<AppProps>) => {
   );
 };
 
-const App = ({ state = 'empty' }: AppProps) => (
-  <main className="app-shell" aria-label="Dock 작업 공간">
-    <header className="app-header">
-      <div>
-        <p className="app-header__eyebrow">JARVIS</p>
-        <h1 className="app-header__title">Dock</h1>
+const App = ({ state: initialState = 'empty' }: AppProps) => {
+  const [state, setState] = useState<ShellState>(initialState);
+  const [workspaceId, setWorkspaceId] = useState<string>();
+  const [workspaceName, setWorkspaceName] = useState<string>();
+  const [files, setFiles] = useState<WorkspaceFile[]>([]);
+  const [selectedPath, setSelectedPath] = useState<string>();
+  const [content, setContent] = useState('');
+  const [savedContent, setSavedContent] = useState('');
+
+  useEffect(() => {
+    setState(initialState);
+  }, [initialState]);
+
+  const chooseWorkspace = async () => {
+    setState('loading');
+    const chosen = await window.dock.workspace.choose();
+    if (chosen.ok === false) {
+      setState(chosen.error.code === 'CANCELLED' ? 'empty' : 'error');
+      return;
+    }
+    setWorkspaceId(chosen.value.workspaceId);
+    setWorkspaceName(chosen.value.displayName);
+    const listed = await window.dock.workspace.listMarkdownFiles({
+      workspaceId: chosen.value.workspaceId,
+    });
+    if (!listed.ok) {
+      setState('error');
+      return;
+    }
+    setFiles(listed.value.files);
+    setState('empty');
+  };
+
+  const openDocument = async (relativePath: string) => {
+    if (!workspaceId) return;
+    const result = await window.dock.document.read({
+      workspaceId,
+      relativePath,
+    });
+    if (!result.ok) {
+      setState('error');
+      return;
+    }
+    setSelectedPath(relativePath);
+    setContent(result.value.content);
+    setSavedContent(result.value.content);
+  };
+
+  const saveDocument = async () => {
+    if (!workspaceId || !selectedPath) return;
+    const result = await window.dock.document.write({
+      workspaceId,
+      relativePath: selectedPath,
+      content,
+    });
+    if (result.ok) setSavedContent(content);
+    else setState('error');
+  };
+
+  const dirty = content !== savedContent;
+
+  return (
+    <main className="app-shell" aria-label="Dock 작업 공간">
+      <header className="app-header">
+        <div>
+          <p className="app-header__eyebrow">JARVIS</p>
+          <h1 className="app-header__title">Dock</h1>
+        </div>
+        <button className="button button--quiet" type="button">
+          명령 팔레트 열기
+        </button>
+      </header>
+
+      <div className="workspace-layout">
+        <aside className="workspace-sidebar" aria-labelledby="workspace-title">
+          <div className="panel-heading">
+            <div>
+              <p className="panel-heading__eyebrow">DOCUMENT WORKSPACE</p>
+              <h2 id="workspace-title">문서</h2>
+            </div>
+            <button
+              className="button button--primary"
+              type="button"
+              onClick={chooseWorkspace}
+            >
+              폴더 선택
+            </button>
+          </div>
+          {workspaceName && (
+            <p className="workspace-name">현재 폴더: {workspaceName}</p>
+          )}
+          {files.length > 0 ? (
+            <ul className="file-list" aria-label="Markdown 파일 목록">
+              {files.map((file) => (
+                <li key={file.relativePath}>
+                  <button
+                    className="file-list__item"
+                    type="button"
+                    onClick={() => openDocument(file.relativePath)}
+                  >
+                    {file.relativePath}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <WorkspaceState state={state} />
+          )}
+        </aside>
+
+        <section className="editor-panel" aria-labelledby="editor-title">
+          <div className="panel-heading">
+            <div>
+              <p className="panel-heading__eyebrow">EDITOR</p>
+              <h2 id="editor-title">{selectedPath ?? '새 문서'}</h2>
+            </div>
+            <button
+              className="button button--quiet"
+              type="button"
+              onClick={saveDocument}
+              disabled={!selectedPath || !dirty}
+            >
+              {dirty ? '저장' : '저장됨'}
+            </button>
+          </div>
+          <textarea
+            aria-label="Markdown 편집기"
+            className="markdown-editor"
+            placeholder="문서를 선택하거나 새 Markdown을 작성하세요."
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+          />
+        </section>
+
+        <section className="preview-panel" aria-labelledby="preview-title">
+          <div className="panel-heading">
+            <div>
+              <p className="panel-heading__eyebrow">PREVIEW</p>
+              <h2 id="preview-title">미리보기</h2>
+            </div>
+          </div>
+          {selectedPath ? (
+            <pre className="preview-content">{content}</pre>
+          ) : (
+            <div className="preview-empty">
+              <p className="preview-empty__title">미리볼 문서가 없습니다.</p>
+              <p>
+                문서를 열면 안전한 Markdown 미리보기가 이 영역에 표시됩니다.
+              </p>
+            </div>
+          )}
+        </section>
       </div>
-      <button className="button button--quiet" type="button">
-        명령 팔레트 열기
-      </button>
-    </header>
 
-    <div className="workspace-layout">
-      <aside className="workspace-sidebar" aria-labelledby="workspace-title">
-        <div className="panel-heading">
-          <div>
-            <p className="panel-heading__eyebrow">DOCUMENT WORKSPACE</p>
-            <h2 id="workspace-title">문서</h2>
-          </div>
-          <button className="button button--primary" type="button">
-            폴더 선택
-          </button>
-        </div>
-        <WorkspaceState state={state} />
-      </aside>
-
-      <section className="editor-panel" aria-labelledby="editor-title">
-        <div className="panel-heading">
-          <div>
-            <p className="panel-heading__eyebrow">EDITOR</p>
-            <h2 id="editor-title">새 문서</h2>
-          </div>
-          <span className="panel-heading__meta">저장되지 않음</span>
-        </div>
-        <textarea
-          aria-label="Markdown 편집기"
-          className="markdown-editor"
-          placeholder="문서를 선택하거나 새 Markdown을 작성하세요."
-        />
-      </section>
-
-      <section className="preview-panel" aria-labelledby="preview-title">
-        <div className="panel-heading">
-          <div>
-            <p className="panel-heading__eyebrow">PREVIEW</p>
-            <h2 id="preview-title">미리보기</h2>
-          </div>
-        </div>
-        <div className="preview-empty">
-          <p className="preview-empty__title">미리볼 문서가 없습니다.</p>
-          <p>문서를 열면 안전한 Markdown 미리보기가 이 영역에 표시됩니다.</p>
-        </div>
-      </section>
-    </div>
-
-    <footer className="app-status" aria-label="문서 상태">
-      <span>준비됨</span>
-      <span>로컬 파일 기능은 다음 단계에서 연결됩니다.</span>
-    </footer>
-  </main>
-);
+      <footer className="app-status" aria-label="문서 상태">
+        <span>{dirty ? '변경사항 있음' : '준비됨'}</span>
+        <span>{workspaceName ?? '폴더를 선택해 문서를 시작하세요.'}</span>
+      </footer>
+    </main>
+  );
+};
 
 export default App;

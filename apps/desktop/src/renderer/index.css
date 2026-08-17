@@ -172,6 +172,47 @@ textarea:focus-visible {
   color: #fecaca;
 }
 
+.workspace-name {
+  margin: 0 0 1rem;
+  color: #aebed1;
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-list {
+  display: grid;
+  gap: 0.3rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.file-list__item {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #e7edf5;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.file-list__item:hover,
+.file-list__item:focus-visible {
+  background: #17263b;
+}
+
+.preview-content {
+  min-height: 18rem;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
 .markdown-editor {
   width: 100%;
   min-height: 14rem;
