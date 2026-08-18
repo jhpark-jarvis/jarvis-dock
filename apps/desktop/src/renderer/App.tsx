@@ -44,10 +44,23 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [selectedPath, setSelectedPath] = useState<string>();
   const [content, setContent] = useState('');
   const [savedContent, setSavedContent] = useState('');
+  const [newDocumentPath, setNewDocumentPath] = useState('untitled.md');
 
   useEffect(() => {
     setState(initialState);
   }, [initialState]);
+
+  const refreshFiles = async (nextWorkspaceId: string) => {
+    const listed = await window.dock.workspace.listMarkdownFiles({
+      workspaceId: nextWorkspaceId,
+    });
+    if (!listed.ok) {
+      setState('error');
+      return false;
+    }
+    setFiles(listed.value.files);
+    return true;
+  };
 
   const chooseWorkspace = async () => {
     setState('loading');
@@ -58,14 +71,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     }
     setWorkspaceId(chosen.value.workspaceId);
     setWorkspaceName(chosen.value.displayName);
-    const listed = await window.dock.workspace.listMarkdownFiles({
-      workspaceId: chosen.value.workspaceId,
-    });
-    if (!listed.ok) {
-      setState('error');
-      return;
-    }
-    setFiles(listed.value.files);
+    setSelectedPath(undefined);
+    setContent('');
+    setSavedContent('');
+    if (!(await refreshFiles(chosen.value.workspaceId))) return;
     setState('empty');
   };
 
@@ -93,6 +102,30 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     });
     if (result.ok) setSavedContent(content);
     else setState('error');
+  };
+
+  const createDocument = async () => {
+    if (!workspaceId) return;
+    const relativePath = newDocumentPath.trim();
+    if (!relativePath) {
+      setState('error');
+      return;
+    }
+    setState('loading');
+    const result = await window.dock.document.create({
+      workspaceId,
+      relativePath,
+    });
+    if (!result.ok) {
+      setState('error');
+      return;
+    }
+    if (!(await refreshFiles(workspaceId))) return;
+    setSelectedPath(relativePath);
+    setContent('');
+    setSavedContent('');
+    setNewDocumentPath('');
+    setState('empty');
   };
 
   const dirty = content !== savedContent;
@@ -140,26 +173,49 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               폴더 선택
             </button>
           </div>
-          {workspaceName && (
-            <p className="workspace-name">현재 폴더: {workspaceName}</p>
-          )}
-          {files.length > 0 ? (
-            <ul className="file-list" aria-label="Markdown 파일 목록">
-              {files.map((file) => (
-                <li key={file.relativePath}>
-                  <button
-                    className="file-list__item"
-                    type="button"
-                    onClick={() => openDocument(file.relativePath)}
-                  >
-                    {file.relativePath}
+          <div className="workspace-sidebar__body">
+            {workspaceName && (
+              <>
+                <p className="workspace-name">현재 폴더: {workspaceName}</p>
+                <form
+                  className="workspace-create"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void createDocument();
+                  }}
+                >
+                  <label htmlFor="new-document-path">새 문서 경로</label>
+                  <input
+                    id="new-document-path"
+                    className="workspace-create__input"
+                    value={newDocumentPath}
+                    onChange={(event) => setNewDocumentPath(event.target.value)}
+                    placeholder="notes/today.md"
+                  />
+                  <button className="button button--quiet" type="submit">
+                    새 문서 생성
                   </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <WorkspaceState state={state} />
-          )}
+                </form>
+              </>
+            )}
+            {files.length > 0 ? (
+              <ul className="file-list" aria-label="Markdown 파일 목록">
+                {files.map((file) => (
+                  <li key={file.relativePath}>
+                    <button
+                      className="file-list__item"
+                      type="button"
+                      onClick={() => openDocument(file.relativePath)}
+                    >
+                      {file.relativePath}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <WorkspaceState state={state} />
+            )}
+          </div>
         </aside>
 
         <section className="editor-panel" aria-labelledby="editor-title">

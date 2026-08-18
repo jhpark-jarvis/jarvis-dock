@@ -27,7 +27,8 @@ textarea {
 }
 
 button:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+input:focus-visible {
   outline: 3px solid #7dd3fc;
   outline-offset: 2px;
 }
@@ -179,6 +180,33 @@ textarea:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.workspace-sidebar__body {
+  min-height: 0;
+  overflow: auto;
+}
+
+.workspace-create {
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+
+.workspace-create label {
+  color: #aebed1;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.workspace-create__input {
+  width: 100%;
+  min-height: 2.25rem;
+  border: 1px solid #3a4b66;
+  border-radius: 0.45rem;
+  padding: 0.45rem 0.6rem;
+  background: #0b1220;
+  color: #e7edf5;
 }
 
 .file-list {

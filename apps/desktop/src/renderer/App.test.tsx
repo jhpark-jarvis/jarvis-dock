@@ -63,9 +63,10 @@ describe('App', () => {
         displayName: 'notes',
       },
     });
+    let files = [{ relativePath: 'today.md', displayName: 'today.md' }];
     const listMarkdownFiles = async () => ({
       ok: true as const,
-      value: { files: [{ relativePath: 'today.md', displayName: 'today.md' }] },
+      value: { files },
     });
     const read = async () => ({
       ok: true as const,
@@ -75,6 +76,13 @@ describe('App', () => {
       ok: true as const,
       value: { relativePath: 'today.md', bytesWritten: 8 },
     });
+    const create = async ({ relativePath }: { relativePath: string }) => {
+      files = [...files, { relativePath, displayName: relativePath }];
+      return {
+        ok: true as const,
+        value: { relativePath, bytesWritten: 0 },
+      };
+    };
     Object.defineProperty(window, 'dock', {
       configurable: true,
       value: {
@@ -85,10 +93,7 @@ describe('App', () => {
         workspace: { choose, listMarkdownFiles },
         document: {
           read,
-          create: async () => ({
-            ok: true,
-            value: { relativePath: 'today.md', bytesWritten: 0 },
-          }),
+          create,
           write,
         },
       },
@@ -98,6 +103,15 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '폴더 선택' }));
     expect(
       await screen.findByRole('button', { name: 'today.md' }),
+    ).toBeInTheDocument();
+    const newDocumentPath = screen.getByRole('textbox', {
+      name: '새 문서 경로',
+    });
+    await user.clear(newDocumentPath);
+    await user.type(newDocumentPath, 'new-note.md');
+    await user.click(screen.getByRole('button', { name: '새 문서 생성' }));
+    expect(
+      await screen.findByRole('button', { name: 'new-note.md' }),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'today.md' }));
     expect(await screen.findByDisplayValue('# Today')).toBeInTheDocument();

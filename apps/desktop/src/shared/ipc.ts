@@ -72,12 +72,17 @@ export const WorkspaceFileSchema = z
   })
   .strict();
 export const DocumentDataSchema = z
-  .object({ relativePath: RelativeMarkdownPathSchema, content: z.string() })
+  .object({
+    relativePath: RelativeMarkdownPathSchema,
+    content: z.string(),
+    encoding: z.literal('utf-8'),
+  })
   .strict();
 export const WriteResultSchema = z
   .object({
     relativePath: RelativeMarkdownPathSchema,
     bytesWritten: z.number().int().nonnegative(),
+    savedAt: z.string().datetime(),
   })
   .strict();
 

@@ -73,7 +73,10 @@ describe('registerWorkspaceHandlers', () => {
       .workspaceId;
     await expect(
       invoke(IPC.DOCUMENT_CREATE, { workspaceId, relativePath: 'note.md' }),
-    ).resolves.toMatchObject({ ok: true });
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { relativePath: 'note.md', savedAt: expect.any(String) },
+    });
     await expect(
       invoke(IPC.DOCUMENT_WRITE, {
         workspaceId,
@@ -83,7 +86,10 @@ describe('registerWorkspaceHandlers', () => {
     ).resolves.toMatchObject({ ok: true, value: { bytesWritten: 7 } });
     await expect(
       invoke(IPC.DOCUMENT_READ, { workspaceId, relativePath: 'note.md' }),
-    ).resolves.toMatchObject({ ok: true, value: { content: '# Hello' } });
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { content: '# Hello', encoding: 'utf-8' },
+    });
   });
 
   it('rejects an invalid workspace request before filesystem access', async () => {

@@ -83,6 +83,7 @@ export const readDocument = async (
 ): Promise<DocumentData> => ({
   relativePath,
   content: await fs.readFile(absolutePath, 'utf8'),
+  encoding: 'utf-8',
 });
 
 const writeAtomically = async (
@@ -119,6 +120,7 @@ export const createDocument = (
   writeAtomically(absolutePath, '', 'wx').then((bytesWritten) => ({
     relativePath,
     bytesWritten,
+    savedAt: new Date().toISOString(),
   }));
 
 export const writeDocument = (
@@ -129,4 +131,5 @@ export const writeDocument = (
   writeAtomically(absolutePath, content, 'w').then((bytesWritten) => ({
     relativePath,
     bytesWritten,
+    savedAt: new Date().toISOString(),
   }));

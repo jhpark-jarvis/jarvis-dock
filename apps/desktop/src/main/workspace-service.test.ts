@@ -54,15 +54,17 @@ describe('workspace service', () => {
     await expect(readDocument(file, 'note.md')).resolves.toEqual({
       relativePath: 'note.md',
       content: 'updated',
+      encoding: 'utf-8',
     });
   });
 
   it('creates a new document once and rejects a duplicate', async () => {
     const root = await makeTempDir();
     const file = path.join(root, 'new.md');
-    await expect(createDocument(file, 'new.md')).resolves.toEqual({
+    await expect(createDocument(file, 'new.md')).resolves.toMatchObject({
       relativePath: 'new.md',
       bytesWritten: 0,
+      savedAt: expect.any(String),
     });
     await expect(createDocument(file, 'new.md')).rejects.toMatchObject({
       code: 'EEXIST',
