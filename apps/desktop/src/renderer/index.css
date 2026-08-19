@@ -149,6 +149,97 @@ input:focus-visible {
   color: #dbeafe;
 }
 
+.dialog-backdrop {
+  position: fixed;
+  z-index: 10;
+  inset: 0;
+  display: grid;
+  place-items: start center;
+  padding: 6rem 1rem 1rem;
+  background: rgb(3 8 18 / 72%);
+}
+
+.command-dialog {
+  display: grid;
+  gap: 1rem;
+  width: min(36rem, 100%);
+  max-height: calc(100vh - 8rem);
+  overflow: auto;
+  border: 1px solid #3a4b66;
+  border-radius: 0.7rem;
+  padding: 1rem;
+  background: #101a2a;
+  box-shadow: 0 1.25rem 3rem rgb(0 0 0 / 35%);
+}
+
+.command-item,
+.link-result {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  border: 1px solid #3a4b66;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  background: #17263b;
+  color: #e7edf5;
+  cursor: pointer;
+  text-align: left;
+}
+
+.command-item:hover,
+.command-item:focus-visible,
+.link-result:hover,
+.link-result:focus-visible {
+  border-color: #7dd3fc;
+}
+
+.command-item span,
+.link-result span,
+.link-result small {
+  color: #aebed1;
+}
+
+.link-search-form {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.link-search-form label {
+  color: #aebed1;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.link-search-form__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+}
+
+.dialog-message {
+  margin: 0;
+  color: #aebed1;
+}
+
+.dialog-message--error {
+  color: #fecaca;
+}
+
+.link-results {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.link-result span,
+.link-result small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .workspace-state,
 .preview-empty {
   align-self: center;

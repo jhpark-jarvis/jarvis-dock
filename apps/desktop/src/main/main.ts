@@ -18,13 +18,19 @@ import { registerWorkspaceHandlers } from './workspace-handlers';
 import { createMainWindowOptions } from './window-options';
 
 const getRendererUrl = (): string => {
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    return new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).toString();
+  const rendererUrl = MAIN_WINDOW_VITE_DEV_SERVER_URL
+    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).toString()
+    : pathToFileURL(
+        path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
+      ).toString();
+
+  if (process.argv.includes('--dock-e2e-link')) {
+    const url = new URL(rendererUrl);
+    url.searchParams.set('e2e', 'link');
+    return url.toString();
   }
 
-  return pathToFileURL(
-    path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-  ).toString();
+  return rendererUrl;
 };
 
 const configureRendererSecurity = (

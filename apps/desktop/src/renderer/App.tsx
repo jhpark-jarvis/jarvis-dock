@@ -1,6 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import type { WorkspaceFile } from '../shared/ipc';
+import {
+  formatMarkdownLink,
+  insertMarkdownLink,
+  mockLinkProvider,
+  type LinkSearchResult,
+} from './link-search';
 import { renderMarkdownPreview } from './markdown-preview';
 
 export type ShellState = 'empty' | 'error' | 'loading';
@@ -37,6 +43,7 @@ const WorkspaceState = ({ state }: Required<AppProps>) => {
 };
 
 const App = ({ state: initialState = 'empty' }: AppProps) => {
+  const editorRef = useRef<HTMLTextAreaElement>(null);
   const [state, setState] = useState<ShellState>(initialState);
   const [workspaceId, setWorkspaceId] = useState<string>();
   const [workspaceName, setWorkspaceName] = useState<string>();
@@ -45,9 +52,26 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [content, setContent] = useState('');
   const [savedContent, setSavedContent] = useState('');
   const [newDocumentPath, setNewDocumentPath] = useState('untitled.md');
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [linkQuery, setLinkQuery] = useState('');
+  const [linkStatus, setLinkStatus] = useState<
+    'idle' | 'search' | 'loading' | 'results' | 'empty' | 'error'
+  >('idle');
+  const [linkResults, setLinkResults] = useState<LinkSearchResult[]>([]);
+  const [linkError, setLinkError] = useState('');
+  const [linkSelection, setLinkSelection] = useState({ start: 0, end: 0 });
 
   useEffect(() => {
     setState(initialState);
+    if (new URLSearchParams(window.location.search).get('e2e') !== 'link') {
+      return;
+    }
+    setWorkspaceId('11111111-1111-4111-8111-111111111111');
+    setWorkspaceName('fixture');
+    setFiles([{ relativePath: 'guide.md', displayName: 'guide.md' }]);
+    setSelectedPath('guide.md');
+    setContent('# Start');
+    setSavedContent('# Start');
   }, [initialState]);
 
   const refreshFiles = async (nextWorkspaceId: string) => {
@@ -131,6 +155,67 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const dirty = content !== savedContent;
   const previewHtml = selectedPath ? renderMarkdownPreview(content) : '';
 
+  const openCommandPalette = () => {
+    const editor = editorRef.current;
+    setLinkSelection({
+      start: editor?.selectionStart ?? content.length,
+      end: editor?.selectionEnd ?? content.length,
+    });
+    setLinkQuery('');
+    setLinkResults([]);
+    setLinkError('');
+    setLinkStatus('idle');
+    setCommandPaletteOpen(true);
+  };
+
+  const closeCommandPalette = () => {
+    setCommandPaletteOpen(false);
+    setLinkQuery('');
+    setLinkResults([]);
+    setLinkError('');
+    setLinkStatus('idle');
+  };
+
+  const searchLinks = async () => {
+    setLinkStatus('loading');
+    setLinkError('');
+    try {
+      const results = await mockLinkProvider.search(linkQuery);
+      setLinkResults(results);
+      setLinkStatus(results.length > 0 ? 'results' : 'empty');
+    } catch {
+      setLinkResults([]);
+      setLinkError('링크 검색에 실패했습니다. 다시 시도해 주세요.');
+      setLinkStatus('error');
+    }
+  };
+
+  const selectLinkResult = (result: LinkSearchResult) => {
+    if (!selectedPath) {
+      setLinkError('먼저 Markdown 문서를 선택해 주세요.');
+      setLinkStatus('error');
+      return;
+    }
+    try {
+      const nextContent = insertMarkdownLink(
+        content,
+        result,
+        linkSelection.start,
+        linkSelection.end,
+      );
+      setContent(nextContent);
+      closeCommandPalette();
+      const cursor = linkSelection.start + formatMarkdownLink(result).length;
+      requestAnimationFrame(() => {
+        editorRef.current?.focus();
+        editorRef.current?.setSelectionRange(cursor, cursor);
+      });
+    } catch {
+      setLinkError('허용되지 않은 URL이라 링크를 삽입할 수 없습니다.');
+      setLinkStatus('error');
+    }
+  };
+
   const handlePreviewClick = (event: MouseEvent<HTMLElement>) => {
     const target = (event.target as HTMLElement).closest<HTMLElement>(
       '[data-dock-document]',
@@ -153,10 +238,120 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
           <p className="app-header__eyebrow">JARVIS</p>
           <h1 className="app-header__title">Dock</h1>
         </div>
-        <button className="button button--quiet" type="button">
+        <button
+          className="button button--quiet"
+          type="button"
+          onClick={openCommandPalette}
+        >
           명령 팔레트 열기
         </button>
       </header>
+
+      {commandPaletteOpen && (
+        <div className="dialog-backdrop">
+          <section
+            className="command-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="command-dialog-title"
+          >
+            <div className="panel-heading">
+              <div>
+                <p className="panel-heading__eyebrow">COMMAND PALETTE</p>
+                <h2 id="command-dialog-title">명령 팔레트</h2>
+              </div>
+              <button
+                className="button button--quiet"
+                type="button"
+                onClick={closeCommandPalette}
+              >
+                닫기
+              </button>
+            </div>
+
+            {linkStatus === 'idle' ? (
+              <button
+                className="command-item"
+                type="button"
+                onClick={() => {
+                  setLinkStatus('search');
+                  setLinkQuery('');
+                }}
+              >
+                <strong>/link</strong>
+                <span>웹 링크 검색 및 삽입</span>
+              </button>
+            ) : (
+              <form
+                className="link-search-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void searchLinks();
+                }}
+              >
+                <label htmlFor="link-search-query">링크 검색어</label>
+                <div className="link-search-form__row">
+                  <input
+                    id="link-search-query"
+                    className="workspace-create__input"
+                    value={linkQuery}
+                    onChange={(event) => setLinkQuery(event.target.value)}
+                    placeholder="예: electron"
+                    autoFocus
+                  />
+                  <button
+                    className="button button--primary"
+                    type="submit"
+                    disabled={linkStatus === 'loading'}
+                  >
+                    검색
+                  </button>
+                </div>
+                <button
+                  className="button button--quiet"
+                  type="button"
+                  onClick={closeCommandPalette}
+                >
+                  취소
+                </button>
+              </form>
+            )}
+
+            {linkStatus === 'loading' && (
+              <p className="dialog-message" role="status">
+                링크를 검색하고 있습니다.
+              </p>
+            )}
+            {linkStatus === 'empty' && (
+              <p className="dialog-message" role="status">
+                검색 결과가 없습니다.
+              </p>
+            )}
+            {linkStatus === 'error' && (
+              <p className="dialog-message dialog-message--error" role="alert">
+                {linkError}
+              </p>
+            )}
+            {linkStatus === 'results' && (
+              <ul className="link-results" aria-label="링크 검색 결과">
+                {linkResults.map((result) => (
+                  <li key={result.url}>
+                    <button
+                      className="link-result"
+                      type="button"
+                      onClick={() => selectLinkResult(result)}
+                    >
+                      <strong>{result.title}</strong>
+                      <span>{result.url}</span>
+                      <small>{result.source}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      )}
 
       <div className="workspace-layout">
         <aside className="workspace-sidebar" aria-labelledby="workspace-title">
@@ -234,6 +429,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             </button>
           </div>
           <textarea
+            ref={editorRef}
             aria-label="Markdown 편집기"
             className="markdown-editor"
             placeholder="문서를 선택하거나 새 Markdown을 작성하세요."

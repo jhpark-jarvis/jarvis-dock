@@ -6,13 +6,13 @@ const desktopDirectory = path.resolve(__dirname, '../..');
 const electronExecutablePath =
   electronExecutablePathModule as unknown as string;
 
-const launchDock = () => {
+const launchDock = (extraArgs: string[] = []) => {
   const environment = { ...process.env };
   delete environment.ELECTRON_RUN_AS_NODE;
 
   return electron.launch({
     executablePath: electronExecutablePath,
-    args: ['.'],
+    args: ['.', ...extraArgs],
     cwd: desktopDirectory,
     env: environment,
   });
@@ -72,6 +72,28 @@ test('Dock blocks navigation away from the approved Renderer URL', async () => {
 
     expect(currentUrl).toBe(initialUrl);
     expect(await app.windows()).toHaveLength(1);
+  } finally {
+    await app.close();
+  }
+});
+
+test('Dock completes the mock /link search and insertion flow', async () => {
+  const app = await launchDock(['--dock-e2e-link']);
+
+  try {
+    const page = await app.firstWindow();
+    const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
+    await expect(editor).toHaveValue('# Start');
+
+    await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
+    await page.getByRole('button', { name: /\/link/ }).click();
+    await page.getByRole('textbox', { name: '링크 검색어' }).fill('electron');
+    await page.getByRole('button', { name: '검색' }).click();
+    await page.getByRole('button', { name: /Electron Security/ }).click();
+
+    await expect(editor).toHaveValue(
+      '# Start[Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)',
+    );
   } finally {
     await app.close();
   }
