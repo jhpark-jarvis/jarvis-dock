@@ -7,6 +7,7 @@ import {
   mockLinkProvider,
   type LinkSearchResult,
 } from './link-search';
+import { mockImageProvider, type ImageSearchResult } from './image-search';
 import { renderMarkdownPreview } from './markdown-preview';
 
 export type ShellState = 'empty' | 'error' | 'loading';
@@ -53,6 +54,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [savedContent, setSavedContent] = useState('');
   const [newDocumentPath, setNewDocumentPath] = useState('untitled.md');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [activeCommand, setActiveCommand] = useState<'link' | 'image'>();
   const [linkQuery, setLinkQuery] = useState('');
   const [linkApiKey, setLinkApiKey] = useState('');
   const [linkStatus, setLinkStatus] = useState<
@@ -61,10 +63,18 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [linkResults, setLinkResults] = useState<LinkSearchResult[]>([]);
   const [linkError, setLinkError] = useState('');
   const [linkSelection, setLinkSelection] = useState({ start: 0, end: 0 });
+  const [imageQuery, setImageQuery] = useState('');
+  const [imageStatus, setImageStatus] = useState<
+    'idle' | 'search' | 'loading' | 'results' | 'empty' | 'error' | 'selected'
+  >('idle');
+  const [imageResults, setImageResults] = useState<ImageSearchResult[]>([]);
+  const [imageError, setImageError] = useState('');
+  const [selectedImage, setSelectedImage] = useState<ImageSearchResult>();
 
   useEffect(() => {
     setState(initialState);
-    if (new URLSearchParams(window.location.search).get('e2e') !== 'link') {
+    const e2eMode = new URLSearchParams(window.location.search).get('e2e');
+    if (e2eMode !== 'link' && e2eMode !== 'image') {
       return;
     }
     setWorkspaceId('11111111-1111-4111-8111-111111111111');
@@ -163,19 +173,31 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       end: editor?.selectionEnd ?? content.length,
     });
     setLinkQuery('');
+    setImageQuery('');
+    setActiveCommand(undefined);
     setLinkResults([]);
     setLinkError('');
     setLinkStatus('idle');
+    setImageResults([]);
+    setImageError('');
+    setImageStatus('idle');
+    setSelectedImage(undefined);
     setCommandPaletteOpen(true);
   };
 
   const closeCommandPalette = () => {
     setCommandPaletteOpen(false);
+    setActiveCommand(undefined);
     setLinkQuery('');
     setLinkApiKey('');
     setLinkResults([]);
     setLinkError('');
     setLinkStatus('idle');
+    setImageQuery('');
+    setImageResults([]);
+    setImageError('');
+    setImageStatus('idle');
+    setSelectedImage(undefined);
   };
 
   const searchLinks = async () => {
@@ -245,6 +267,26 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     }
   };
 
+  const searchImages = async () => {
+    setImageStatus('loading');
+    setImageError('');
+    setSelectedImage(undefined);
+    try {
+      const results = await mockImageProvider.search(imageQuery);
+      setImageResults(results);
+      setImageStatus(results.length > 0 ? 'results' : 'empty');
+    } catch {
+      setImageResults([]);
+      setImageError('이미지 검색에 실패했습니다. 다시 시도해 주세요.');
+      setImageStatus('error');
+    }
+  };
+
+  const selectImageResult = (result: ImageSearchResult) => {
+    setSelectedImage(result);
+    setImageStatus('selected');
+  };
+
   const handlePreviewClick = (event: MouseEvent<HTMLElement>) => {
     const target = (event.target as HTMLElement).closest<HTMLElement>(
       '[data-dock-document]',
@@ -298,19 +340,34 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               </button>
             </div>
 
-            {linkStatus === 'idle' ? (
-              <button
-                className="command-item"
-                type="button"
-                onClick={() => {
-                  setLinkStatus('search');
-                  setLinkQuery('');
-                }}
-              >
-                <strong>/link</strong>
-                <span>웹 링크 검색 및 삽입</span>
-              </button>
-            ) : (
+            {!activeCommand ? (
+              <div className="command-list">
+                <button
+                  className="command-item"
+                  type="button"
+                  onClick={() => {
+                    setActiveCommand('link');
+                    setLinkStatus('search');
+                    setLinkQuery('');
+                  }}
+                >
+                  <strong>/link</strong>
+                  <span>웹 링크 검색 및 삽입</span>
+                </button>
+                <button
+                  className="command-item"
+                  type="button"
+                  onClick={() => {
+                    setActiveCommand('image');
+                    setImageStatus('search');
+                    setImageQuery('');
+                  }}
+                >
+                  <strong>/image</strong>
+                  <span>이미지 검색 및 삽입</span>
+                </button>
+              </div>
+            ) : activeCommand === 'link' ? (
               <form
                 className="link-search-form"
                 onSubmit={(event) => {
@@ -357,24 +414,58 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   취소
                 </button>
               </form>
+            ) : (
+              <form
+                className="link-search-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void searchImages();
+                }}
+              >
+                <label htmlFor="image-search-query">이미지 검색어</label>
+                <div className="link-search-form__row">
+                  <input
+                    id="image-search-query"
+                    className="workspace-create__input"
+                    value={imageQuery}
+                    onChange={(event) => setImageQuery(event.target.value)}
+                    placeholder="예: electron"
+                    autoFocus
+                  />
+                  <button
+                    className="button button--primary"
+                    type="submit"
+                    disabled={imageStatus === 'loading'}
+                  >
+                    검색
+                  </button>
+                </div>
+                <button
+                  className="button button--quiet"
+                  type="button"
+                  onClick={closeCommandPalette}
+                >
+                  취소
+                </button>
+              </form>
             )}
 
-            {linkStatus === 'loading' && (
+            {activeCommand === 'link' && linkStatus === 'loading' && (
               <p className="dialog-message" role="status">
                 링크를 검색하고 있습니다.
               </p>
             )}
-            {linkStatus === 'empty' && (
+            {activeCommand === 'link' && linkStatus === 'empty' && (
               <p className="dialog-message" role="status">
                 검색 결과가 없습니다.
               </p>
             )}
-            {linkStatus === 'error' && (
+            {activeCommand === 'link' && linkStatus === 'error' && (
               <p className="dialog-message dialog-message--error" role="alert">
                 {linkError}
               </p>
             )}
-            {linkStatus === 'results' && (
+            {activeCommand === 'link' && linkStatus === 'results' && (
               <ul className="link-results" aria-label="링크 검색 결과">
                 {linkResults.map((result) => (
                   <li key={result.url}>
@@ -386,6 +477,46 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                       <strong>{result.title}</strong>
                       <span>{result.url}</span>
                       <small>{result.source}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {activeCommand === 'image' && imageStatus === 'loading' && (
+              <p className="dialog-message" role="status">
+                이미지를 검색하고 있습니다.
+              </p>
+            )}
+            {activeCommand === 'image' && imageStatus === 'empty' && (
+              <p className="dialog-message" role="status">
+                이미지 검색 결과가 없습니다.
+              </p>
+            )}
+            {activeCommand === 'image' && imageStatus === 'error' && (
+              <p className="dialog-message dialog-message--error" role="alert">
+                {imageError}
+              </p>
+            )}
+            {activeCommand === 'image' &&
+              imageStatus === 'selected' &&
+              selectedImage && (
+                <p className="dialog-message" role="status">
+                  {selectedImage.title}을(를) 선택했습니다. 다운로드 기능은 다음
+                  단계에서 연결합니다.
+                </p>
+              )}
+            {activeCommand === 'image' && imageStatus === 'results' && (
+              <ul className="image-results" aria-label="이미지 검색 결과">
+                {imageResults.map((result) => (
+                  <li key={result.id}>
+                    <button
+                      className="image-result"
+                      type="button"
+                      onClick={() => selectImageResult(result)}
+                    >
+                      <strong>{result.title}</strong>
+                      <span>{result.source}</span>
+                      <small>{result.license}</small>
                     </button>
                   </li>
                 ))}

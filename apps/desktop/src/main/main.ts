@@ -25,9 +25,14 @@ const getRendererUrl = (): string => {
         path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
       ).toString();
 
-  if (process.argv.includes('--dock-e2e-link')) {
+  const e2eMode = process.argv.includes('--dock-e2e-link')
+    ? 'link'
+    : process.argv.includes('--dock-e2e-image')
+      ? 'image'
+      : undefined;
+  if (e2eMode) {
     const url = new URL(rendererUrl);
-    url.searchParams.set('e2e', 'link');
+    url.searchParams.set('e2e', e2eMode);
     return url.toString();
   }
 

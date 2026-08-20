@@ -103,3 +103,28 @@ test('Dock completes the mock /link search and insertion flow', async () => {
     await app.close();
   }
 });
+
+test('Dock completes the mock /image search and keeps the document unchanged', async () => {
+  const app = await launchDock(['--dock-e2e-image']);
+
+  try {
+    const page = await app.firstWindow();
+    const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
+    await expect(editor).toHaveValue('# Start');
+
+    await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
+    await page.getByRole('button', { name: /\/image/ }).click();
+    await page.getByRole('textbox', { name: '이미지 검색어' }).fill('electron');
+    await page.getByRole('button', { name: '검색' }).click();
+    await page
+      .getByRole('button', { name: /Electron process model/ })
+      .click();
+
+    await expect(page.getByRole('status')).toContainText(
+      '다운로드 기능은 다음 단계에서 연결합니다.',
+    );
+    await expect(editor).toHaveValue('# Start');
+  } finally {
+    await app.close();
+  }
+});

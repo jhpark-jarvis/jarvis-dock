@@ -173,7 +173,8 @@ input:focus-visible {
 }
 
 .command-item,
-.link-result {
+.link-result,
+.image-result {
   display: grid;
   gap: 0.25rem;
   width: 100%;
@@ -189,13 +190,17 @@ input:focus-visible {
 .command-item:hover,
 .command-item:focus-visible,
 .link-result:hover,
-.link-result:focus-visible {
+.link-result:focus-visible,
+.image-result:hover,
+.image-result:focus-visible {
   border-color: #7dd3fc;
 }
 
 .command-item span,
 .link-result span,
-.link-result small {
+.link-result small,
+.image-result span,
+.image-result small {
   color: #aebed1;
 }
 
@@ -233,8 +238,19 @@ input:focus-visible {
   padding: 0;
 }
 
+.command-list,
+.image-results {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 .link-result span,
-.link-result small {
+.link-result small,
+.image-result span,
+.image-result small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

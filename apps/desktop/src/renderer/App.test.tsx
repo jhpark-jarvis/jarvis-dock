@@ -161,4 +161,55 @@ describe('App', () => {
       '# Today\nEdited[Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)',
     );
   });
+
+  it('searches mock images and keeps the document unchanged before download', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [{ relativePath: 'today.md', displayName: 'today.md' }],
+            },
+          }),
+        },
+        document: {
+          read: async () => ({
+            ok: true as const,
+            value: { relativePath: 'today.md', content: '# Today' },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    await user.click(await screen.findByRole('button', { name: 'today.md' }));
+    await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
+    await user.click(screen.getByRole('button', { name: /\/image/ }));
+    await user.type(
+      screen.getByRole('textbox', { name: '이미지 검색어' }),
+      'electron',
+    );
+    await user.click(screen.getByRole('button', { name: '검색' }));
+    await user.click(
+      await screen.findByRole('button', { name: /Electron process model/ }),
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '다운로드 기능은 다음 단계에서 연결합니다.',
+    );
+    expect(
+      screen.getByRole('textbox', { name: 'Markdown 편집기' }),
+    ).toHaveValue('# Today');
+  });
 });
