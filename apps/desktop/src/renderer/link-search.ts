@@ -1,3 +1,7 @@
+import { isAllowedLinkUrl } from '../shared/link';
+
+export { isAllowedLinkUrl } from '../shared/link';
+
 export interface LinkSearchResult {
   title: string;
   url: string;
@@ -30,15 +34,6 @@ const MOCK_LINK_RESULTS: LinkSearchResult[] = [
     source: 'CommonMark',
   },
 ];
-
-export const isAllowedLinkUrl = (value: string): boolean => {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-};
 
 export const escapeMarkdownLinkText = (value: string): string =>
   value.replace(/[\\[\]]/g, '\\$&');

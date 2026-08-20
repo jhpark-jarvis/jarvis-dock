@@ -41,7 +41,12 @@ test('Dock starts with a narrow preload API and no Renderer Node.js globals', as
     });
 
     expect(await app.windows()).toHaveLength(1);
-    expect(rendererState.dockKeys).toEqual(['system', 'workspace', 'document']);
+    expect(rendererState.dockKeys).toEqual([
+      'system',
+      'workspace',
+      'document',
+      'search',
+    ]);
     expect(rendererState.health).toEqual({ ok: true, value: { status: 'ok' } });
     expect(rendererState.version).toEqual({
       ok: true,

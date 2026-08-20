@@ -14,6 +14,7 @@ import {
   withContentSecurityPolicy,
 } from './security';
 import { registerSystemHandlers } from './system-handlers';
+import { registerLinkSearchHandlers } from './link-search-handlers';
 import { registerWorkspaceHandlers } from './workspace-handlers';
 import { createMainWindowOptions } from './window-options';
 
@@ -84,6 +85,11 @@ const registerIpcHandlers = () => {
   registerWorkspaceHandlers({
     ipcMain,
     dialog,
+    isTrustedSender: (senderUrl) =>
+      isTrustedRendererUrl(senderUrl, getRendererUrl()),
+  });
+  registerLinkSearchHandlers({
+    ipcMain,
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
   });

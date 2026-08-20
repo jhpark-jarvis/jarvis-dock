@@ -30,4 +30,28 @@ describe('createDockApi', () => {
     });
     expect(invoke).toHaveBeenCalledWith(IPC.SYSTEM_VERSION, {});
   });
+
+  it('validates and invokes the fixed link search channel', async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        results: [
+          {
+            title: 'Electron',
+            url: 'https://www.electronjs.org',
+            source: 'Electron documentation',
+          },
+        ],
+      },
+    });
+    const dock = createDockApi({ invoke });
+
+    await expect(
+      dock.search.links({ query: 'electron', apiKey: 'key' }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(invoke).toHaveBeenCalledWith(IPC.SEARCH_LINKS, {
+      query: 'electron',
+      apiKey: 'key',
+    });
+  });
 });

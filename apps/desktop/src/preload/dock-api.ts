@@ -9,6 +9,8 @@ import {
   DocumentRequestSchema,
   DocumentResultSchema,
   DocumentWriteRequestSchema,
+  LinkSearchRequestSchema,
+  LinkSearchResultEnvelopeSchema,
   WorkspaceChooseResultSchema,
   WorkspaceFilesResultSchema,
   WorkspaceRequestSchema,
@@ -17,6 +19,7 @@ import {
   type WorkspaceChooseResult,
   type WorkspaceFilesResult,
   type WriteResultEnvelope,
+  type LinkSearchResultEnvelope,
 } from '../shared/ipc';
 
 export interface IpcInvoker {
@@ -108,6 +111,25 @@ const invokeDocumentWrite = async (
   return result.success ? result.data : { ok: false, error: internalError() };
 };
 
+const invokeLinkSearch = async (
+  ipcRenderer: IpcInvoker,
+  request: unknown,
+): Promise<LinkSearchResultEnvelope> => {
+  const parsed = LinkSearchRequestSchema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = LinkSearchResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(IPC.SEARCH_LINKS, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
 export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
   system: {
     health: () => invokeHealth(ipcRenderer),
@@ -138,5 +160,8 @@ export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
     },
     write: (request) =>
       invokeDocumentWrite(ipcRenderer, IPC.DOCUMENT_WRITE, request),
+  },
+  search: {
+    links: (request) => invokeLinkSearch(ipcRenderer, request),
   },
 });

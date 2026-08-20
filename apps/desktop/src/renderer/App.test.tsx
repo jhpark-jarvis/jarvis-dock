@@ -96,6 +96,20 @@ describe('App', () => {
           create,
           write,
         },
+        search: {
+          links: async () => ({
+            ok: true as const,
+            value: {
+              results: [
+                {
+                  title: 'Electron Security',
+                  url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+                  source: 'Electron documentation',
+                },
+              ],
+            },
+          }),
+        },
       },
     });
     const user = userEvent.setup();
@@ -125,12 +139,14 @@ describe('App', () => {
     ).toBeDisabled();
     await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
     await user.click(screen.getByRole('button', { name: /\/link/ }));
+    await user.type(screen.getByLabelText('Brave Search API key'), 'test-key');
     await user.click(screen.getByRole('button', { name: '취소' }));
     expect(
       screen.getByRole('textbox', { name: 'Markdown 편집기' }),
     ).toHaveValue('# Today\nEdited');
     await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
     await user.click(screen.getByRole('button', { name: /\/link/ }));
+    await user.type(screen.getByLabelText('Brave Search API key'), 'test-key');
     await user.type(
       screen.getByRole('textbox', { name: '링크 검색어' }),
       'electron',

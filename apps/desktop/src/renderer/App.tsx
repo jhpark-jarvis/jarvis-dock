@@ -54,6 +54,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [newDocumentPath, setNewDocumentPath] = useState('untitled.md');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [linkQuery, setLinkQuery] = useState('');
+  const [linkApiKey, setLinkApiKey] = useState('');
   const [linkStatus, setLinkStatus] = useState<
     'idle' | 'search' | 'loading' | 'results' | 'empty' | 'error'
   >('idle');
@@ -171,16 +172,44 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const closeCommandPalette = () => {
     setCommandPaletteOpen(false);
     setLinkQuery('');
+    setLinkApiKey('');
     setLinkResults([]);
     setLinkError('');
     setLinkStatus('idle');
   };
 
   const searchLinks = async () => {
+    const isE2eLink =
+      new URLSearchParams(window.location.search).get('e2e') === 'link';
+    if (!isE2eLink && !linkApiKey.trim()) {
+      setLinkError('Brave Search API key를 입력해 주세요.');
+      setLinkStatus('error');
+      return;
+    }
     setLinkStatus('loading');
     setLinkError('');
     try {
-      const results = await mockLinkProvider.search(linkQuery);
+      let results: LinkSearchResult[];
+      if (isE2eLink) {
+        results = await mockLinkProvider.search(linkQuery);
+      } else {
+        const response = await window.dock.search.links({
+          query: linkQuery,
+          apiKey: linkApiKey,
+        });
+        if (response.ok === false) {
+          setLinkError(
+            response.error.code === 'SEARCH_RATE_LIMITED'
+              ? '검색 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.'
+              : response.error.code === 'SEARCH_UNAVAILABLE'
+                ? '검색 공급자에 연결할 수 없습니다.'
+                : '링크 검색에 실패했습니다. API 키와 네트워크를 확인해 주세요.',
+          );
+          setLinkStatus('error');
+          return;
+        }
+        results = response.value.results;
+      }
       setLinkResults(results);
       setLinkStatus(results.length > 0 ? 'results' : 'empty');
     } catch {
@@ -290,6 +319,19 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                 }}
               >
                 <label htmlFor="link-search-query">링크 검색어</label>
+                <label htmlFor="link-search-api-key">
+                  Brave Search API key
+                </label>
+                <input
+                  id="link-search-api-key"
+                  className="workspace-create__input"
+                  type="password"
+                  value={linkApiKey}
+                  onChange={(event) => setLinkApiKey(event.target.value)}
+                  placeholder="Brave Search API key"
+                  autoComplete="off"
+                  aria-label="Brave Search API key"
+                />
                 <div className="link-search-form__row">
                   <input
                     id="link-search-query"

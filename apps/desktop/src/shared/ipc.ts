@@ -8,6 +8,7 @@ export const IPC = {
   DOCUMENT_READ: 'document:read',
   DOCUMENT_CREATE: 'document:create',
   DOCUMENT_WRITE: 'document:write',
+  SEARCH_LINKS: 'search:links',
 } as const;
 
 export const EmptyRequestSchema = z.object({}).strict();
@@ -24,6 +25,9 @@ export const DockErrorSchema = z
       'NOT_FOUND',
       'PERMISSION_DENIED',
       'WRITE_FAILED',
+      'SEARCH_FAILED',
+      'SEARCH_RATE_LIMITED',
+      'SEARCH_UNAVAILABLE',
       'INTERNAL',
     ]),
     message: z.string(),
@@ -120,6 +124,28 @@ export const DocumentRequestSchema = z
 export const DocumentWriteRequestSchema = DocumentRequestSchema.extend({
   content: z.string().max(5_000_000),
 }).strict();
+export const LinkSearchRequestSchema = z
+  .object({
+    query: z.string().trim().min(1).max(200),
+    apiKey: z.string().min(1).max(200),
+  })
+  .strict();
+export const LinkSearchResultSchema = z
+  .object({
+    title: z.string().min(1).max(500),
+    url: z.string().url().max(2048),
+    source: z.string().min(1).max(200),
+  })
+  .strict();
+export const LinkSearchResultEnvelopeSchema = z.discriminatedUnion('ok', [
+  z
+    .object({
+      ok: z.literal(true),
+      value: z.object({ results: z.array(LinkSearchResultSchema) }).strict(),
+    })
+    .strict(),
+  z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+]);
 
 export type DockError = z.infer<typeof DockErrorSchema>;
 export type HealthResult = z.infer<typeof HealthResultSchema>;
@@ -132,6 +158,10 @@ export type WorkspaceChooseResult = z.infer<typeof WorkspaceChooseResultSchema>;
 export type WorkspaceFilesResult = z.infer<typeof WorkspaceFilesResultSchema>;
 export type DocumentResult = z.infer<typeof DocumentResultSchema>;
 export type WriteResultEnvelope = z.infer<typeof WriteResultEnvelopeSchema>;
+export type LinkSearchResult = z.infer<typeof LinkSearchResultSchema>;
+export type LinkSearchResultEnvelope = z.infer<
+  typeof LinkSearchResultEnvelopeSchema
+>;
 
 export interface DockApi {
   system: {
@@ -158,6 +188,12 @@ export interface DockApi {
       relativePath: string;
       content: string;
     }) => Promise<WriteResultEnvelope>;
+  };
+  search: {
+    links: (request: {
+      query: string;
+      apiKey: string;
+    }) => Promise<LinkSearchResultEnvelope>;
   };
 }
 
