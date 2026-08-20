@@ -9,6 +9,7 @@ export const IPC = {
   DOCUMENT_CREATE: 'document:create',
   DOCUMENT_WRITE: 'document:write',
   SEARCH_LINKS: 'search:links',
+  IMAGE_DOWNLOAD: 'image:download',
 } as const;
 
 export const EmptyRequestSchema = z.object({}).strict();
@@ -28,6 +29,10 @@ export const DockErrorSchema = z
       'SEARCH_FAILED',
       'SEARCH_RATE_LIMITED',
       'SEARCH_UNAVAILABLE',
+      'IMAGE_DOWNLOAD_FAILED',
+      'IMAGE_TOO_LARGE',
+      'IMAGE_UNSUPPORTED',
+      'IMAGE_UNAVAILABLE',
       'INTERNAL',
     ]),
     message: z.string(),
@@ -147,6 +152,36 @@ export const LinkSearchResultEnvelopeSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
 ]);
 
+export const ImageSearchResultSchema = z
+  .object({
+    id: z.string().min(1).max(200),
+    title: z.string().min(1).max(500),
+    sourcePageUrl: z.string().url().max(2048),
+    thumbnailUrl: z.string().url().max(2048),
+    downloadUrl: z.string().url().max(2048),
+    source: z.string().min(1).max(200),
+    license: z.string().max(200).optional(),
+  })
+  .strict();
+export const ImageDownloadRequestSchema = z
+  .object({
+    workspaceId: WorkspaceIdSchema,
+    relativePath: RelativeMarkdownPathSchema,
+    image: ImageSearchResultSchema,
+  })
+  .strict();
+export const ImageDownloadResultSchema = z
+  .object({
+    assetPath: RelativeMarkdownPathSchema,
+    bytesWritten: z.number().int().positive(),
+    mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+  })
+  .strict();
+export const ImageDownloadResultEnvelopeSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), value: ImageDownloadResultSchema }).strict(),
+  z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+]);
+
 export type DockError = z.infer<typeof DockErrorSchema>;
 export type HealthResult = z.infer<typeof HealthResultSchema>;
 export type VersionResult = z.infer<typeof VersionResultSchema>;
@@ -161,6 +196,12 @@ export type WriteResultEnvelope = z.infer<typeof WriteResultEnvelopeSchema>;
 export type LinkSearchResult = z.infer<typeof LinkSearchResultSchema>;
 export type LinkSearchResultEnvelope = z.infer<
   typeof LinkSearchResultEnvelopeSchema
+>;
+export type ImageSearchResult = z.infer<typeof ImageSearchResultSchema>;
+export type ImageDownloadRequest = z.infer<typeof ImageDownloadRequestSchema>;
+export type ImageDownloadResult = z.infer<typeof ImageDownloadResultSchema>;
+export type ImageDownloadResultEnvelope = z.infer<
+  typeof ImageDownloadResultEnvelopeSchema
 >;
 
 export interface DockApi {
@@ -194,6 +235,11 @@ export interface DockApi {
       query: string;
       apiKey: string;
     }) => Promise<LinkSearchResultEnvelope>;
+  };
+  image: {
+    download: (
+      request: ImageDownloadRequest,
+    ) => Promise<ImageDownloadResultEnvelope>;
   };
 }
 

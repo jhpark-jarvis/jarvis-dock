@@ -162,7 +162,7 @@ describe('App', () => {
     );
   });
 
-  it('searches mock images and keeps the document unchanged before download', async () => {
+  it('downloads a selected mock image before inserting its relative Markdown path', async () => {
     const user = userEvent.setup();
     Object.defineProperty(window, 'dock', {
       configurable: true,
@@ -188,6 +188,16 @@ describe('App', () => {
             value: { relativePath: 'today.md', content: '# Today' },
           }),
         },
+        image: {
+          download: async () => ({
+            ok: true as const,
+            value: {
+              assetPath: 'assets/electron-process-model.png',
+              bytesWritten: 8,
+              mimeType: 'image/png' as const,
+            },
+          }),
+        },
       },
     });
     render(<App />);
@@ -206,10 +216,16 @@ describe('App', () => {
     );
 
     expect(screen.getByRole('status')).toHaveTextContent(
-      '다운로드 기능은 다음 단계에서 연결합니다.',
+      'Electron process model을(를) 선택했습니다.',
     );
     expect(
       screen.getByRole('textbox', { name: 'Markdown 편집기' }),
     ).toHaveValue('# Today');
+    await user.click(screen.getByRole('button', { name: '다운로드 및 삽입' }));
+    expect(
+      screen.getByRole('textbox', { name: 'Markdown 편집기' }),
+    ).toHaveValue(
+      '# Today![Electron process model](./assets/electron-process-model.png)',
+    );
   });
 });

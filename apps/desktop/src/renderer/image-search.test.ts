@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createMockImageProvider } from './image-search';
+import {
+  createMockImageProvider,
+  formatMarkdownImage,
+  insertMarkdownImage,
+} from './image-search';
 
 describe('mock image search provider', () => {
   it('returns image metadata for a matching query', async () => {
@@ -24,5 +28,21 @@ describe('mock image search provider', () => {
     await expect(provider.search('error')).rejects.toThrow(
       'The mock image provider failed.',
     );
+  });
+
+  it('formats a safe relative Markdown image after download', () => {
+    expect(formatMarkdownImage('A [diagram]', 'assets/diagram.png')).toBe(
+      '![A \\[diagram\\]](./assets/diagram.png)',
+    );
+    expect(
+      insertMarkdownImage(
+        'before after',
+        'diagram',
+        'assets/diagram.png',
+        7,
+        12,
+      ),
+    ).toBe('before ![diagram](./assets/diagram.png)');
+    expect(() => formatMarkdownImage('diagram', '../outside.png')).toThrow();
   });
 });

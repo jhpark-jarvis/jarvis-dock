@@ -54,4 +54,34 @@ describe('createDockApi', () => {
       apiKey: 'key',
     });
   });
+
+  it('validates and invokes the fixed image download channel', async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        assetPath: 'assets/electron-process-model.png',
+        bytesWritten: 8,
+        mimeType: 'image/png',
+      },
+    });
+    const dock = createDockApi({ invoke });
+    const request = {
+      workspaceId: '11111111-1111-4111-8111-111111111111',
+      relativePath: 'guide.md',
+      image: {
+        id: 'image-1',
+        title: 'Electron Process Model',
+        sourcePageUrl: 'https://example.com/source',
+        thumbnailUrl: 'https://images.example.test/thumb.png',
+        downloadUrl: 'https://images.example.test/process.png',
+        source: 'Example',
+        license: 'Mock',
+      },
+    };
+
+    await expect(dock.image.download(request)).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(invoke).toHaveBeenCalledWith(IPC.IMAGE_DOWNLOAD, request);
+  });
 });

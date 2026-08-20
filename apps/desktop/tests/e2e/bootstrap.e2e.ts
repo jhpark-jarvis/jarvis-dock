@@ -46,6 +46,7 @@ test('Dock starts with a narrow preload API and no Renderer Node.js globals', as
       'workspace',
       'document',
       'search',
+      'image',
     ]);
     expect(rendererState.health).toEqual({ ok: true, value: { status: 'ok' } });
     expect(rendererState.version).toEqual({
@@ -121,8 +122,11 @@ test('Dock completes the mock /image search and keeps the document unchanged', a
       .click();
 
     await expect(page.getByRole('status')).toContainText(
-      '다운로드 기능은 다음 단계에서 연결합니다.',
+      'Electron process model을(를) 선택했습니다.',
     );
+    await expect(
+      page.getByRole('button', { name: '다운로드 및 삽입' }),
+    ).toBeVisible();
     await expect(editor).toHaveValue('# Start');
   } finally {
     await app.close();

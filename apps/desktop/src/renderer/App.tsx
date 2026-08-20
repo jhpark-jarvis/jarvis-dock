@@ -7,7 +7,12 @@ import {
   mockLinkProvider,
   type LinkSearchResult,
 } from './link-search';
-import { mockImageProvider, type ImageSearchResult } from './image-search';
+import {
+  formatMarkdownImage,
+  insertMarkdownImage,
+  mockImageProvider,
+  type ImageSearchResult,
+} from './image-search';
 import { renderMarkdownPreview } from './markdown-preview';
 
 export type ShellState = 'empty' | 'error' | 'loading';
@@ -70,6 +75,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [imageResults, setImageResults] = useState<ImageSearchResult[]>([]);
   const [imageError, setImageError] = useState('');
   const [selectedImage, setSelectedImage] = useState<ImageSearchResult>();
+  const [imageAltText, setImageAltText] = useState('');
 
   useEffect(() => {
     setState(initialState);
@@ -182,6 +188,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setImageError('');
     setImageStatus('idle');
     setSelectedImage(undefined);
+    setImageAltText('');
     setCommandPaletteOpen(true);
   };
 
@@ -198,6 +205,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setImageError('');
     setImageStatus('idle');
     setSelectedImage(undefined);
+    setImageAltText('');
   };
 
   const searchLinks = async () => {
@@ -284,7 +292,57 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
 
   const selectImageResult = (result: ImageSearchResult) => {
     setSelectedImage(result);
+    setImageAltText(result.title);
     setImageStatus('selected');
+  };
+
+  const downloadImage = async () => {
+    if (!workspaceId || !selectedPath || !selectedImage) {
+      setImageError('먼저 Markdown 문서를 선택해 주세요.');
+      setImageStatus('error');
+      return;
+    }
+    setImageStatus('loading');
+    setImageError('');
+    try {
+      const response = await window.dock.image.download({
+        workspaceId,
+        relativePath: selectedPath,
+        image: selectedImage,
+      });
+      if (response.ok === false) {
+        setImageError(
+          response.error.code === 'IMAGE_TOO_LARGE'
+            ? '이미지 파일이 너무 큽니다.'
+            : response.error.code === 'IMAGE_UNSUPPORTED'
+              ? '지원하지 않는 이미지 형식입니다.'
+              : response.error.code === 'IMAGE_UNAVAILABLE'
+                ? '이미지 공급자에 연결할 수 없습니다.'
+                : '이미지를 다운로드하거나 저장하지 못했습니다.',
+        );
+        setImageStatus('error');
+        return;
+      }
+      const altText = imageAltText.trim() || selectedImage.title;
+      const markdown = formatMarkdownImage(altText, response.value.assetPath);
+      const nextContent = insertMarkdownImage(
+        content,
+        altText,
+        response.value.assetPath,
+        linkSelection.start,
+        linkSelection.end,
+      );
+      setContent(nextContent);
+      closeCommandPalette();
+      const cursor = linkSelection.start + markdown.length;
+      requestAnimationFrame(() => {
+        editorRef.current?.focus();
+        editorRef.current?.setSelectionRange(cursor, cursor);
+      });
+    } catch {
+      setImageError('이미지를 다운로드하거나 저장하지 못했습니다.');
+      setImageStatus('error');
+    }
   };
 
   const handlePreviewClick = (event: MouseEvent<HTMLElement>) => {
@@ -500,10 +558,25 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             {activeCommand === 'image' &&
               imageStatus === 'selected' &&
               selectedImage && (
-                <p className="dialog-message" role="status">
-                  {selectedImage.title}을(를) 선택했습니다. 다운로드 기능은 다음
-                  단계에서 연결합니다.
-                </p>
+                <div className="image-download-form">
+                  <p className="dialog-message" role="status">
+                    {selectedImage.title}을(를) 선택했습니다.
+                  </p>
+                  <label htmlFor="image-alt-text">대체 텍스트</label>
+                  <input
+                    id="image-alt-text"
+                    className="workspace-create__input"
+                    value={imageAltText}
+                    onChange={(event) => setImageAltText(event.target.value)}
+                  />
+                  <button
+                    className="button button--primary"
+                    type="button"
+                    onClick={() => void downloadImage()}
+                  >
+                    다운로드 및 삽입
+                  </button>
+                </div>
               )}
             {activeCommand === 'image' && imageStatus === 'results' && (
               <ul className="image-results" aria-label="이미지 검색 결과">

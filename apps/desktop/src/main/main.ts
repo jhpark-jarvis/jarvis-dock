@@ -15,6 +15,7 @@ import {
 } from './security';
 import { registerSystemHandlers } from './system-handlers';
 import { registerLinkSearchHandlers } from './link-search-handlers';
+import { registerImageDownloadHandlers } from './image-download-handlers';
 import { registerWorkspaceHandlers } from './workspace-handlers';
 import { createMainWindowOptions } from './window-options';
 
@@ -95,6 +96,12 @@ const registerIpcHandlers = () => {
   });
   registerLinkSearchHandlers({
     ipcMain,
+    isTrustedSender: (senderUrl) =>
+      isTrustedRendererUrl(senderUrl, getRendererUrl()),
+  });
+  registerImageDownloadHandlers({
+    ipcMain,
+    allowedHosts: new Set(['images.example.test']),
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
   });

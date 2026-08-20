@@ -1,12 +1,6 @@
-export interface ImageSearchResult {
-  id: string;
-  title: string;
-  sourcePageUrl: string;
-  thumbnailUrl: string;
-  downloadUrl: string;
-  source: string;
-  license?: string;
-}
+import type { ImageSearchResult as SharedImageSearchResult } from '../shared/ipc';
+
+export type ImageSearchResult = SharedImageSearchResult;
 
 export interface ImageSearchProvider {
   search(query: string): Promise<ImageSearchResult[]>;
@@ -52,3 +46,34 @@ export const createMockImageProvider = (): ImageSearchProvider => ({
 });
 
 export const mockImageProvider = createMockImageProvider();
+
+export const escapeMarkdownImageAlt = (value: string): string =>
+  value.replace(/[\\[\]]/g, '\\$&');
+
+export const formatMarkdownImage = (
+  altText: string,
+  assetPath: string,
+): string => {
+  if (
+    !assetPath.startsWith('assets/') ||
+    assetPath.includes('..') ||
+    assetPath.includes('\\') ||
+    Array.from(assetPath).some((character) => character.charCodeAt(0) < 32)
+  ) {
+    throw new Error('Only safe workspace asset paths are allowed.');
+  }
+  return `![${escapeMarkdownImageAlt(altText)}](./${assetPath})`;
+};
+
+export const insertMarkdownImage = (
+  content: string,
+  altText: string,
+  assetPath: string,
+  selectionStart: number,
+  selectionEnd: number,
+): string => {
+  const start = Math.max(0, Math.min(selectionStart, content.length));
+  const end = Math.max(start, Math.min(selectionEnd, content.length));
+  const markdown = formatMarkdownImage(altText, assetPath);
+  return `${content.slice(0, start)}${markdown}${content.slice(end)}`;
+};
