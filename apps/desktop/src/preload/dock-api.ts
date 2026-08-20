@@ -13,6 +13,8 @@ import {
   LinkSearchResultEnvelopeSchema,
   ImageDownloadRequestSchema,
   ImageDownloadResultEnvelopeSchema,
+  ImageSearchRequestSchema,
+  ImageSearchResultEnvelopeSchema,
   WorkspaceChooseResultSchema,
   WorkspaceFilesResultSchema,
   WorkspaceRequestSchema,
@@ -23,6 +25,7 @@ import {
   type WriteResultEnvelope,
   type LinkSearchResultEnvelope,
   type ImageDownloadResultEnvelope,
+  type ImageSearchResultEnvelope,
 } from '../shared/ipc';
 
 export interface IpcInvoker {
@@ -152,6 +155,25 @@ const invokeImageDownload = async (
   return result.success ? result.data : { ok: false, error: internalError() };
 };
 
+const invokeImageSearch = async (
+  ipcRenderer: IpcInvoker,
+  request: unknown,
+): Promise<ImageSearchResultEnvelope> => {
+  const parsed = ImageSearchRequestSchema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = ImageSearchResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(IPC.SEARCH_IMAGES, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
 export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
   system: {
     health: () => invokeHealth(ipcRenderer),
@@ -187,6 +209,7 @@ export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
     links: (request) => invokeLinkSearch(ipcRenderer, request),
   },
   image: {
+    search: (request) => invokeImageSearch(ipcRenderer, request),
     download: (request) => invokeImageDownload(ipcRenderer, request),
   },
 });

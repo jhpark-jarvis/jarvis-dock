@@ -280,7 +280,26 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setImageError('');
     setSelectedImage(undefined);
     try {
-      const results = await mockImageProvider.search(imageQuery);
+      const e2eMode = new URLSearchParams(window.location.search).get('e2e');
+      let results: ImageSearchResult[];
+      if (e2eMode === 'image') {
+        results = await mockImageProvider.search(imageQuery);
+      } else {
+        const response = await window.dock.image.search({
+          query: imageQuery,
+        });
+        if (response.ok === false) {
+          setImageResults([]);
+          setImageError(
+            response.error.code === 'IMAGE_SEARCH_UNAVAILABLE'
+              ? '이미지 공급자에 연결할 수 없습니다.'
+              : '이미지 검색에 실패했습니다. 다시 시도해 주세요.',
+          );
+          setImageStatus('error');
+          return;
+        }
+        results = response.value.results;
+      }
       setImageResults(results);
       setImageStatus(results.length > 0 ? 'results' : 'empty');
     } catch {
@@ -589,6 +608,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                     >
                       <strong>{result.title}</strong>
                       <span>{result.source}</span>
+                      <small>{result.sourcePageUrl}</small>
                       <small>{result.license}</small>
                     </button>
                   </li>

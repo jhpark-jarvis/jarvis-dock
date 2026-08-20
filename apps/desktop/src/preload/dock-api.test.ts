@@ -84,4 +84,31 @@ describe('createDockApi', () => {
     });
     expect(invoke).toHaveBeenCalledWith(IPC.IMAGE_DOWNLOAD, request);
   });
+
+  it('validates and invokes the fixed image search channel', async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        results: [
+          {
+            id: '42',
+            title: 'Electron security.png',
+            sourcePageUrl: 'https://commons.wikimedia.org/wiki/File:Electron',
+            thumbnailUrl: 'https://upload.wikimedia.org/thumb.png',
+            downloadUrl: 'https://upload.wikimedia.org/image.png',
+            source: 'Wikimedia Commons',
+            license: 'CC BY-SA 4.0',
+          },
+        ],
+      },
+    });
+    const dock = createDockApi({ invoke });
+
+    await expect(
+      dock.image.search({ query: 'electron' }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(invoke).toHaveBeenCalledWith(IPC.SEARCH_IMAGES, {
+      query: 'electron',
+    });
+  });
 });

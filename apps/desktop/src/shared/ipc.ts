@@ -9,6 +9,7 @@ export const IPC = {
   DOCUMENT_CREATE: 'document:create',
   DOCUMENT_WRITE: 'document:write',
   SEARCH_LINKS: 'search:links',
+  SEARCH_IMAGES: 'search:images',
   IMAGE_DOWNLOAD: 'image:download',
 } as const;
 
@@ -29,6 +30,8 @@ export const DockErrorSchema = z
       'SEARCH_FAILED',
       'SEARCH_RATE_LIMITED',
       'SEARCH_UNAVAILABLE',
+      'IMAGE_SEARCH_FAILED',
+      'IMAGE_SEARCH_UNAVAILABLE',
       'IMAGE_DOWNLOAD_FAILED',
       'IMAGE_TOO_LARGE',
       'IMAGE_UNSUPPORTED',
@@ -163,6 +166,18 @@ export const ImageSearchResultSchema = z
     license: z.string().max(200).optional(),
   })
   .strict();
+export const ImageSearchRequestSchema = z
+  .object({ query: z.string().trim().min(1).max(200) })
+  .strict();
+export const ImageSearchResultEnvelopeSchema = z.discriminatedUnion('ok', [
+  z
+    .object({
+      ok: z.literal(true),
+      value: z.object({ results: z.array(ImageSearchResultSchema) }).strict(),
+    })
+    .strict(),
+  z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+]);
 export const ImageDownloadRequestSchema = z
   .object({
     workspaceId: WorkspaceIdSchema,
@@ -198,6 +213,9 @@ export type LinkSearchResultEnvelope = z.infer<
   typeof LinkSearchResultEnvelopeSchema
 >;
 export type ImageSearchResult = z.infer<typeof ImageSearchResultSchema>;
+export type ImageSearchResultEnvelope = z.infer<
+  typeof ImageSearchResultEnvelopeSchema
+>;
 export type ImageDownloadRequest = z.infer<typeof ImageDownloadRequestSchema>;
 export type ImageDownloadResult = z.infer<typeof ImageDownloadResultSchema>;
 export type ImageDownloadResultEnvelope = z.infer<
@@ -237,6 +255,7 @@ export interface DockApi {
     }) => Promise<LinkSearchResultEnvelope>;
   };
   image: {
+    search: (request: { query: string }) => Promise<ImageSearchResultEnvelope>;
     download: (
       request: ImageDownloadRequest,
     ) => Promise<ImageDownloadResultEnvelope>;

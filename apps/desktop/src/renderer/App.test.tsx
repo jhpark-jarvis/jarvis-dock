@@ -189,6 +189,23 @@ describe('App', () => {
           }),
         },
         image: {
+          search: async () => ({
+            ok: true as const,
+            value: {
+              results: [
+                {
+                  id: 'image-1',
+                  title: 'Electron process model',
+                  sourcePageUrl:
+                    'https://commons.wikimedia.org/wiki/File:Electron',
+                  thumbnailUrl: 'https://upload.wikimedia.org/thumb.png',
+                  downloadUrl: 'https://upload.wikimedia.org/process.png',
+                  source: 'Wikimedia Commons',
+                  license: 'CC BY-SA 4.0',
+                },
+              ],
+            },
+          }),
           download: async () => ({
             ok: true as const,
             value: {

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   EmptyRequestSchema,
   HealthResultSchema,
+  ImageSearchRequestSchema,
+  ImageSearchResultEnvelopeSchema,
   ImageDownloadRequestSchema,
   ImageDownloadResultEnvelopeSchema,
   VersionResultSchema,
@@ -69,5 +71,32 @@ describe('IPC contract schemas', () => {
         },
       }).success,
     ).toBe(false);
+  });
+
+  it('validates image search queries and provider metadata', () => {
+    expect(
+      ImageSearchRequestSchema.safeParse({ query: 'electron' }).success,
+    ).toBe(true);
+    expect(ImageSearchRequestSchema.safeParse({ query: '' }).success).toBe(
+      false,
+    );
+    expect(
+      ImageSearchResultEnvelopeSchema.safeParse({
+        ok: true,
+        value: {
+          results: [
+            {
+              id: '42',
+              title: 'Electron security.png',
+              sourcePageUrl: 'https://commons.wikimedia.org/wiki/File:Electron',
+              thumbnailUrl: 'https://upload.wikimedia.org/thumb.png',
+              downloadUrl: 'https://upload.wikimedia.org/image.png',
+              source: 'Wikimedia Commons',
+              license: 'CC BY-SA 4.0',
+            },
+          ],
+        },
+      }).success,
+    ).toBe(true);
   });
 });
