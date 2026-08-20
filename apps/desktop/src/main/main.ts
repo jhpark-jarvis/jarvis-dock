@@ -19,6 +19,7 @@ import { registerImageSearchHandlers } from './image-search-handlers';
 import { registerImageDownloadHandlers } from './image-download-handlers';
 import { WIKIMEDIA_IMAGE_HOSTS } from './image-search-service';
 import { registerWorkspaceHandlers } from './workspace-handlers';
+import { createWorkspaceStore } from './workspace-service';
 import { createMainWindowOptions } from './window-options';
 
 const getRendererUrl = (): string => {
@@ -84,6 +85,7 @@ const createWindow = () => {
 };
 
 const registerIpcHandlers = () => {
+  const workspaceStore = createWorkspaceStore();
   registerSystemHandlers({
     ipcMain,
     getVersion: () => app.getVersion(),
@@ -93,6 +95,7 @@ const registerIpcHandlers = () => {
   registerWorkspaceHandlers({
     ipcMain,
     dialog,
+    store: workspaceStore,
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
   });
@@ -108,6 +111,7 @@ const registerIpcHandlers = () => {
   });
   registerImageDownloadHandlers({
     ipcMain,
+    store: workspaceStore,
     allowedHosts: new Set(['images.example.test', ...WIKIMEDIA_IMAGE_HOSTS]),
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
