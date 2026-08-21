@@ -5,6 +5,8 @@ import {
   ipcMain,
   type WebContents,
 } from 'electron';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import started from 'electron-squirrel-startup';
@@ -18,8 +20,43 @@ import { registerLinkSearchHandlers } from './link-search-handlers';
 import { registerImageSearchHandlers } from './image-search-handlers';
 import { registerImageDownloadHandlers } from './image-download-handlers';
 import { WIKIMEDIA_IMAGE_HOSTS } from './image-search-service';
+import {
+  downloadImageToWorkspace,
+  type ImageDownloadServiceDependencies,
+  type DownloadImageRequest,
+} from './image-download-service';
 import { registerWorkspaceHandlers } from './workspace-handlers';
-import { createWorkspaceStore } from './workspace-service';
+import { createWorkspaceStore, type WorkspaceStore } from './workspace-service';
+import type { ImageDownloadResult } from '../shared/ipc';
+
+const E2E_WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
+const E2E_PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
+
+let cleanupE2eWorkspace: (() => void) | undefined;
+
+const setupE2eWorkspace = (store: WorkspaceStore): (() => void) | undefined => {
+  if (!process.argv.includes('--dock-e2e-image')) return undefined;
+  const root = mkdtempSync(path.join(os.tmpdir(), 'dock-e2e-image-'));
+  writeFileSync(path.join(root, 'guide.md'), '# Start', 'utf8');
+  store.set(E2E_WORKSPACE_ID, root);
+  return () => {
+    store.delete(E2E_WORKSPACE_ID);
+    rmSync(root, { recursive: true, force: true });
+  };
+};
+
+const downloadE2eImage = (
+  request: DownloadImageRequest,
+  dependencies: ImageDownloadServiceDependencies,
+): Promise<ImageDownloadResult> =>
+  downloadImageToWorkspace(request, {
+    ...dependencies,
+    fetchImpl: async () =>
+      new Response(E2E_PNG, {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      }),
+  });
 import { createMainWindowOptions } from './window-options';
 
 const getRendererUrl = (): string => {
@@ -86,6 +123,7 @@ const createWindow = () => {
 
 const registerIpcHandlers = () => {
   const workspaceStore = createWorkspaceStore();
+  cleanupE2eWorkspace = setupE2eWorkspace(workspaceStore);
   registerSystemHandlers({
     ipcMain,
     getVersion: () => app.getVersion(),
@@ -112,6 +150,7 @@ const registerIpcHandlers = () => {
   registerImageDownloadHandlers({
     ipcMain,
     store: workspaceStore,
+    downloadImage: cleanupE2eWorkspace ? downloadE2eImage : undefined,
     allowedHosts: new Set(['images.example.test', ...WIKIMEDIA_IMAGE_HOSTS]),
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
@@ -134,6 +173,11 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+app.on('will-quit', () => {
+  cleanupE2eWorkspace?.();
+  cleanupE2eWorkspace = undefined;
 });
 
 app.on('activate', () => {

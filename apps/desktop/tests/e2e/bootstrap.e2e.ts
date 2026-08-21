@@ -117,9 +117,7 @@ test('Dock completes the mock /image search and keeps the document unchanged', a
     await page.getByRole('button', { name: /\/image/ }).click();
     await page.getByRole('textbox', { name: '이미지 검색어' }).fill('electron');
     await page.getByRole('button', { name: '검색' }).click();
-    await page
-      .getByRole('button', { name: /Electron process model/ })
-      .click();
+    await page.getByRole('button', { name: /Electron process model/ }).click();
 
     await expect(page.getByRole('status')).toContainText(
       'Electron process model을(를) 선택했습니다.',
@@ -128,6 +126,28 @@ test('Dock completes the mock /image search and keeps the document unchanged', a
       page.getByRole('button', { name: '다운로드 및 삽입' }),
     ).toBeVisible();
     await expect(editor).toHaveValue('# Start');
+  } finally {
+    await app.close();
+  }
+});
+
+test('Dock downloads the selected image before inserting Markdown', async () => {
+  const app = await launchDock(['--dock-e2e-image']);
+
+  try {
+    const page = await app.firstWindow();
+    const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
+
+    await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
+    await page.getByRole('button', { name: /\/image/ }).click();
+    await page.getByRole('textbox', { name: '이미지 검색어' }).fill('electron');
+    await page.getByRole('button', { name: '검색' }).click();
+    await page.getByRole('button', { name: /Electron process model/ }).click();
+    await page.getByRole('button', { name: '다운로드 및 삽입' }).click();
+
+    await expect(editor).toHaveValue(
+      '# Start![Electron process model](./assets/electron-process-model.png)',
+    );
   } finally {
     await app.close();
   }
