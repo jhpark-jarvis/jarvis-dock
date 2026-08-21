@@ -96,18 +96,10 @@ describe('App', () => {
           create,
           write,
         },
-        search: {
-          links: async () => ({
+        browser: {
+          openLinkSearch: async () => ({
             ok: true as const,
-            value: {
-              results: [
-                {
-                  title: 'Electron Security',
-                  url: 'https://www.electronjs.org/docs/latest/tutorial/security',
-                  source: 'Electron documentation',
-                },
-              ],
-            },
+            value: { opened: true },
           }),
         },
       },
@@ -139,22 +131,29 @@ describe('App', () => {
     ).toBeDisabled();
     await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
     await user.click(screen.getByRole('button', { name: /\/link/ }));
-    await user.type(screen.getByLabelText('Brave Search API key'), 'test-key');
     await user.click(screen.getByRole('button', { name: '취소' }));
     expect(
       screen.getByRole('textbox', { name: 'Markdown 편집기' }),
     ).toHaveValue('# Today\nEdited');
     await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
     await user.click(screen.getByRole('button', { name: /\/link/ }));
-    await user.type(screen.getByLabelText('Brave Search API key'), 'test-key');
     await user.type(
       screen.getByRole('textbox', { name: '링크 검색어' }),
       'electron',
     );
-    await user.click(screen.getByRole('button', { name: '검색' }));
-    await user.click(
-      await screen.findByRole('button', { name: /Electron Security/ }),
+    await user.click(screen.getByRole('button', { name: 'Google에서 검색' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '브라우저에서 결과를 확인한 뒤',
     );
+    await user.type(
+      screen.getByRole('textbox', { name: '링크 텍스트' }),
+      'Electron Security',
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: '링크 URL' }),
+      'https://www.electronjs.org/docs/latest/tutorial/security',
+    );
+    await user.click(screen.getByRole('button', { name: '링크 삽입' }));
     expect(
       screen.getByRole('textbox', { name: 'Markdown 편집기' }),
     ).toHaveValue(

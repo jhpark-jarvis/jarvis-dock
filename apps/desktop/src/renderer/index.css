@@ -173,7 +173,6 @@ input:focus-visible {
 }
 
 .command-item,
-.link-result,
 .image-result {
   display: grid;
   gap: 0.25rem;
@@ -189,16 +188,12 @@ input:focus-visible {
 
 .command-item:hover,
 .command-item:focus-visible,
-.link-result:hover,
-.link-result:focus-visible,
 .image-result:hover,
 .image-result:focus-visible {
   border-color: #7dd3fc;
 }
 
 .command-item span,
-.link-result span,
-.link-result small,
 .image-result span,
 .image-result small {
   color: #aebed1;
@@ -230,14 +225,6 @@ input:focus-visible {
   color: #fecaca;
 }
 
-.link-results {
-  display: grid;
-  gap: 0.5rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
 .command-list,
 .image-results {
   display: grid;
@@ -247,8 +234,6 @@ input:focus-visible {
   padding: 0;
 }
 
-.link-result span,
-.link-result small,
 .image-result span,
 .image-result small {
   overflow: hidden;

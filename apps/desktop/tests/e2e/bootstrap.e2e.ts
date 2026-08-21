@@ -45,7 +45,7 @@ test('Dock starts with a narrow preload API and no Renderer Node.js globals', as
       'system',
       'workspace',
       'document',
-      'search',
+      'browser',
       'image',
     ]);
     expect(rendererState.health).toEqual({ ok: true, value: { status: 'ok' } });
@@ -83,7 +83,7 @@ test('Dock blocks navigation away from the approved Renderer URL', async () => {
   }
 });
 
-test('Dock completes the mock /link search and insertion flow', async () => {
+test('Dock opens browser search and inserts an explicit verified link', async () => {
   const app = await launchDock(['--dock-e2e-link']);
 
   try {
@@ -94,8 +94,15 @@ test('Dock completes the mock /link search and insertion flow', async () => {
     await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
     await page.getByRole('button', { name: /\/link/ }).click();
     await page.getByRole('textbox', { name: '링크 검색어' }).fill('electron');
-    await page.getByRole('button', { name: '검색' }).click();
-    await page.getByRole('button', { name: /Electron Security/ }).click();
+    await page.getByRole('button', { name: 'Google에서 검색' }).click();
+    await expect(page.getByRole('status')).toContainText(
+      '브라우저에서 결과를 확인한 뒤',
+    );
+    await page.getByRole('textbox', { name: '링크 텍스트' }).fill('Electron Security');
+    await page
+      .getByRole('textbox', { name: '링크 URL' })
+      .fill('https://www.electronjs.org/docs/latest/tutorial/security');
+    await page.getByRole('button', { name: '링크 삽입' }).click();
 
     await expect(editor).toHaveValue(
       '# Start[Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)',

@@ -2,38 +2,10 @@ import { isAllowedLinkUrl } from '../shared/link';
 
 export { isAllowedLinkUrl } from '../shared/link';
 
-export interface LinkSearchResult {
+export interface LinkInsertTarget {
   title: string;
   url: string;
-  source: string;
 }
-
-export interface LinkSearchProvider {
-  search(query: string): Promise<LinkSearchResult[]>;
-}
-
-const MOCK_LINK_RESULTS: LinkSearchResult[] = [
-  {
-    title: 'Electron Security',
-    url: 'https://www.electronjs.org/docs/latest/tutorial/security',
-    source: 'Electron documentation',
-  },
-  {
-    title: 'Electron BrowserWindow',
-    url: 'https://www.electronjs.org/docs/latest/api/browser-window',
-    source: 'Electron documentation',
-  },
-  {
-    title: 'React Documentation',
-    url: 'https://react.dev/learn',
-    source: 'React documentation',
-  },
-  {
-    title: 'CommonMark Spec',
-    url: 'https://spec.commonmark.org/current/',
-    source: 'CommonMark',
-  },
-];
 
 export const escapeMarkdownLinkText = (value: string): string =>
   value.replace(/[\\[\]]/g, '\\$&');
@@ -41,7 +13,7 @@ export const escapeMarkdownLinkText = (value: string): string =>
 export const escapeMarkdownLinkUrl = (value: string): string =>
   value.replace(/[\\()]/g, '\\$&');
 
-export const formatMarkdownLink = (result: LinkSearchResult): string => {
+export const formatMarkdownLink = (result: LinkInsertTarget): string => {
   if (!isAllowedLinkUrl(result.url)) {
     throw new Error('Only http and https URLs are allowed.');
   }
@@ -50,7 +22,7 @@ export const formatMarkdownLink = (result: LinkSearchResult): string => {
 
 export const insertMarkdownLink = (
   content: string,
-  result: LinkSearchResult,
+  result: LinkInsertTarget,
   selectionStart: number,
   selectionEnd: number,
 ): string => {
@@ -59,22 +31,3 @@ export const insertMarkdownLink = (
   const markdown = formatMarkdownLink(result);
   return `${content.slice(0, start)}${markdown}${content.slice(end)}`;
 };
-
-export const createMockLinkProvider = (): LinkSearchProvider => ({
-  search: async (query: string) => {
-    const normalized = query.trim().toLowerCase();
-    if (normalized === 'error') {
-      throw new Error('The mock provider failed.');
-    }
-    if (!normalized || normalized === 'empty' || normalized === 'none') {
-      return [];
-    }
-    return MOCK_LINK_RESULTS.filter((result) =>
-      `${result.title} ${result.url} ${result.source}`
-        .toLowerCase()
-        .includes(normalized),
-    );
-  },
-});
-
-export const mockLinkProvider = createMockLinkProvider();

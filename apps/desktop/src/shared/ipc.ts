@@ -8,7 +8,7 @@ export const IPC = {
   DOCUMENT_READ: 'document:read',
   DOCUMENT_CREATE: 'document:create',
   DOCUMENT_WRITE: 'document:write',
-  SEARCH_LINKS: 'search:links',
+  OPEN_LINK_SEARCH: 'browser:open-link-search',
   SEARCH_IMAGES: 'search:images',
   IMAGE_DOWNLOAD: 'image:download',
 } as const;
@@ -30,6 +30,7 @@ export const DockErrorSchema = z
       'SEARCH_FAILED',
       'SEARCH_RATE_LIMITED',
       'SEARCH_UNAVAILABLE',
+      'EXTERNAL_OPEN_FAILED',
       'IMAGE_SEARCH_FAILED',
       'IMAGE_SEARCH_UNAVAILABLE',
       'IMAGE_DOWNLOAD_FAILED',
@@ -132,28 +133,21 @@ export const DocumentRequestSchema = z
 export const DocumentWriteRequestSchema = DocumentRequestSchema.extend({
   content: z.string().max(5_000_000),
 }).strict();
-export const LinkSearchRequestSchema = z
-  .object({
-    query: z.string().trim().min(1).max(200),
-    apiKey: z.string().min(1).max(200),
-  })
+export const LinkBrowserSearchRequestSchema = z
+  .object({ query: z.string().trim().min(1).max(200) })
   .strict();
-export const LinkSearchResultSchema = z
-  .object({
-    title: z.string().min(1).max(500),
-    url: z.string().url().max(2048),
-    source: z.string().min(1).max(200),
-  })
+export const LinkBrowserSearchResultSchema = z
+  .object({ opened: z.literal(true) })
   .strict();
-export const LinkSearchResultEnvelopeSchema = z.discriminatedUnion('ok', [
-  z
-    .object({
-      ok: z.literal(true),
-      value: z.object({ results: z.array(LinkSearchResultSchema) }).strict(),
-    })
-    .strict(),
-  z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
-]);
+export const LinkBrowserSearchResultEnvelopeSchema = z.discriminatedUnion(
+  'ok',
+  [
+    z
+      .object({ ok: z.literal(true), value: LinkBrowserSearchResultSchema })
+      .strict(),
+    z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+  ],
+);
 
 export const ImageSearchResultSchema = z
   .object({
@@ -208,9 +202,11 @@ export type WorkspaceChooseResult = z.infer<typeof WorkspaceChooseResultSchema>;
 export type WorkspaceFilesResult = z.infer<typeof WorkspaceFilesResultSchema>;
 export type DocumentResult = z.infer<typeof DocumentResultSchema>;
 export type WriteResultEnvelope = z.infer<typeof WriteResultEnvelopeSchema>;
-export type LinkSearchResult = z.infer<typeof LinkSearchResultSchema>;
-export type LinkSearchResultEnvelope = z.infer<
-  typeof LinkSearchResultEnvelopeSchema
+export type LinkBrowserSearchResult = z.infer<
+  typeof LinkBrowserSearchResultSchema
+>;
+export type LinkBrowserSearchResultEnvelope = z.infer<
+  typeof LinkBrowserSearchResultEnvelopeSchema
 >;
 export type ImageSearchResult = z.infer<typeof ImageSearchResultSchema>;
 export type ImageSearchResultEnvelope = z.infer<
@@ -248,11 +244,10 @@ export interface DockApi {
       content: string;
     }) => Promise<WriteResultEnvelope>;
   };
-  search: {
-    links: (request: {
+  browser: {
+    openLinkSearch: (request: {
       query: string;
-      apiKey: string;
-    }) => Promise<LinkSearchResultEnvelope>;
+    }) => Promise<LinkBrowserSearchResultEnvelope>;
   };
   image: {
     search: (request: { query: string }) => Promise<ImageSearchResultEnvelope>;

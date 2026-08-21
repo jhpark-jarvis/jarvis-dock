@@ -16,7 +16,7 @@ import {
   withContentSecurityPolicy,
 } from './security';
 import { registerSystemHandlers } from './system-handlers';
-import { registerLinkSearchHandlers } from './link-search-handlers';
+import { registerLinkBrowserSearchHandlers } from './link-browser-search-handlers';
 import { registerImageSearchHandlers } from './image-search-handlers';
 import { registerImageDownloadHandlers } from './image-download-handlers';
 import { WIKIMEDIA_IMAGE_HOSTS } from './image-search-service';
@@ -35,8 +35,13 @@ const E2E_PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
 let cleanupE2eWorkspace: (() => void) | undefined;
 
 const setupE2eWorkspace = (store: WorkspaceStore): (() => void) | undefined => {
-  if (!process.argv.includes('--dock-e2e-image')) return undefined;
-  const root = mkdtempSync(path.join(os.tmpdir(), 'dock-e2e-image-'));
+  const e2eMode = process.argv.includes('--dock-e2e-image')
+    ? 'image'
+    : process.argv.includes('--dock-e2e-link')
+      ? 'link'
+      : undefined;
+  if (!e2eMode) return undefined;
+  const root = mkdtempSync(path.join(os.tmpdir(), `dock-e2e-${e2eMode}-`));
   writeFileSync(path.join(root, 'guide.md'), '# Start', 'utf8');
   store.set(E2E_WORKSPACE_ID, root);
   return () => {
@@ -137,8 +142,11 @@ const registerIpcHandlers = () => {
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
   });
-  registerLinkSearchHandlers({
+  registerLinkBrowserSearchHandlers({
     ipcMain,
+    openLinkSearch: process.argv.includes('--dock-e2e-link')
+      ? async () => undefined
+      : undefined,
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
   });

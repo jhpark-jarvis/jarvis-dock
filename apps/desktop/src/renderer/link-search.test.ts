@@ -1,22 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  createMockLinkProvider,
   formatMarkdownLink,
   insertMarkdownLink,
   isAllowedLinkUrl,
 } from './link-search';
 
-describe('link search flow', () => {
-  it('returns deterministic mock results and distinguishes empty and error states', async () => {
-    const provider = createMockLinkProvider();
-
-    await expect(provider.search('electron')).resolves.toHaveLength(2);
-    await expect(provider.search('empty')).resolves.toEqual([]);
-    await expect(provider.search('error')).rejects.toThrow(
-      'The mock provider failed.',
-    );
-  });
-
+describe('link insertion flow', () => {
   it('allows only http and https URLs', () => {
     expect(isAllowedLinkUrl('https://example.com/docs')).toBe(true);
     expect(isAllowedLinkUrl('http://example.com/docs')).toBe(true);
@@ -28,7 +17,6 @@ describe('link search flow', () => {
     const result = {
       title: 'A [safe] title',
       url: 'https://example.com/a_(b)',
-      source: 'Example',
     };
 
     expect(formatMarkdownLink(result)).toBe(
@@ -44,7 +32,6 @@ describe('link search flow', () => {
       formatMarkdownLink({
         title: 'Run',
         url: 'javascript:alert(1)',
-        source: 'unsafe',
       }),
     ).toThrow('Only http and https URLs are allowed.');
   });

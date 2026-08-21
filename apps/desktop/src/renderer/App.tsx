@@ -4,8 +4,7 @@ import type { WorkspaceFile } from '../shared/ipc';
 import {
   formatMarkdownLink,
   insertMarkdownLink,
-  mockLinkProvider,
-  type LinkSearchResult,
+  type LinkInsertTarget,
 } from './link-search';
 import {
   formatMarkdownImage,
@@ -61,11 +60,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [activeCommand, setActiveCommand] = useState<'link' | 'image'>();
   const [linkQuery, setLinkQuery] = useState('');
-  const [linkApiKey, setLinkApiKey] = useState('');
+  const [linkTitle, setLinkTitle] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
   const [linkStatus, setLinkStatus] = useState<
-    'idle' | 'search' | 'loading' | 'results' | 'empty' | 'error'
+    'idle' | 'search' | 'opening' | 'browser-opened' | 'error'
   >('idle');
-  const [linkResults, setLinkResults] = useState<LinkSearchResult[]>([]);
   const [linkError, setLinkError] = useState('');
   const [linkSelection, setLinkSelection] = useState({ start: 0, end: 0 });
   const [imageQuery, setImageQuery] = useState('');
@@ -179,9 +178,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       end: editor?.selectionEnd ?? content.length,
     });
     setLinkQuery('');
+    setLinkTitle('');
+    setLinkUrl('');
     setImageQuery('');
     setActiveCommand(undefined);
-    setLinkResults([]);
     setLinkError('');
     setLinkStatus('idle');
     setImageResults([]);
@@ -196,8 +196,8 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setCommandPaletteOpen(false);
     setActiveCommand(undefined);
     setLinkQuery('');
-    setLinkApiKey('');
-    setLinkResults([]);
+    setLinkTitle('');
+    setLinkUrl('');
     setLinkError('');
     setLinkStatus('idle');
     setImageQuery('');
@@ -208,50 +208,37 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setImageAltText('');
   };
 
-  const searchLinks = async () => {
-    const isE2eLink =
-      new URLSearchParams(window.location.search).get('e2e') === 'link';
-    if (!isE2eLink && !linkApiKey.trim()) {
-      setLinkError('Brave Search API key를 입력해 주세요.');
-      setLinkStatus('error');
-      return;
-    }
-    setLinkStatus('loading');
+  const openLinkSearch = async () => {
+    setLinkStatus('opening');
     setLinkError('');
     try {
-      let results: LinkSearchResult[];
-      if (isE2eLink) {
-        results = await mockLinkProvider.search(linkQuery);
-      } else {
-        const response = await window.dock.search.links({
-          query: linkQuery,
-          apiKey: linkApiKey,
-        });
-        if (response.ok === false) {
-          setLinkError(
-            response.error.code === 'SEARCH_RATE_LIMITED'
-              ? '검색 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.'
-              : response.error.code === 'SEARCH_UNAVAILABLE'
-                ? '검색 공급자에 연결할 수 없습니다.'
-                : '링크 검색에 실패했습니다. API 키와 네트워크를 확인해 주세요.',
-          );
-          setLinkStatus('error');
-          return;
-        }
-        results = response.value.results;
+      const response = await window.dock.browser.openLinkSearch({
+        query: linkQuery,
+      });
+      if (response.ok === false) {
+        setLinkError('브라우저 검색을 열지 못했습니다. 다시 시도해 주세요.');
+        setLinkStatus('error');
+        return;
       }
-      setLinkResults(results);
-      setLinkStatus(results.length > 0 ? 'results' : 'empty');
+      setLinkStatus('browser-opened');
     } catch {
-      setLinkResults([]);
-      setLinkError('링크 검색에 실패했습니다. 다시 시도해 주세요.');
+      setLinkError('브라우저 검색을 열지 못했습니다. 다시 시도해 주세요.');
       setLinkStatus('error');
     }
   };
 
-  const selectLinkResult = (result: LinkSearchResult) => {
+  const insertLink = () => {
     if (!selectedPath) {
       setLinkError('먼저 Markdown 문서를 선택해 주세요.');
+      setLinkStatus('error');
+      return;
+    }
+    const result: LinkInsertTarget = {
+      title: linkTitle.trim(),
+      url: linkUrl.trim(),
+    };
+    if (!result.title || !result.url) {
+      setLinkError('링크 텍스트와 URL을 입력해 주세요.');
       setLinkStatus('error');
       return;
     }
@@ -426,10 +413,17 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                     setActiveCommand('link');
                     setLinkStatus('search');
                     setLinkQuery('');
+                    setLinkTitle(
+                      content
+                        .slice(linkSelection.start, linkSelection.end)
+                        .trim(),
+                    );
+                    setLinkUrl('');
+                    setLinkError('');
                   }}
                 >
                   <strong>/link</strong>
-                  <span>웹 링크 검색 및 삽입</span>
+                  <span>브라우저 검색 후 링크 삽입</span>
                 </button>
                 <button
                   className="command-item"
@@ -445,44 +439,61 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                 </button>
               </div>
             ) : activeCommand === 'link' ? (
-              <form
-                className="link-search-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void searchLinks();
-                }}
-              >
-                <label htmlFor="link-search-query">링크 검색어</label>
-                <label htmlFor="link-search-api-key">
-                  Brave Search API key
-                </label>
-                <input
-                  id="link-search-api-key"
-                  className="workspace-create__input"
-                  type="password"
-                  value={linkApiKey}
-                  onChange={(event) => setLinkApiKey(event.target.value)}
-                  placeholder="Brave Search API key"
-                  autoComplete="off"
-                  aria-label="Brave Search API key"
-                />
-                <div className="link-search-form__row">
+              <div className="link-search-form">
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void openLinkSearch();
+                  }}
+                >
+                  <label htmlFor="link-search-query">링크 검색어</label>
+                  <div className="link-search-form__row">
+                    <input
+                      id="link-search-query"
+                      className="workspace-create__input"
+                      value={linkQuery}
+                      onChange={(event) => setLinkQuery(event.target.value)}
+                      placeholder="예: electron security"
+                      autoFocus
+                    />
+                    <button
+                      className="button button--primary"
+                      type="submit"
+                      disabled={linkStatus === 'opening'}
+                    >
+                      Google에서 검색
+                    </button>
+                  </div>
+                </form>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    insertLink();
+                  }}
+                >
+                  <label htmlFor="link-title">링크 텍스트</label>
                   <input
-                    id="link-search-query"
+                    id="link-title"
                     className="workspace-create__input"
-                    value={linkQuery}
-                    onChange={(event) => setLinkQuery(event.target.value)}
-                    placeholder="예: electron"
-                    autoFocus
+                    value={linkTitle}
+                    onChange={(event) => setLinkTitle(event.target.value)}
+                    placeholder="예: Electron Security"
                   />
-                  <button
-                    className="button button--primary"
-                    type="submit"
-                    disabled={linkStatus === 'loading'}
-                  >
-                    검색
-                  </button>
-                </div>
+                  <label htmlFor="link-url">링크 URL</label>
+                  <div className="link-search-form__row">
+                    <input
+                      id="link-url"
+                      className="workspace-create__input"
+                      type="url"
+                      value={linkUrl}
+                      onChange={(event) => setLinkUrl(event.target.value)}
+                      placeholder="https://example.com"
+                    />
+                    <button className="button button--primary" type="submit">
+                      링크 삽입
+                    </button>
+                  </div>
+                </form>
                 <button
                   className="button button--quiet"
                   type="button"
@@ -490,7 +501,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                 >
                   취소
                 </button>
-              </form>
+              </div>
             ) : (
               <form
                 className="link-search-form"
@@ -527,37 +538,20 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               </form>
             )}
 
-            {activeCommand === 'link' && linkStatus === 'loading' && (
+            {activeCommand === 'link' && linkStatus === 'opening' && (
               <p className="dialog-message" role="status">
-                링크를 검색하고 있습니다.
+                시스템 브라우저에서 검색을 열고 있습니다.
               </p>
             )}
-            {activeCommand === 'link' && linkStatus === 'empty' && (
+            {activeCommand === 'link' && linkStatus === 'browser-opened' && (
               <p className="dialog-message" role="status">
-                검색 결과가 없습니다.
+                브라우저에서 결과를 확인한 뒤 제목과 URL을 붙여넣어 주세요.
               </p>
             )}
             {activeCommand === 'link' && linkStatus === 'error' && (
               <p className="dialog-message dialog-message--error" role="alert">
                 {linkError}
               </p>
-            )}
-            {activeCommand === 'link' && linkStatus === 'results' && (
-              <ul className="link-results" aria-label="링크 검색 결과">
-                {linkResults.map((result) => (
-                  <li key={result.url}>
-                    <button
-                      className="link-result"
-                      type="button"
-                      onClick={() => selectLinkResult(result)}
-                    >
-                      <strong>{result.title}</strong>
-                      <span>{result.url}</span>
-                      <small>{result.source}</small>
-                    </button>
-                  </li>
-                ))}
-              </ul>
             )}
             {activeCommand === 'image' && imageStatus === 'loading' && (
               <p className="dialog-message" role="status">

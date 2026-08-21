@@ -9,8 +9,8 @@ import {
   DocumentRequestSchema,
   DocumentResultSchema,
   DocumentWriteRequestSchema,
-  LinkSearchRequestSchema,
-  LinkSearchResultEnvelopeSchema,
+  LinkBrowserSearchRequestSchema,
+  LinkBrowserSearchResultEnvelopeSchema,
   ImageDownloadRequestSchema,
   ImageDownloadResultEnvelopeSchema,
   ImageSearchRequestSchema,
@@ -23,7 +23,7 @@ import {
   type WorkspaceChooseResult,
   type WorkspaceFilesResult,
   type WriteResultEnvelope,
-  type LinkSearchResultEnvelope,
+  type LinkBrowserSearchResultEnvelope,
   type ImageDownloadResultEnvelope,
   type ImageSearchResultEnvelope,
 } from '../shared/ipc';
@@ -117,11 +117,11 @@ const invokeDocumentWrite = async (
   return result.success ? result.data : { ok: false, error: internalError() };
 };
 
-const invokeLinkSearch = async (
+const invokeLinkBrowserSearch = async (
   ipcRenderer: IpcInvoker,
   request: unknown,
-): Promise<LinkSearchResultEnvelope> => {
-  const parsed = LinkSearchRequestSchema.safeParse(request);
+): Promise<LinkBrowserSearchResultEnvelope> => {
+  const parsed = LinkBrowserSearchRequestSchema.safeParse(request);
   if (!parsed.success)
     return {
       ok: false,
@@ -130,8 +130,8 @@ const invokeLinkSearch = async (
         message: 'The Dock request is invalid.',
       },
     };
-  const result = LinkSearchResultEnvelopeSchema.safeParse(
-    await ipcRenderer.invoke(IPC.SEARCH_LINKS, parsed.data),
+  const result = LinkBrowserSearchResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(IPC.OPEN_LINK_SEARCH, parsed.data),
   );
   return result.success ? result.data : { ok: false, error: internalError() };
 };
@@ -205,8 +205,8 @@ export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
     write: (request) =>
       invokeDocumentWrite(ipcRenderer, IPC.DOCUMENT_WRITE, request),
   },
-  search: {
-    links: (request) => invokeLinkSearch(ipcRenderer, request),
+  browser: {
+    openLinkSearch: (request) => invokeLinkBrowserSearch(ipcRenderer, request),
   },
   image: {
     search: (request) => invokeImageSearch(ipcRenderer, request),

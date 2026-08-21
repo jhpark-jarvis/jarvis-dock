@@ -31,27 +31,18 @@ describe('createDockApi', () => {
     expect(invoke).toHaveBeenCalledWith(IPC.SYSTEM_VERSION, {});
   });
 
-  it('validates and invokes the fixed link search channel', async () => {
+  it('validates and invokes the fixed browser search channel', async () => {
     const invoke = vi.fn().mockResolvedValue({
       ok: true,
-      value: {
-        results: [
-          {
-            title: 'Electron',
-            url: 'https://www.electronjs.org',
-            source: 'Electron documentation',
-          },
-        ],
-      },
+      value: { opened: true },
     });
     const dock = createDockApi({ invoke });
 
     await expect(
-      dock.search.links({ query: 'electron', apiKey: 'key' }),
+      dock.browser.openLinkSearch({ query: 'electron' }),
     ).resolves.toMatchObject({ ok: true });
-    expect(invoke).toHaveBeenCalledWith(IPC.SEARCH_LINKS, {
+    expect(invoke).toHaveBeenCalledWith(IPC.OPEN_LINK_SEARCH, {
       query: 'electron',
-      apiKey: 'key',
     });
   });
 
