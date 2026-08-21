@@ -8,7 +8,9 @@ export const IPC = {
   DOCUMENT_READ: 'document:read',
   DOCUMENT_CREATE: 'document:create',
   DOCUMENT_WRITE: 'document:write',
-  OPEN_LINK_SEARCH: 'browser:open-link-search',
+  RESEARCH_OPEN: 'research:open',
+  RESEARCH_CLOSE: 'research:close',
+  RESEARCH_CURRENT_LINK: 'research:current-link',
   SEARCH_IMAGES: 'search:images',
   IMAGE_DOWNLOAD: 'image:download',
 } as const;
@@ -30,7 +32,9 @@ export const DockErrorSchema = z
       'SEARCH_FAILED',
       'SEARCH_RATE_LIMITED',
       'SEARCH_UNAVAILABLE',
-      'EXTERNAL_OPEN_FAILED',
+      'RESEARCH_VIEW_FAILED',
+      'RESEARCH_NOT_OPEN',
+      'RESEARCH_INVALID_PAGE',
       'IMAGE_SEARCH_FAILED',
       'IMAGE_SEARCH_UNAVAILABLE',
       'IMAGE_DOWNLOAD_FAILED',
@@ -133,17 +137,36 @@ export const DocumentRequestSchema = z
 export const DocumentWriteRequestSchema = DocumentRequestSchema.extend({
   content: z.string().max(5_000_000),
 }).strict();
-export const LinkBrowserSearchRequestSchema = z
+export const ResearchOpenRequestSchema = z
   .object({ query: z.string().trim().min(1).max(200) })
   .strict();
-export const LinkBrowserSearchResultSchema = z
+export const ResearchOpenResultSchema = z
   .object({ opened: z.literal(true) })
   .strict();
-export const LinkBrowserSearchResultEnvelopeSchema = z.discriminatedUnion(
+export const ResearchOpenResultEnvelopeSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), value: ResearchOpenResultSchema }).strict(),
+  z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+]);
+export const ResearchCloseRequestSchema = EmptyRequestSchema;
+export const ResearchCloseResultSchema = z
+  .object({ closed: z.literal(true) })
+  .strict();
+export const ResearchCloseResultEnvelopeSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), value: ResearchCloseResultSchema }).strict(),
+  z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+]);
+export const ResearchCurrentLinkRequestSchema = EmptyRequestSchema;
+export const ResearchCurrentLinkSchema = z
+  .object({
+    title: z.string().min(1).max(500),
+    url: z.string().url().max(2048),
+  })
+  .strict();
+export const ResearchCurrentLinkResultEnvelopeSchema = z.discriminatedUnion(
   'ok',
   [
     z
-      .object({ ok: z.literal(true), value: LinkBrowserSearchResultSchema })
+      .object({ ok: z.literal(true), value: ResearchCurrentLinkSchema })
       .strict(),
     z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
   ],
@@ -202,11 +225,16 @@ export type WorkspaceChooseResult = z.infer<typeof WorkspaceChooseResultSchema>;
 export type WorkspaceFilesResult = z.infer<typeof WorkspaceFilesResultSchema>;
 export type DocumentResult = z.infer<typeof DocumentResultSchema>;
 export type WriteResultEnvelope = z.infer<typeof WriteResultEnvelopeSchema>;
-export type LinkBrowserSearchResult = z.infer<
-  typeof LinkBrowserSearchResultSchema
+export type ResearchOpenResult = z.infer<typeof ResearchOpenResultSchema>;
+export type ResearchOpenResultEnvelope = z.infer<
+  typeof ResearchOpenResultEnvelopeSchema
 >;
-export type LinkBrowserSearchResultEnvelope = z.infer<
-  typeof LinkBrowserSearchResultEnvelopeSchema
+export type ResearchCloseResultEnvelope = z.infer<
+  typeof ResearchCloseResultEnvelopeSchema
+>;
+export type ResearchCurrentLink = z.infer<typeof ResearchCurrentLinkSchema>;
+export type ResearchCurrentLinkResultEnvelope = z.infer<
+  typeof ResearchCurrentLinkResultEnvelopeSchema
 >;
 export type ImageSearchResult = z.infer<typeof ImageSearchResultSchema>;
 export type ImageSearchResultEnvelope = z.infer<
@@ -244,10 +272,10 @@ export interface DockApi {
       content: string;
     }) => Promise<WriteResultEnvelope>;
   };
-  browser: {
-    openLinkSearch: (request: {
-      query: string;
-    }) => Promise<LinkBrowserSearchResultEnvelope>;
+  research: {
+    open: (request: { query: string }) => Promise<ResearchOpenResultEnvelope>;
+    close: () => Promise<ResearchCloseResultEnvelope>;
+    currentLink: () => Promise<ResearchCurrentLinkResultEnvelope>;
   };
   image: {
     search: (request: { query: string }) => Promise<ImageSearchResultEnvelope>;

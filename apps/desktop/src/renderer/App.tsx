@@ -60,13 +60,13 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [activeCommand, setActiveCommand] = useState<'link' | 'image'>();
   const [linkQuery, setLinkQuery] = useState('');
-  const [linkTitle, setLinkTitle] = useState('');
-  const [linkUrl, setLinkUrl] = useState('');
   const [linkStatus, setLinkStatus] = useState<
-    'idle' | 'search' | 'opening' | 'browser-opened' | 'error'
+    'idle' | 'search' | 'opening' | 'error'
   >('idle');
   const [linkError, setLinkError] = useState('');
   const [linkSelection, setLinkSelection] = useState({ start: 0, end: 0 });
+  const [researchOpen, setResearchOpen] = useState(false);
+  const [researchError, setResearchError] = useState('');
   const [imageQuery, setImageQuery] = useState('');
   const [imageStatus, setImageStatus] = useState<
     'idle' | 'search' | 'loading' | 'results' | 'empty' | 'error' | 'selected'
@@ -178,8 +178,6 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       end: editor?.selectionEnd ?? content.length,
     });
     setLinkQuery('');
-    setLinkTitle('');
-    setLinkUrl('');
     setImageQuery('');
     setActiveCommand(undefined);
     setLinkError('');
@@ -196,8 +194,6 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setCommandPaletteOpen(false);
     setActiveCommand(undefined);
     setLinkQuery('');
-    setLinkTitle('');
-    setLinkUrl('');
     setLinkError('');
     setLinkStatus('idle');
     setImageQuery('');
@@ -212,36 +208,34 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setLinkStatus('opening');
     setLinkError('');
     try {
-      const response = await window.dock.browser.openLinkSearch({
+      const response = await window.dock.research.open({
         query: linkQuery,
       });
       if (response.ok === false) {
-        setLinkError('브라우저 검색을 열지 못했습니다. 다시 시도해 주세요.');
+        setLinkError('Research View를 열지 못했습니다. 다시 시도해 주세요.');
         setLinkStatus('error');
         return;
       }
-      setLinkStatus('browser-opened');
+      setResearchOpen(true);
+      setResearchError('');
+      closeCommandPalette();
     } catch {
-      setLinkError('브라우저 검색을 열지 못했습니다. 다시 시도해 주세요.');
+      setLinkError('Research View를 열지 못했습니다. 다시 시도해 주세요.');
       setLinkStatus('error');
     }
   };
 
-  const insertLink = () => {
+  const insertCurrentResearchLink = async () => {
     if (!selectedPath) {
-      setLinkError('먼저 Markdown 문서를 선택해 주세요.');
-      setLinkStatus('error');
+      setResearchError('먼저 Markdown 문서를 선택해 주세요.');
       return;
     }
-    const result: LinkInsertTarget = {
-      title: linkTitle.trim(),
-      url: linkUrl.trim(),
-    };
-    if (!result.title || !result.url) {
-      setLinkError('링크 텍스트와 URL을 입력해 주세요.');
-      setLinkStatus('error');
+    const response = await window.dock.research.currentLink();
+    if (response.ok === false) {
+      setResearchError('현재 페이지 링크를 삽입할 수 없습니다.');
       return;
     }
+    const result: LinkInsertTarget = response.value;
     try {
       const nextContent = insertMarkdownLink(
         content,
@@ -250,16 +244,25 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         linkSelection.end,
       );
       setContent(nextContent);
-      closeCommandPalette();
+      setResearchError('');
       const cursor = linkSelection.start + formatMarkdownLink(result).length;
       requestAnimationFrame(() => {
         editorRef.current?.focus();
         editorRef.current?.setSelectionRange(cursor, cursor);
       });
     } catch {
-      setLinkError('허용되지 않은 URL이라 링크를 삽입할 수 없습니다.');
-      setLinkStatus('error');
+      setResearchError('허용되지 않은 URL이라 링크를 삽입할 수 없습니다.');
     }
+  };
+
+  const closeResearchView = async () => {
+    const response = await window.dock.research.close();
+    if (response.ok === false) {
+      setResearchError('Research View를 닫지 못했습니다.');
+      return;
+    }
+    setResearchOpen(false);
+    setResearchError('');
   };
 
   const searchImages = async () => {
@@ -373,14 +376,45 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
           <p className="app-header__eyebrow">JARVIS</p>
           <h1 className="app-header__title">Dock</h1>
         </div>
-        <button
-          className="button button--quiet"
-          type="button"
-          onClick={openCommandPalette}
-        >
-          명령 팔레트 열기
-        </button>
+        <div className="app-header__actions">
+          {researchOpen && (
+            <>
+              <button
+                className="button button--primary"
+                type="button"
+                onClick={() => void insertCurrentResearchLink()}
+              >
+                현재 페이지 링크 삽입
+              </button>
+              <button
+                className="button button--quiet"
+                type="button"
+                onClick={() => void closeResearchView()}
+              >
+                Research View 닫기
+              </button>
+            </>
+          )}
+          <button
+            className="button button--quiet"
+            type="button"
+            onClick={openCommandPalette}
+          >
+            명령 팔레트 열기
+          </button>
+        </div>
       </header>
+
+      {researchOpen && (
+        <p className="research-status" role="status">
+          Research View가 오른쪽 영역에서 열려 있습니다.
+        </p>
+      )}
+      {researchError && (
+        <p className="research-status research-status--error" role="alert">
+          {researchError}
+        </p>
+      )}
 
       {commandPaletteOpen && (
         <div className="dialog-backdrop">
@@ -413,17 +447,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                     setActiveCommand('link');
                     setLinkStatus('search');
                     setLinkQuery('');
-                    setLinkTitle(
-                      content
-                        .slice(linkSelection.start, linkSelection.end)
-                        .trim(),
-                    );
-                    setLinkUrl('');
                     setLinkError('');
                   }}
                 >
                   <strong>/link</strong>
-                  <span>브라우저 검색 후 링크 삽입</span>
+                  <span>Research View 검색 및 현재 페이지 링크 삽입</span>
                 </button>
                 <button
                   className="command-item"
@@ -461,36 +489,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                       type="submit"
                       disabled={linkStatus === 'opening'}
                     >
-                      Google에서 검색
-                    </button>
-                  </div>
-                </form>
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    insertLink();
-                  }}
-                >
-                  <label htmlFor="link-title">링크 텍스트</label>
-                  <input
-                    id="link-title"
-                    className="workspace-create__input"
-                    value={linkTitle}
-                    onChange={(event) => setLinkTitle(event.target.value)}
-                    placeholder="예: Electron Security"
-                  />
-                  <label htmlFor="link-url">링크 URL</label>
-                  <div className="link-search-form__row">
-                    <input
-                      id="link-url"
-                      className="workspace-create__input"
-                      type="url"
-                      value={linkUrl}
-                      onChange={(event) => setLinkUrl(event.target.value)}
-                      placeholder="https://example.com"
-                    />
-                    <button className="button button--primary" type="submit">
-                      링크 삽입
+                      Research View 열기
                     </button>
                   </div>
                 </form>
@@ -540,12 +539,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
 
             {activeCommand === 'link' && linkStatus === 'opening' && (
               <p className="dialog-message" role="status">
-                시스템 브라우저에서 검색을 열고 있습니다.
-              </p>
-            )}
-            {activeCommand === 'link' && linkStatus === 'browser-opened' && (
-              <p className="dialog-message" role="status">
-                브라우저에서 결과를 확인한 뒤 제목과 URL을 붙여넣어 주세요.
+                Research View에서 검색을 열고 있습니다.
               </p>
             )}
             {activeCommand === 'link' && linkStatus === 'error' && (

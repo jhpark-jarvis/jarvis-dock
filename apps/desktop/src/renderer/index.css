@@ -60,6 +60,25 @@ input:focus-visible {
   background: #101a2a;
 }
 
+.app-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: end;
+}
+
+.research-status {
+  margin: 0;
+  padding: 0.35rem 1rem;
+  background: #17263b;
+  color: #aebed1;
+  font-size: 0.82rem;
+}
+
+.research-status--error {
+  color: #fecaca;
+}
+
 .app-header__eyebrow,
 .panel-heading__eyebrow {
   margin: 0;

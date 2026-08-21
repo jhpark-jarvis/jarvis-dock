@@ -9,8 +9,12 @@ import {
   DocumentRequestSchema,
   DocumentResultSchema,
   DocumentWriteRequestSchema,
-  LinkBrowserSearchRequestSchema,
-  LinkBrowserSearchResultEnvelopeSchema,
+  ResearchCloseRequestSchema,
+  ResearchCloseResultEnvelopeSchema,
+  ResearchCurrentLinkRequestSchema,
+  ResearchCurrentLinkResultEnvelopeSchema,
+  ResearchOpenRequestSchema,
+  ResearchOpenResultEnvelopeSchema,
   ImageDownloadRequestSchema,
   ImageDownloadResultEnvelopeSchema,
   ImageSearchRequestSchema,
@@ -23,7 +27,9 @@ import {
   type WorkspaceChooseResult,
   type WorkspaceFilesResult,
   type WriteResultEnvelope,
-  type LinkBrowserSearchResultEnvelope,
+  type ResearchCloseResultEnvelope,
+  type ResearchCurrentLinkResultEnvelope,
+  type ResearchOpenResultEnvelope,
   type ImageDownloadResultEnvelope,
   type ImageSearchResultEnvelope,
 } from '../shared/ipc';
@@ -117,11 +123,11 @@ const invokeDocumentWrite = async (
   return result.success ? result.data : { ok: false, error: internalError() };
 };
 
-const invokeLinkBrowserSearch = async (
+const invokeResearchOpen = async (
   ipcRenderer: IpcInvoker,
   request: unknown,
-): Promise<LinkBrowserSearchResultEnvelope> => {
-  const parsed = LinkBrowserSearchRequestSchema.safeParse(request);
+): Promise<ResearchOpenResultEnvelope> => {
+  const parsed = ResearchOpenRequestSchema.safeParse(request);
   if (!parsed.success)
     return {
       ok: false,
@@ -130,8 +136,32 @@ const invokeLinkBrowserSearch = async (
         message: 'The Dock request is invalid.',
       },
     };
-  const result = LinkBrowserSearchResultEnvelopeSchema.safeParse(
-    await ipcRenderer.invoke(IPC.OPEN_LINK_SEARCH, parsed.data),
+  const result = ResearchOpenResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(IPC.RESEARCH_OPEN, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
+const invokeResearchClose = async (
+  ipcRenderer: IpcInvoker,
+): Promise<ResearchCloseResultEnvelope> => {
+  const result = ResearchCloseResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(
+      IPC.RESEARCH_CLOSE,
+      ResearchCloseRequestSchema.parse({}),
+    ),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
+const invokeResearchCurrentLink = async (
+  ipcRenderer: IpcInvoker,
+): Promise<ResearchCurrentLinkResultEnvelope> => {
+  const result = ResearchCurrentLinkResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(
+      IPC.RESEARCH_CURRENT_LINK,
+      ResearchCurrentLinkRequestSchema.parse({}),
+    ),
   );
   return result.success ? result.data : { ok: false, error: internalError() };
 };
@@ -205,8 +235,10 @@ export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
     write: (request) =>
       invokeDocumentWrite(ipcRenderer, IPC.DOCUMENT_WRITE, request),
   },
-  browser: {
-    openLinkSearch: (request) => invokeLinkBrowserSearch(ipcRenderer, request),
+  research: {
+    open: (request) => invokeResearchOpen(ipcRenderer, request),
+    close: () => invokeResearchClose(ipcRenderer),
+    currentLink: () => invokeResearchCurrentLink(ipcRenderer),
   },
   image: {
     search: (request) => invokeImageSearch(ipcRenderer, request),

@@ -96,10 +96,21 @@ describe('App', () => {
           create,
           write,
         },
-        browser: {
-          openLinkSearch: async () => ({
+        research: {
+          open: async () => ({
             ok: true as const,
             value: { opened: true },
+          }),
+          close: async () => ({
+            ok: true as const,
+            value: { closed: true },
+          }),
+          currentLink: async () => ({
+            ok: true as const,
+            value: {
+              title: 'Electron Security',
+              url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+            },
           }),
         },
       },
@@ -141,19 +152,15 @@ describe('App', () => {
       screen.getByRole('textbox', { name: '링크 검색어' }),
       'electron',
     );
-    await user.click(screen.getByRole('button', { name: 'Google에서 검색' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Research View 열기' }),
+    );
     expect(await screen.findByRole('status')).toHaveTextContent(
-      '브라우저에서 결과를 확인한 뒤',
+      'Research View가 오른쪽 영역에서 열려 있습니다.',
     );
-    await user.type(
-      screen.getByRole('textbox', { name: '링크 텍스트' }),
-      'Electron Security',
+    await user.click(
+      screen.getByRole('button', { name: '현재 페이지 링크 삽입' }),
     );
-    await user.type(
-      screen.getByRole('textbox', { name: '링크 URL' }),
-      'https://www.electronjs.org/docs/latest/tutorial/security',
-    );
-    await user.click(screen.getByRole('button', { name: '링크 삽입' }));
     expect(
       screen.getByRole('textbox', { name: 'Markdown 편집기' }),
     ).toHaveValue(

@@ -31,19 +31,22 @@ describe('createDockApi', () => {
     expect(invoke).toHaveBeenCalledWith(IPC.SYSTEM_VERSION, {});
   });
 
-  it('validates and invokes the fixed browser search channel', async () => {
-    const invoke = vi.fn().mockResolvedValue({
-      ok: true,
-      value: { opened: true },
-    });
+  it('validates and invokes fixed Research View channels', async () => {
+    const invoke = vi.fn(async (channel: string) =>
+      channel === IPC.RESEARCH_CLOSE
+        ? { ok: true, value: { closed: true } }
+        : { ok: true, value: { opened: true } },
+    );
     const dock = createDockApi({ invoke });
 
     await expect(
-      dock.browser.openLinkSearch({ query: 'electron' }),
+      dock.research.open({ query: 'electron' }),
     ).resolves.toMatchObject({ ok: true });
-    expect(invoke).toHaveBeenCalledWith(IPC.OPEN_LINK_SEARCH, {
+    expect(invoke).toHaveBeenCalledWith(IPC.RESEARCH_OPEN, {
       query: 'electron',
     });
+    await expect(dock.research.close()).resolves.toMatchObject({ ok: true });
+    expect(invoke).toHaveBeenCalledWith(IPC.RESEARCH_CLOSE, {});
   });
 
   it('validates and invokes the fixed image download channel', async () => {

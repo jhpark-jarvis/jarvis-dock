@@ -16,7 +16,12 @@ import {
   withContentSecurityPolicy,
 } from './security';
 import { registerSystemHandlers } from './system-handlers';
-import { registerLinkBrowserSearchHandlers } from './link-browser-search-handlers';
+import {
+  registerResearchHandlers,
+  type ResearchController,
+} from './research-handlers';
+import { ResearchViewManager } from './research-view';
+import { createMainWindowOptions } from './window-options';
 import { registerImageSearchHandlers } from './image-search-handlers';
 import { registerImageDownloadHandlers } from './image-download-handlers';
 import { WIKIMEDIA_IMAGE_HOSTS } from './image-search-service';
@@ -33,6 +38,7 @@ const E2E_WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const E2E_PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
 
 let cleanupE2eWorkspace: (() => void) | undefined;
+let researchController: ResearchController | undefined;
 
 const setupE2eWorkspace = (store: WorkspaceStore): (() => void) | undefined => {
   const e2eMode = process.argv.includes('--dock-e2e-image')
@@ -62,7 +68,25 @@ const downloadE2eImage = (
         headers: { 'content-type': 'image/png' },
       }),
   });
-import { createMainWindowOptions } from './window-options';
+
+const createE2eResearchController = (): ResearchController => {
+  let open = false;
+  return {
+    open: async () => {
+      open = true;
+    },
+    close: () => {
+      open = false;
+    },
+    currentLink: () =>
+      open
+        ? {
+            title: 'Electron Security',
+            url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+          }
+        : undefined,
+  };
+};
 
 const getRendererUrl = (): string => {
   const rendererUrl = MAIN_WINDOW_VITE_DEV_SERVER_URL
@@ -119,6 +143,13 @@ const createWindow = () => {
     Boolean(MAIN_WINDOW_VITE_DEV_SERVER_URL),
   );
 
+  researchController = process.argv.includes('--dock-e2e-link')
+    ? createE2eResearchController()
+    : new ResearchViewManager(mainWindow);
+  mainWindow.on('closed', () => {
+    researchController = undefined;
+  });
+
   mainWindow.loadURL(rendererUrl);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -142,11 +173,9 @@ const registerIpcHandlers = () => {
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
   });
-  registerLinkBrowserSearchHandlers({
+  registerResearchHandlers({
     ipcMain,
-    openLinkSearch: process.argv.includes('--dock-e2e-link')
-      ? async () => undefined
-      : undefined,
+    getResearchController: () => researchController,
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
   });
