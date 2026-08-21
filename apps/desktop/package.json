@@ -1,8 +1,8 @@
 {
   "name": "@jarvis-dock/desktop",
-  "productName": "jarvis-dock",
+  "productName": "Dock",
   "version": "1.0.0",
-  "description": "My Electron application description",
+  "description": "Local-first Markdown workspace for technical documentation",
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
