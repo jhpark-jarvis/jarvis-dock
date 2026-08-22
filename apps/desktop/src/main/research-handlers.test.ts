@@ -9,7 +9,12 @@ import {
 type InvokeHandler = (event: IpcMainInvokeEvent, request: unknown) => unknown;
 
 const createController = (): ResearchController => ({
-  open: async () => undefined,
+  open: async () => [
+    {
+      title: 'Electron Security',
+      url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+    },
+  ],
   close: () => undefined,
   currentLink: () => ({
     title: 'Electron Security',
@@ -69,7 +74,18 @@ describe('registerResearchHandlers', () => {
 
     await expect(
       invoke(IPC.RESEARCH_OPEN, { query: 'electron security' }),
-    ).resolves.toEqual({ ok: true, value: { opened: true } });
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        opened: true,
+        results: [
+          {
+            title: 'Electron Security',
+            url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+          },
+        ],
+      },
+    });
     expect(open).toHaveBeenCalledWith('electron security');
     expect(invoke(IPC.RESEARCH_CURRENT_LINK, {})).toEqual({
       ok: true,

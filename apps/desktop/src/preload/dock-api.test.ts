@@ -35,7 +35,18 @@ describe('createDockApi', () => {
     const invoke = vi.fn(async (channel: string) =>
       channel === IPC.RESEARCH_CLOSE
         ? { ok: true, value: { closed: true } }
-        : { ok: true, value: { opened: true } },
+        : {
+            ok: true,
+            value: {
+              opened: true,
+              results: [
+                {
+                  title: 'Electron Security',
+                  url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+                },
+              ],
+            },
+          },
     );
     const dock = createDockApi({ invoke });
 

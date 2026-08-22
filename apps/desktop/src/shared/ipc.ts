@@ -140,8 +140,23 @@ export const DocumentWriteRequestSchema = DocumentRequestSchema.extend({
 export const ResearchOpenRequestSchema = z
   .object({ query: z.string().trim().min(1).max(200) })
   .strict();
+export const ResearchSearchResultSchema = z
+  .object({
+    title: z.string().min(1).max(500),
+    url: z
+      .string()
+      .url()
+      .max(2048)
+      .refine((value) => new URL(value).protocol === 'https:', {
+        message: 'only HTTPS result URLs are allowed',
+      }),
+  })
+  .strict();
 export const ResearchOpenResultSchema = z
-  .object({ opened: z.literal(true) })
+  .object({
+    opened: z.literal(true),
+    results: z.array(ResearchSearchResultSchema).max(10),
+  })
   .strict();
 export const ResearchOpenResultEnvelopeSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), value: ResearchOpenResultSchema }).strict(),
@@ -226,6 +241,7 @@ export type WorkspaceFilesResult = z.infer<typeof WorkspaceFilesResultSchema>;
 export type DocumentResult = z.infer<typeof DocumentResultSchema>;
 export type WriteResultEnvelope = z.infer<typeof WriteResultEnvelopeSchema>;
 export type ResearchOpenResult = z.infer<typeof ResearchOpenResultSchema>;
+export type ResearchSearchResult = z.infer<typeof ResearchSearchResultSchema>;
 export type ResearchOpenResultEnvelope = z.infer<
   typeof ResearchOpenResultEnvelopeSchema
 >;

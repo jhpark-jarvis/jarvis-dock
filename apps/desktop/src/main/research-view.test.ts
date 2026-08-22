@@ -3,6 +3,7 @@ import {
   createGoogleSearchUrl,
   createResearchWebPreferences,
   isAllowedResearchUrl,
+  normalizeResearchSearchResults,
 } from './research-view';
 
 describe('research view URL boundary', () => {
@@ -29,5 +30,44 @@ describe('research view URL boundary', () => {
       sandbox: true,
       webSecurity: true,
     });
+  });
+
+  it('normalizes only bounded, unique HTTPS result links from the fixed extractor fixture', () => {
+    const results = normalizeResearchSearchResults([
+      {
+        title: '  Electron   Security  ',
+        href: 'https://www.electronjs.org/docs/latest/tutorial/security',
+      },
+      {
+        title: 'Redirected result',
+        href: 'https://www.google.com/url?q=https%3A%2F%2Fexample.com%2Fguide',
+      },
+      {
+        title: 'Duplicate',
+        href: 'https://www.electronjs.org/docs/latest/tutorial/security',
+      },
+      { title: 'Insecure', href: 'http://example.com/guide' },
+      { title: '', href: 'https://example.com/empty-title' },
+      { title: 'Broken', href: 'not a URL' },
+    ]);
+
+    expect(results).toEqual([
+      {
+        title: 'Electron Security',
+        url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+      },
+      { title: 'Redirected result', url: 'https://example.com/guide' },
+    ]);
+  });
+
+  it('caps the extractor output before it crosses the IPC boundary', () => {
+    const results = normalizeResearchSearchResults(
+      Array.from({ length: 11 }, (_, index) => ({
+        title: `Result ${index}`,
+        href: `https://example.com/${index}`,
+      })),
+    );
+
+    expect(results).toHaveLength(10);
   });
 });

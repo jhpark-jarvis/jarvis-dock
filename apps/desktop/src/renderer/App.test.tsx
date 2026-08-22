@@ -99,7 +99,15 @@ describe('App', () => {
         research: {
           open: async () => ({
             ok: true as const,
-            value: { opened: true },
+            value: {
+              opened: true,
+              results: [
+                {
+                  title: 'Electron Security',
+                  url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+                },
+              ],
+            },
           }),
           close: async () => ({
             ok: true as const,
@@ -159,7 +167,7 @@ describe('App', () => {
       'Research View가 오른쪽 영역에서 열려 있습니다.',
     );
     await user.click(
-      screen.getByRole('button', { name: '현재 페이지 링크 삽입' }),
+      screen.getByRole('button', { name: /^Electron Security/ }),
     );
     expect(
       screen.getByRole('textbox', { name: 'Markdown 편집기' }),

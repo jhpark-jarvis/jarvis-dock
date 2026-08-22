@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
-import type { WorkspaceFile } from '../shared/ipc';
+import type { ResearchSearchResult, WorkspaceFile } from '../shared/ipc';
 import {
   formatMarkdownLink,
   insertMarkdownLink,
@@ -67,6 +67,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [linkSelection, setLinkSelection] = useState({ start: 0, end: 0 });
   const [researchOpen, setResearchOpen] = useState(false);
   const [researchError, setResearchError] = useState('');
+  const [researchResults, setResearchResults] = useState<
+    ResearchSearchResult[]
+  >([]);
   const [imageQuery, setImageQuery] = useState('');
   const [imageStatus, setImageStatus] = useState<
     'idle' | 'search' | 'loading' | 'results' | 'empty' | 'error' | 'selected'
@@ -218,6 +221,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       }
       setResearchOpen(true);
       setResearchError('');
+      setResearchResults(response.value.results);
       closeCommandPalette();
     } catch {
       setLinkError('Research View를 열지 못했습니다. 다시 시도해 주세요.');
@@ -225,17 +229,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     }
   };
 
-  const insertCurrentResearchLink = async () => {
+  const insertResearchLink = (result: LinkInsertTarget) => {
     if (!selectedPath) {
       setResearchError('먼저 Markdown 문서를 선택해 주세요.');
       return;
     }
-    const response = await window.dock.research.currentLink();
-    if (response.ok === false) {
-      setResearchError('현재 페이지 링크를 삽입할 수 없습니다.');
-      return;
-    }
-    const result: LinkInsertTarget = response.value;
     try {
       const nextContent = insertMarkdownLink(
         content,
@@ -255,6 +253,15 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     }
   };
 
+  const insertCurrentResearchLink = async () => {
+    const response = await window.dock.research.currentLink();
+    if (response.ok === false) {
+      setResearchError('현재 페이지 링크를 삽입할 수 없습니다.');
+      return;
+    }
+    insertResearchLink(response.value);
+  };
+
   const closeResearchView = async () => {
     const response = await window.dock.research.close();
     if (response.ok === false) {
@@ -263,6 +270,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     }
     setResearchOpen(false);
     setResearchError('');
+    setResearchResults([]);
   };
 
   const searchImages = async () => {
@@ -406,9 +414,39 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       </header>
 
       {researchOpen && (
-        <p className="research-status" role="status">
-          Research View가 오른쪽 영역에서 열려 있습니다.
-        </p>
+        <section className="research-panel" aria-label="실험적 링크 검색 결과">
+          <p className="research-status" role="status">
+            Research View가 오른쪽 영역에서 열려 있습니다.
+          </p>
+          <div className="research-panel__heading">
+            <div>
+              <p className="panel-heading__eyebrow">LOCAL EXPERIMENT</p>
+              <h2>검색 결과</h2>
+            </div>
+            <span>제목·HTTPS URL만 표시</span>
+          </div>
+          {researchResults.length > 0 ? (
+            <ul className="research-results" aria-label="링크 검색 결과">
+              {researchResults.map((result) => (
+                <li key={result.url}>
+                  <button
+                    className="research-result"
+                    type="button"
+                    onClick={() => insertResearchLink(result)}
+                  >
+                    <strong>{result.title}</strong>
+                    <small>{result.url}</small>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="research-panel__empty">
+              카드 추출 결과가 없습니다. 오른쪽 페이지를 탐색한 뒤 현재 페이지
+              링크를 삽입할 수 있습니다.
+            </p>
+          )}
+        </section>
       )}
       {researchError && (
         <p className="research-status research-status--error" role="alert">

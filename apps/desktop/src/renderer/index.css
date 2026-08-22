@@ -38,9 +38,9 @@ input:focus-visible {
 }
 
 .app-shell {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
-  grid-template-rows: auto minmax(0, 1fr) auto;
   background: #0b1220;
 }
 
@@ -79,6 +79,75 @@ input:focus-visible {
   color: #fecaca;
 }
 
+.research-panel {
+  display: grid;
+  gap: 0.6rem;
+  width: min(52%, 44rem);
+  padding: 0.6rem 1rem 0.75rem;
+  border-bottom: 1px solid #243248;
+  background: #101a2a;
+}
+
+.research-panel .research-status {
+  margin: -0.6rem -1rem 0;
+}
+
+.research-panel__heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.research-panel__heading h2 {
+  margin: 0.2rem 0 0;
+  font-size: 0.95rem;
+}
+
+.research-panel__heading span,
+.research-panel__empty,
+.research-result small {
+  color: #aebed1;
+  font-size: 0.76rem;
+}
+
+.research-panel__empty {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.research-results {
+  display: grid;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.research-result {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  border: 1px solid #3a4b66;
+  border-radius: 0.45rem;
+  padding: 0.6rem 0.7rem;
+  background: #17263b;
+  color: #e7edf5;
+  cursor: pointer;
+  text-align: left;
+}
+
+.research-result:hover,
+.research-result:focus-visible {
+  border-color: #7dd3fc;
+}
+
+.research-result small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .app-header__eyebrow,
 .panel-heading__eyebrow {
   margin: 0;
@@ -104,6 +173,7 @@ input:focus-visible {
 
 .workspace-layout {
   display: grid;
+  flex: 1 1 auto;
   min-height: 0;
   grid-template-columns: minmax(12rem, 0.72fr) minmax(18rem, 1.3fr) minmax(
       16rem,

@@ -83,7 +83,7 @@ test('Dock blocks navigation away from the approved Renderer URL', async () => {
   }
 });
 
-test('Dock opens Research View and inserts the current verified link', async () => {
+test('Dock opens Research View and inserts a selected experimental link card', async () => {
   const app = await launchDock(['--dock-e2e-link']);
 
   try {
@@ -98,7 +98,7 @@ test('Dock opens Research View and inserts the current verified link', async () 
     await expect(page.getByRole('status')).toContainText(
       'Research View가 오른쪽 영역에서 열려 있습니다.',
     );
-    await page.getByRole('button', { name: '현재 페이지 링크 삽입' }).click();
+    await page.getByRole('button', { name: /^Electron Security/ }).click();
 
     await expect(editor).toHaveValue(
       '# Start[Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)',

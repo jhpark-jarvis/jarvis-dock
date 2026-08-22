@@ -8,13 +8,14 @@ import {
   ResearchOpenRequestSchema,
   ResearchOpenResultEnvelopeSchema,
   type DockError,
+  type ResearchSearchResult,
 } from '../shared/ipc';
 import type { ResearchCurrentLink } from './research-view';
 
 type IpcMainHandlerRegistrar = Pick<IpcMain, 'handle'>;
 
 export interface ResearchController {
-  open: (query: string) => Promise<void>;
+  open: (query: string) => Promise<ResearchSearchResult[]>;
   close: () => void;
   currentLink: () => ResearchCurrentLink | undefined;
 }
@@ -66,10 +67,10 @@ export const registerResearchHandlers = ({
       });
     }
     try {
-      await controller.open(parsed.data.query);
+      const results = await controller.open(parsed.data.query);
       return ResearchOpenResultEnvelopeSchema.parse({
         ok: true,
-        value: { opened: true },
+        value: { opened: true, results },
       });
     } catch {
       return ResearchOpenResultEnvelopeSchema.parse({

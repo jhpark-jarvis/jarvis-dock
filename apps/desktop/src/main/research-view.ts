@@ -4,17 +4,36 @@ import {
   type WebContentsViewConstructorOptions,
 } from 'electron';
 import { isAllowedLinkUrl } from '../shared/link';
+import {
+  ResearchSearchResultSchema,
+  type ResearchSearchResult,
+} from '../shared/ipc';
 
 const GOOGLE_SEARCH_URL = 'https://www.google.com/search';
 const RESEARCH_PARTITION = 'dock-research';
 const RESEARCH_TOOLBAR_HEIGHT = 72;
 const MAX_LINK_TITLE_LENGTH = 500;
 const MAX_LINK_URL_LENGTH = 2048;
+const MAX_RESEARCH_RESULTS = 10;
+
+const GOOGLE_RESULT_EXTRACTOR = `
+(() => Array.from(document.querySelectorAll('a')).flatMap((anchor) => {
+  const heading = anchor.querySelector('h3');
+  const title = heading?.textContent?.replace(/\\s+/g, ' ').trim();
+  const href = anchor.href;
+  return title && href ? [{ title, href }] : [];
+}))()
+`;
 
 export interface ResearchCurrentLink {
   title: string;
   url: string;
 }
+
+type ResearchResultCandidate = {
+  title?: unknown;
+  href?: unknown;
+};
 
 type ResearchViewFactory = (
   options: WebContentsViewConstructorOptions,
@@ -28,6 +47,44 @@ export const createGoogleSearchUrl = (query: string): string => {
 
 export const isAllowedResearchUrl = (url: string): boolean =>
   isAllowedLinkUrl(url);
+
+const unwrapGoogleResultUrl = (href: string): string | undefined => {
+  try {
+    const url = new URL(href);
+    if (url.hostname.endsWith('.google.com') && url.pathname === '/url') {
+      return url.searchParams.get('q') ?? undefined;
+    }
+    return href;
+  } catch {
+    return undefined;
+  }
+};
+
+export const normalizeResearchSearchResults = (
+  candidates: unknown,
+): ResearchSearchResult[] => {
+  if (!Array.isArray(candidates)) return [];
+
+  const results: ResearchSearchResult[] = [];
+  const seenUrls = new Set<string>();
+  for (const candidate of candidates as ResearchResultCandidate[]) {
+    if (
+      typeof candidate?.title !== 'string' ||
+      typeof candidate.href !== 'string'
+    ) {
+      continue;
+    }
+    const url = unwrapGoogleResultUrl(candidate.href);
+    const title = candidate.title.replace(/\s+/g, ' ').trim();
+    if (!url || seenUrls.has(url)) continue;
+    const parsed = ResearchSearchResultSchema.safeParse({ title, url });
+    if (!parsed.success) continue;
+    seenUrls.add(url);
+    results.push(parsed.data);
+    if (results.length === MAX_RESEARCH_RESULTS) break;
+  }
+  return results;
+};
 
 export const createResearchWebPreferences = () => ({
   partition: RESEARCH_PARTITION,
@@ -52,7 +109,7 @@ export class ResearchViewManager {
     mainWindow.once('close', () => this.close());
   }
 
-  async open(query: string): Promise<void> {
+  async open(query: string): Promise<ResearchSearchResult[]> {
     if (!this.view) {
       this.view = this.createView({
         webPreferences: createResearchWebPreferences(),
@@ -63,6 +120,16 @@ export class ResearchViewManager {
 
     this.layout();
     await this.view.webContents.loadURL(createGoogleSearchUrl(query));
+    if (!this.isGoogleSearchPage()) return [];
+    try {
+      const candidates = await this.view.webContents.executeJavaScript(
+        GOOGLE_RESULT_EXTRACTOR,
+        true,
+      );
+      return normalizeResearchSearchResults(candidates);
+    } catch {
+      return [];
+    }
   }
 
   close(): void {
@@ -100,6 +167,17 @@ export class ResearchViewManager {
     webContents.on('will-redirect', (event, url) => {
       if (!isAllowedResearchUrl(url)) event.preventDefault();
     });
+  }
+
+  private isGoogleSearchPage(): boolean {
+    const view = this.view;
+    if (!view || view.webContents.isDestroyed()) return false;
+    try {
+      const url = new URL(view.webContents.getURL());
+      return url.hostname.endsWith('.google.com') && url.pathname === '/search';
+    } catch {
+      return false;
+    }
   }
 
   private layout(): void {

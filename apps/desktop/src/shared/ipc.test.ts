@@ -6,6 +6,7 @@ import {
   ImageSearchResultEnvelopeSchema,
   ImageDownloadRequestSchema,
   ImageDownloadResultEnvelopeSchema,
+  ResearchOpenResultEnvelopeSchema,
   VersionResultSchema,
 } from './ipc';
 
@@ -98,5 +99,31 @@ describe('IPC contract schemas', () => {
         },
       }).success,
     ).toBe(true);
+  });
+
+  it('allows only bounded HTTPS link cards in a Research View response', () => {
+    expect(
+      ResearchOpenResultEnvelopeSchema.safeParse({
+        ok: true,
+        value: {
+          opened: true,
+          results: [
+            {
+              title: 'Electron Security',
+              url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+            },
+          ],
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      ResearchOpenResultEnvelopeSchema.safeParse({
+        ok: true,
+        value: {
+          opened: true,
+          results: [{ title: 'Insecure', url: 'http://example.com' }],
+        },
+      }).success,
+    ).toBe(false);
   });
 });

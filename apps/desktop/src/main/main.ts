@@ -74,6 +74,16 @@ const createE2eResearchController = (): ResearchController => {
   return {
     open: async () => {
       open = true;
+      return [
+        {
+          title: 'Electron Security',
+          url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+        },
+        {
+          title: 'Electron Process Model',
+          url: 'https://www.electronjs.org/docs/latest/tutorial/process-model',
+        },
+      ];
     },
     close: () => {
       open = false;
