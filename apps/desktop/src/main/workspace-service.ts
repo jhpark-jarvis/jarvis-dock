@@ -50,8 +50,9 @@ export const resolveWorkspacePath = async (
   relativePath: string,
   mustExist: boolean,
 ): Promise<{ root: string; absolutePath: string } | undefined> => {
-  const root = store.get(workspaceId);
-  if (!root) return undefined;
+  const storedRoot = store.get(workspaceId);
+  if (!storedRoot) return undefined;
+  const root = await fs.realpath(storedRoot);
   const absolutePath = path.resolve(root, relativePath);
   if (!isInside(root, absolutePath)) return undefined;
   if (mustExist) {
