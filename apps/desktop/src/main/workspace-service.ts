@@ -12,6 +12,15 @@ export type WorkspaceStore = Map<string, string>;
 
 export const createWorkspaceStore = (): WorkspaceStore => new Map();
 
+const comparablePath = (value: string): string => {
+  const resolved = path.resolve(value);
+  if (process.platform !== 'win32') return resolved;
+  return resolved
+    .replace(/^\\\\\?\\UNC\\/i, '\\\\')
+    .replace(/^\\\\\?\\/i, '')
+    .toLowerCase();
+};
+
 export const registerWorkspace = async (
   store: WorkspaceStore,
   rootPath: string,
@@ -23,7 +32,10 @@ export const registerWorkspace = async (
 };
 
 const isInside = (root: string, candidate: string): boolean => {
-  const relative = path.relative(root, candidate);
+  const relative = path.relative(
+    comparablePath(root),
+    comparablePath(candidate),
+  );
   return (
     relative === '' ||
     (relative !== '..' &&
