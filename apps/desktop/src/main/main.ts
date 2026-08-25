@@ -6,13 +6,7 @@ import {
   session,
   type WebContents,
 } from 'electron';
-import {
-  mkdirSync,
-  mkdtempSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -32,14 +26,12 @@ import { createMainWindowOptions } from './window-options';
 import { registerImageSearchHandlers } from './image-search-handlers';
 import { registerImageDownloadHandlers } from './image-download-handlers';
 import { WIKIMEDIA_IMAGE_HOSTS } from './image-search-service';
-import type { DownloadImageRequest } from './image-download-service';
 import { registerWorkspaceHandlers } from './workspace-handlers';
 import { createWorkspaceStore, type WorkspaceStore } from './workspace-service';
 import type { ImageDownloadResult } from '../shared/ipc';
 
 const E2E_WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const E2E_DOCUMENT_WORKSPACE_ROOT = 'DOCK_E2E_DOCUMENT_WORKSPACE_ROOT';
-const E2E_PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
 const E2E_RESEARCH_SECURITY_HTML = `<!doctype html>
 <html lang="en">
   <head><meta charset="utf-8"><title>Research security fixture</title></head>
@@ -115,19 +107,12 @@ const failE2eDocumentWrite = async (): Promise<never> => {
   });
 };
 
-const downloadE2eImage = (
-  request: DownloadImageRequest,
-): Promise<ImageDownloadResult> => {
-  const assetDirectory = path.join(request.root, 'assets');
-  const fileName = 'electron-process-model.png';
-  mkdirSync(assetDirectory, { recursive: true });
-  writeFileSync(path.join(assetDirectory, fileName), E2E_PNG);
-  return Promise.resolve({
-    assetPath: `assets/${fileName}`,
-    bytesWritten: E2E_PNG.byteLength,
+const downloadE2eImage = (): Promise<ImageDownloadResult> =>
+  Promise.resolve({
+    assetPath: 'assets/electron-process-model.png',
+    bytesWritten: 12,
     mimeType: 'image/png',
   });
-};
 
 const registerE2eResearchSecurityFixture = (): void => {
   if (!process.argv.includes('--dock-e2e-research-security')) return;
