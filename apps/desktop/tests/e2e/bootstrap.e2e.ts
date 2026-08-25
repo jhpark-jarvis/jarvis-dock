@@ -403,10 +403,30 @@ test('Dock downloads the selected image before inserting Markdown', async () => 
     await page.getByRole('button', { name: /Electron process model/ }).click();
     await page.getByRole('button', { name: '다운로드 및 삽입' }).click();
 
-    await expect(editor).toHaveValue(
-      '# Start![Electron process model](./assets/electron-process-model.png)',
-      { timeout: 15_000 },
-    );
+    const expectedContent =
+      '# Start![Electron process model](./assets/electron-process-model.png)';
+    await expect
+      .poll(
+        () =>
+          page.evaluate((expected) => {
+            const currentEditor = document.querySelector<HTMLTextAreaElement>(
+              '[aria-label="Markdown 편집기"]',
+            );
+            if (currentEditor?.value === expected) return 'complete';
+            const dialog = document.querySelector('[role="dialog"]');
+            const error = dialog
+              ?.querySelector('[role="alert"]')
+              ?.textContent?.trim();
+            if (error) return `error: ${error}`;
+            const status = dialog
+              ?.querySelector('[role="status"]')
+              ?.textContent?.trim();
+            return `pending: ${status ?? 'none'}`;
+          }, expectedContent),
+        { timeout: 15_000 },
+      )
+      .toBe('complete');
+    await expect(editor).toHaveValue(expectedContent);
   } finally {
     await app.close();
   }
