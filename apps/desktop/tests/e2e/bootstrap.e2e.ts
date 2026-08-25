@@ -1,13 +1,18 @@
 import { _electron as electron, expect, test } from '@playwright/test';
 import electronExecutablePathModule from 'electron';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const desktopDirectory = path.resolve(__dirname, '../..');
 const electronExecutablePath =
   electronExecutablePathModule as unknown as string;
 
-const launchDock = (extraArgs: string[] = []) => {
-  const environment = { ...process.env };
+const launchDock = (
+  extraArgs: string[] = [],
+  extraEnvironment: NodeJS.ProcessEnv = {},
+) => {
+  const environment = { ...process.env, ...extraEnvironment };
   delete environment.ELECTRON_RUN_AS_NODE;
 
   return electron.launch({
@@ -17,6 +22,50 @@ const launchDock = (extraArgs: string[] = []) => {
     env: environment,
   });
 };
+
+test('Dock selects, creates, saves, and reopens a document workspace after relaunch', async () => {
+  const workspaceRoot = mkdtempSync(
+    path.join(os.tmpdir(), 'dock-e2e-document-'),
+  );
+  writeFileSync(path.join(workspaceRoot, 'guide.md'), '# Start', 'utf8');
+  const launchEnvironment = {
+    DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot,
+  };
+  let firstApp: Awaited<ReturnType<typeof launchDock>> | undefined;
+  let secondApp: Awaited<ReturnType<typeof launchDock>> | undefined;
+
+  try {
+    firstApp = await launchDock(['--dock-e2e-document'], launchEnvironment);
+    const firstPage = await firstApp.firstWindow();
+    const editor = firstPage.getByRole('textbox', { name: 'Markdown 편집기' });
+
+    await firstPage.getByRole('button', { name: '폴더 선택' }).click();
+    await firstPage.getByRole('button', { name: 'guide.md' }).click();
+    await expect(editor).toHaveValue('# Start');
+
+    await firstPage.getByLabel('새 문서 경로').fill('relaunch.md');
+    await firstPage.getByRole('button', { name: '새 문서 생성' }).click();
+    await expect(firstPage.getByRole('heading', { name: 'relaunch.md' })).toBeVisible();
+    await editor.fill('# Relaunch\n\n저장된 Markdown 문서');
+    await firstPage.getByRole('button', { name: '저장' }).click();
+    await expect(firstPage.getByRole('button', { name: '저장됨' })).toBeDisabled();
+
+    await firstApp.close();
+    firstApp = undefined;
+
+    secondApp = await launchDock(['--dock-e2e-document'], launchEnvironment);
+    const secondPage = await secondApp.firstWindow();
+    await secondPage.getByRole('button', { name: '폴더 선택' }).click();
+    await secondPage.getByRole('button', { name: 'relaunch.md' }).click();
+    await expect(
+      secondPage.getByRole('textbox', { name: 'Markdown 편집기' }),
+    ).toHaveValue('# Relaunch\n\n저장된 Markdown 문서');
+  } finally {
+    await firstApp?.close();
+    await secondApp?.close();
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
 
 test('Dock starts with a narrow preload API and no Renderer Node.js globals', async () => {
   const app = await launchDock();

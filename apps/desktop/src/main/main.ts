@@ -36,6 +36,7 @@ import { createWorkspaceStore, type WorkspaceStore } from './workspace-service';
 import type { ImageDownloadResult } from '../shared/ipc';
 
 const E2E_WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
+const E2E_DOCUMENT_WORKSPACE_ROOT = 'DOCK_E2E_DOCUMENT_WORKSPACE_ROOT';
 const E2E_PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
 const E2E_RESEARCH_SECURITY_HTML = `<!doctype html>
 <html lang="en">
@@ -49,6 +50,7 @@ const E2E_RESEARCH_SECURITY_HTML = `<!doctype html>
 
 let cleanupE2eWorkspace: (() => void) | undefined;
 let researchController: ResearchController | undefined;
+let e2eDocumentWorkspaceRoot: string | undefined;
 
 const setupE2eWorkspace = (store: WorkspaceStore): (() => void) | undefined => {
   const e2eMode = process.argv.includes('--dock-e2e-image')
@@ -57,16 +59,36 @@ const setupE2eWorkspace = (store: WorkspaceStore): (() => void) | undefined => {
       ? 'link'
       : process.argv.includes('--dock-e2e-research-security')
         ? 'research-security'
-        : undefined;
+        : process.argv.includes('--dock-e2e-document')
+          ? 'document'
+          : undefined;
   if (!e2eMode) return undefined;
-  const root = mkdtempSync(path.join(os.tmpdir(), `dock-e2e-${e2eMode}-`));
-  writeFileSync(path.join(root, 'guide.md'), '# Start', 'utf8');
+  const configuredDocumentRoot =
+    e2eMode === 'document'
+      ? process.env[E2E_DOCUMENT_WORKSPACE_ROOT]
+      : undefined;
+  const root = configuredDocumentRoot
+    ? path.resolve(configuredDocumentRoot)
+    : mkdtempSync(path.join(os.tmpdir(), `dock-e2e-${e2eMode}-`));
+  const ownsRoot = !configuredDocumentRoot;
+  if (ownsRoot) writeFileSync(path.join(root, 'guide.md'), '# Start', 'utf8');
+  if (e2eMode === 'document') e2eDocumentWorkspaceRoot = root;
   store.set(E2E_WORKSPACE_ID, root);
   return () => {
     store.delete(E2E_WORKSPACE_ID);
-    rmSync(root, { recursive: true, force: true });
+    if (e2eDocumentWorkspaceRoot === root) {
+      e2eDocumentWorkspaceRoot = undefined;
+    }
+    if (ownsRoot) rmSync(root, { recursive: true, force: true });
   };
 };
+
+const createE2eDocumentDialog = () => ({
+  showOpenDialog: async () => ({
+    canceled: !e2eDocumentWorkspaceRoot,
+    filePaths: e2eDocumentWorkspaceRoot ? [e2eDocumentWorkspaceRoot] : [],
+  }),
+});
 
 const downloadE2eImage = (
   request: DownloadImageRequest,
@@ -207,7 +229,9 @@ const registerIpcHandlers = () => {
   });
   registerWorkspaceHandlers({
     ipcMain,
-    dialog,
+    dialog: process.argv.includes('--dock-e2e-document')
+      ? createE2eDocumentDialog()
+      : dialog,
     store: workspaceStore,
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
