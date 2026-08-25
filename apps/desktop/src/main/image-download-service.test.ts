@@ -42,6 +42,7 @@ describe('image download service', () => {
   it('validates the host and MIME, then saves without overwriting', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'jarvis-dock-image-'));
     roots.push(root);
+    const realpath = vi.spyOn(fs, 'realpath');
     const fetchImpl = vi.fn(async (url: URL, init?: RequestInit) => {
       expect(url.toString()).toBe(image.downloadUrl);
       expect(init?.redirect).toBe('manual');
@@ -63,6 +64,7 @@ describe('image download service', () => {
       bytesWritten: PNG.byteLength,
     });
     expect(second.assetPath).toBe('assets/electron-process-model-2.png');
+    expect(realpath).toHaveBeenCalledWith(root);
     await expect(
       fs.readFile(path.join(root, first.assetPath)),
     ).resolves.toEqual(PNG);

@@ -177,10 +177,11 @@ const saveWithoutOverwrite = async (
   mimeType: keyof typeof MIME_TO_EXTENSION,
   bytes: Buffer,
 ): Promise<ImageDownloadResult> => {
-  const assetDirectory = path.join(root, 'assets');
+  const realRoot = await fs.realpath(root);
+  const assetDirectory = path.join(realRoot, 'assets');
   await fs.mkdir(assetDirectory, { recursive: true });
   const realAssetDirectory = await fs.realpath(assetDirectory);
-  if (!isInside(root, realAssetDirectory)) {
+  if (!isInside(realRoot, realAssetDirectory)) {
     throw new ImageDownloadServiceError(
       'IMAGE_DOWNLOAD_FAILED',
       'The asset directory is outside the document workspace.',

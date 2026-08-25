@@ -31,13 +31,14 @@ const createHarness = async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'jarvis-dock-image-'));
   roots.push(root);
   await fs.writeFile(path.join(root, 'guide.md'), '# Guide');
-  const store = new Map([['11111111-1111-4111-8111-111111111111', root]]);
+  const realRoot = await fs.realpath(root);
+  const store = new Map([['11111111-1111-4111-8111-111111111111', realRoot]]);
   const handlers = new Map<string, InvokeHandler>();
   const handle = vi.fn((channel: string, handler: InvokeHandler) =>
     handlers.set(channel, handler),
   );
   const downloadImage = vi.fn(async (request: { root: string }) => {
-    expect(request.root).toBe(root);
+    expect(request.root).toBe(realRoot);
     return {
       assetPath: 'assets/electron-process-model.png',
       bytesWritten: 8,

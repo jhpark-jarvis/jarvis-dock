@@ -6,7 +6,7 @@ import {
   session,
   type WebContents,
 } from 'electron';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -76,11 +76,13 @@ const setupE2eWorkspace = (store: WorkspaceStore): (() => void) | undefined => {
     e2eMode === 'document'
       ? process.env[E2E_DOCUMENT_WORKSPACE_ROOT]
       : undefined;
-  const root = configuredDocumentRoot
+  const rootPath = configuredDocumentRoot
     ? path.resolve(configuredDocumentRoot)
     : mkdtempSync(path.join(os.tmpdir(), `dock-e2e-${e2eMode}-`));
   const ownsRoot = !configuredDocumentRoot;
-  if (ownsRoot) writeFileSync(path.join(root, 'guide.md'), '# Start', 'utf8');
+  if (ownsRoot)
+    writeFileSync(path.join(rootPath, 'guide.md'), '# Start', 'utf8');
+  const root = realpathSync(rootPath);
   if (e2eMode === 'document') e2eDocumentWorkspaceRoot = root;
   store.set(E2E_WORKSPACE_ID, root);
   return () => {
