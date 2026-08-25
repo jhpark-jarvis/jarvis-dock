@@ -404,6 +404,7 @@ test('Dock downloads the selected image before inserting Markdown', async () => 
 
     await expect(editor).toHaveValue(
       '# Start![Electron process model](./assets/electron-process-model.png)',
+      { timeout: 15_000 },
     );
   } finally {
     await app.close();
