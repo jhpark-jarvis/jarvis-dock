@@ -239,7 +239,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setImageStatus('idle');
     setSelectedImage(undefined);
     setImageAltText('');
-    requestAnimationFrame(() => commandTriggerRef.current?.focus());
+    commandTriggerRef.current?.focus();
   };
 
   const openLinkSearch = async () => {
