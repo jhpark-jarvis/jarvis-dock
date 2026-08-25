@@ -394,6 +394,7 @@ test('Dock downloads the selected image before inserting Markdown', async () => 
   try {
     const page = await app.firstWindow();
     const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
+    await expect(editor).toHaveValue('# Start');
 
     await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
     await page.getByRole('button', { name: /\/image/ }).click();
