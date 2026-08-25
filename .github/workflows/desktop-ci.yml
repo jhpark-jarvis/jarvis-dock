@@ -53,3 +53,4 @@ jobs:
       - run: npm ci
       - run: npm run test:e2e
       - run: npm run test:smoke
+      - run: npm run make
