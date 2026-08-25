@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs';
+import { constants as fsConstants, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { ImageDownloadResult, ImageSearchResult } from '../shared/ipc';
@@ -202,7 +202,11 @@ const saveWithoutOverwrite = async (
       const fileName = `${stem}${suffix}${extension}`;
       const absolutePath = path.join(realAssetDirectory, fileName);
       try {
-        await fs.link(temporaryPath, absolutePath);
+        await fs.copyFile(
+          temporaryPath,
+          absolutePath,
+          fsConstants.COPYFILE_EXCL,
+        );
         await fs.unlink(temporaryPath);
         return {
           assetPath: path.posix.join('assets', fileName),
