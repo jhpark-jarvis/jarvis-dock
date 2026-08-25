@@ -34,6 +34,7 @@ export interface WorkspaceHandlerDependencies {
   dialog: Dialog;
   isTrustedSender: (senderUrl: string) => boolean;
   store?: WorkspaceStore;
+  documentWriter?: typeof writeDocument;
 }
 
 const error = (code: DockError['code'], message: string): DockError => ({
@@ -71,6 +72,7 @@ export const registerWorkspaceHandlers = ({
   dialog,
   isTrustedSender,
   store = createWorkspaceStore(),
+  documentWriter = writeDocument,
 }: WorkspaceHandlerDependencies): void => {
   ipcMain.handle(IPC.WORKSPACE_CHOOSE, async (event, request) => {
     const guardError = guard(
@@ -220,7 +222,7 @@ export const registerWorkspaceHandlers = ({
         });
       const value = create
         ? await createDocument(resolved.absolutePath, parsed.relativePath)
-        : await writeDocument(
+        : await documentWriter(
             resolved.absolutePath,
             parsed.relativePath,
             (parsed as unknown as { content: string }).content,

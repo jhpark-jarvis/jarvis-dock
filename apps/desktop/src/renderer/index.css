@@ -203,6 +203,14 @@ input:focus-visible {
   background: #0f1928;
 }
 
+.editor-save-error {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  color: #fecaca;
+  background: #3f1519;
+  border-bottom: 1px solid #7f1d1d;
+}
+
 .panel-heading {
   display: flex;
   align-items: start;

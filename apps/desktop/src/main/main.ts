@@ -52,6 +52,15 @@ let cleanupE2eWorkspace: (() => void) | undefined;
 let researchController: ResearchController | undefined;
 let e2eDocumentWorkspaceRoot: string | undefined;
 
+const isE2eDocumentDialogMode = (): boolean =>
+  process.argv.includes('--dock-e2e-document') ||
+  process.argv.includes('--dock-e2e-document-write-failure') ||
+  process.argv.includes('--dock-e2e-document-cancel');
+
+const isE2eDocumentWorkspaceMode = (): boolean =>
+  process.argv.includes('--dock-e2e-document') ||
+  process.argv.includes('--dock-e2e-document-write-failure');
+
 const setupE2eWorkspace = (store: WorkspaceStore): (() => void) | undefined => {
   const e2eMode = process.argv.includes('--dock-e2e-image')
     ? 'image'
@@ -59,7 +68,7 @@ const setupE2eWorkspace = (store: WorkspaceStore): (() => void) | undefined => {
       ? 'link'
       : process.argv.includes('--dock-e2e-research-security')
         ? 'research-security'
-        : process.argv.includes('--dock-e2e-document')
+        : isE2eDocumentWorkspaceMode()
           ? 'document'
           : undefined;
   if (!e2eMode) return undefined;
@@ -85,10 +94,22 @@ const setupE2eWorkspace = (store: WorkspaceStore): (() => void) | undefined => {
 
 const createE2eDocumentDialog = () => ({
   showOpenDialog: async () => ({
-    canceled: !e2eDocumentWorkspaceRoot,
-    filePaths: e2eDocumentWorkspaceRoot ? [e2eDocumentWorkspaceRoot] : [],
+    canceled:
+      process.argv.includes('--dock-e2e-document-cancel') ||
+      !e2eDocumentWorkspaceRoot,
+    filePaths:
+      process.argv.includes('--dock-e2e-document-cancel') ||
+      !e2eDocumentWorkspaceRoot
+        ? []
+        : [e2eDocumentWorkspaceRoot],
   }),
 });
+
+const failE2eDocumentWrite = async (): Promise<never> => {
+  throw Object.assign(new Error('Document write fixture failure.'), {
+    code: 'EACCES',
+  });
+};
 
 const downloadE2eImage = (
   request: DownloadImageRequest,
@@ -229,9 +250,10 @@ const registerIpcHandlers = () => {
   });
   registerWorkspaceHandlers({
     ipcMain,
-    dialog: process.argv.includes('--dock-e2e-document')
-      ? createE2eDocumentDialog()
-      : dialog,
+    dialog: isE2eDocumentDialogMode() ? createE2eDocumentDialog() : dialog,
+    documentWriter: process.argv.includes('--dock-e2e-document-write-failure')
+      ? failE2eDocumentWrite
+      : undefined,
     store: workspaceStore,
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),

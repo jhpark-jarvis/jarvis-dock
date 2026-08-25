@@ -55,6 +55,56 @@ describe('App', () => {
     );
   });
 
+  it('keeps unsaved text and reports a save failure', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [{ relativePath: 'today.md', displayName: 'today.md' }],
+            },
+          }),
+        },
+        document: {
+          read: async () => ({
+            ok: true as const,
+            value: { relativePath: 'today.md', content: '# Before' },
+          }),
+          write: async () => ({
+            ok: false as const,
+            error: {
+              code: 'PERMISSION_DENIED' as const,
+              message: 'Permission was denied.',
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    await user.click(await screen.findByRole('button', { name: 'today.md' }));
+    const editor = screen.getByRole('textbox', { name: 'Markdown 편집기' });
+    await user.type(editor, '\nUnsaved');
+    await user.click(screen.getByRole('button', { name: '저장' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '문서를 저장하지 못했습니다. 편집 내용은 유지됩니다.',
+    );
+    expect(editor).toHaveValue('# Before\nUnsaved');
+    expect(screen.getByRole('button', { name: '저장' })).toBeEnabled();
+  });
+
   it('connects folder selection, opening, editing, and saving through the narrow API', async () => {
     const choose = async () => ({
       ok: true as const,

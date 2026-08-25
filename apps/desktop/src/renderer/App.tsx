@@ -56,6 +56,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [selectedPath, setSelectedPath] = useState<string>();
   const [content, setContent] = useState('');
   const [savedContent, setSavedContent] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [newDocumentPath, setNewDocumentPath] = useState('untitled.md');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [activeCommand, setActiveCommand] = useState<'link' | 'image'>();
@@ -121,6 +122,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setSelectedPath(undefined);
     setContent('');
     setSavedContent('');
+    setSaveError('');
     if (!(await refreshFiles(chosen.value.workspaceId))) return;
     setState('empty');
   };
@@ -138,6 +140,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setSelectedPath(relativePath);
     setContent(result.value.content);
     setSavedContent(result.value.content);
+    setSaveError('');
   };
 
   const saveDocument = async () => {
@@ -147,8 +150,12 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       relativePath: selectedPath,
       content,
     });
-    if (result.ok) setSavedContent(content);
-    else setState('error');
+    if (result.ok) {
+      setSavedContent(content);
+      setSaveError('');
+    } else {
+      setSaveError('문서를 저장하지 못했습니다. 편집 내용은 유지됩니다.');
+    }
   };
 
   const createDocument = async () => {
@@ -171,6 +178,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setSelectedPath(relativePath);
     setContent('');
     setSavedContent('');
+    setSaveError('');
     setNewDocumentPath('');
     setState('empty');
   };
@@ -724,13 +732,21 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               {dirty ? '저장' : '저장됨'}
             </button>
           </div>
+          {saveError && (
+            <p className="editor-save-error" role="alert">
+              {saveError}
+            </p>
+          )}
           <textarea
             ref={editorRef}
             aria-label="Markdown 편집기"
             className="markdown-editor"
             placeholder="문서를 선택하거나 새 Markdown을 작성하세요."
             value={content}
-            onChange={(event) => setContent(event.target.value)}
+            onChange={(event) => {
+              setContent(event.target.value);
+              setSaveError('');
+            }}
           />
         </section>
 

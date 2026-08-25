@@ -1,6 +1,6 @@
 import { _electron as electron, expect, test } from '@playwright/test';
 import electronExecutablePathModule from 'electron';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -22,6 +22,56 @@ const launchDock = (
     env: environment,
   });
 };
+
+test('Dock returns to the empty state when document workspace selection is cancelled', async () => {
+  const app = await launchDock(['--dock-e2e-document-cancel']);
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: '폴더 선택' }).click();
+
+    await expect(page.getByText('열어 둔 문서가 없습니다.')).toBeVisible();
+    const result = await page.evaluate(() => window.dock.workspace.choose());
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'CANCELLED', message: 'Folder selection was cancelled.' },
+    });
+  } finally {
+    await app.close();
+  }
+});
+
+test('Dock preserves unsaved Markdown when the document write fails', async () => {
+  const workspaceRoot = mkdtempSync(
+    path.join(os.tmpdir(), 'dock-e2e-document-write-failure-'),
+  );
+  writeFileSync(path.join(workspaceRoot, 'guide.md'), '# Before', 'utf8');
+  const app = await launchDock(
+    ['--dock-e2e-document-write-failure'],
+    { DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot },
+  );
+
+  try {
+    const page = await app.firstWindow();
+    const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
+    await page.getByRole('button', { name: '폴더 선택' }).click();
+    await page.getByRole('button', { name: 'guide.md' }).click();
+    await editor.fill('# After');
+    await page.getByRole('button', { name: '저장' }).click();
+
+    await expect(page.getByRole('alert')).toHaveText(
+      '문서를 저장하지 못했습니다. 편집 내용은 유지됩니다.',
+    );
+    await expect(editor).toHaveValue('# After');
+    await expect(page.getByRole('button', { name: '저장' })).toBeEnabled();
+    expect(readFileSync(path.join(workspaceRoot, 'guide.md'), 'utf8')).toBe(
+      '# Before',
+    );
+  } finally {
+    await app.close();
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
 
 test('Dock selects, creates, saves, and reopens a document workspace after relaunch', async () => {
   const workspaceRoot = mkdtempSync(

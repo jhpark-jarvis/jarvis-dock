@@ -5,11 +5,17 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { IPC } from '../shared/ipc';
 import { createWorkspaceStore } from './workspace-service';
-import { registerWorkspaceHandlers } from './workspace-handlers';
+import {
+  registerWorkspaceHandlers,
+  type WorkspaceHandlerDependencies,
+} from './workspace-handlers';
 
 type InvokeHandler = (event: IpcMainInvokeEvent, request: unknown) => unknown;
 
-const createHarness = (folder: string | undefined) => {
+const createHarness = (
+  folder: string | undefined,
+  overrides: Pick<WorkspaceHandlerDependencies, 'documentWriter'> = {},
+) => {
   const handlers = new Map<string, InvokeHandler>();
   const handle = vi.fn((channel: string, handler: InvokeHandler) =>
     handlers.set(channel, handler),
@@ -25,6 +31,7 @@ const createHarness = (folder: string | undefined) => {
     },
     isTrustedSender: (url) => url === 'http://localhost:5173/',
     store: createWorkspaceStore(),
+    ...overrides,
   });
   const invoke = (channel: string, request: unknown) => {
     const handler = handlers.get(channel);
@@ -97,5 +104,41 @@ describe('registerWorkspaceHandlers', () => {
     await expect(
       invoke(IPC.WORKSPACE_LIST_MARKDOWN_FILES, { workspaceId: 'not-a-uuid' }),
     ).resolves.toMatchObject({ ok: false, error: { code: 'INVALID_REQUEST' } });
+  });
+
+  it('maps document writer failures without reporting a successful save', async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'jarvis-dock-handler-write-failure-'),
+    );
+    await fs.writeFile(path.join(root, 'note.md'), '# Before', 'utf8');
+    const { invoke } = createHarness(root, {
+      documentWriter: async () => {
+        throw Object.assign(new Error('Write denied.'), { code: 'EACCES' });
+      },
+    });
+    const chosen = (await invoke(IPC.WORKSPACE_CHOOSE, {})) as {
+      value: { workspaceId: string };
+    };
+
+    try {
+      await expect(
+        invoke(IPC.DOCUMENT_WRITE, {
+          workspaceId: chosen.value.workspaceId,
+          relativePath: 'note.md',
+          content: '# After',
+        }),
+      ).resolves.toEqual({
+        ok: false,
+        error: {
+          code: 'PERMISSION_DENIED',
+          message: 'Permission was denied.',
+        },
+      });
+      await expect(
+        fs.readFile(path.join(root, 'note.md'), 'utf8'),
+      ).resolves.toBe('# Before');
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
   });
 });
