@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  session,
   type WebContents,
 } from 'electron';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -36,6 +37,15 @@ import type { ImageDownloadResult } from '../shared/ipc';
 
 const E2E_WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const E2E_PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
+const E2E_RESEARCH_SECURITY_HTML = `<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><title>Research security fixture</title></head>
+  <body>
+    <a href="https://www.electronjs.org/docs/latest/tutorial/security">
+      <h3>Research security fixture</h3>
+    </a>
+  </body>
+</html>`;
 
 let cleanupE2eWorkspace: (() => void) | undefined;
 let researchController: ResearchController | undefined;
@@ -45,7 +55,9 @@ const setupE2eWorkspace = (store: WorkspaceStore): (() => void) | undefined => {
     ? 'image'
     : process.argv.includes('--dock-e2e-link')
       ? 'link'
-      : undefined;
+      : process.argv.includes('--dock-e2e-research-security')
+        ? 'research-security'
+        : undefined;
   if (!e2eMode) return undefined;
   const root = mkdtempSync(path.join(os.tmpdir(), `dock-e2e-${e2eMode}-`));
   writeFileSync(path.join(root, 'guide.md'), '# Start', 'utf8');
@@ -68,6 +80,21 @@ const downloadE2eImage = (
         headers: { 'content-type': 'image/png' },
       }),
   });
+
+const registerE2eResearchSecurityFixture = (): void => {
+  if (!process.argv.includes('--dock-e2e-research-security')) return;
+  session.fromPartition('dock-research').protocol.handle('https', (request) => {
+    const url = new URL(request.url);
+    if (url.origin === 'https://www.google.com' && url.pathname === '/search') {
+      return new Response(E2E_RESEARCH_SECURITY_HTML, {
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      });
+    }
+    return new Response('Research security fixture blocks test network.', {
+      status: 404,
+    });
+  });
+};
 
 const createE2eResearchController = (): ResearchController => {
   let open = false;
@@ -109,7 +136,9 @@ const getRendererUrl = (): string => {
     ? 'link'
     : process.argv.includes('--dock-e2e-image')
       ? 'image'
-      : undefined;
+      : process.argv.includes('--dock-e2e-research-security')
+        ? 'research-security'
+        : undefined;
   if (e2eMode) {
     const url = new URL(rendererUrl);
     url.searchParams.set('e2e', e2eMode);
@@ -208,6 +237,7 @@ if (started) {
   app.quit();
 } else {
   app.whenReady().then(() => {
+    registerE2eResearchSecurityFixture();
     registerIpcHandlers();
     createWindow();
   });

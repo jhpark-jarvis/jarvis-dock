@@ -108,6 +108,126 @@ test('Dock opens Research View and inserts a selected experimental link card', a
   }
 });
 
+test('Dock keeps an actual Research View isolated and blocks privileged actions', async () => {
+  const app = await launchDock(['--dock-e2e-research-security']);
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
+    await page.getByRole('button', { name: /\/link/ }).click();
+    await page.getByRole('textbox', { name: '링크 검색어' }).fill('electron');
+    await page.getByRole('button', { name: 'Research View 열기' }).click();
+    await expect(
+      page.getByRole('button', { name: /^Research security fixture/ }),
+    ).toBeVisible();
+    const windowCountBeforePrivilegedActions = (await app.windows()).length;
+
+    const boundary = await app.evaluate(async ({ BrowserWindow }) => {
+      const mainWindow = BrowserWindow.getAllWindows()[0];
+      const researchView = mainWindow?.contentView.children.find((child) => {
+        const candidate = child as unknown as {
+          webContents?: { getURL: () => string };
+        };
+        return candidate.webContents
+          ?.getURL()
+          .startsWith('https://www.google.com/search');
+      }) as unknown as
+        | {
+            webContents: {
+              getURL: () => string;
+              executeJavaScript: (
+                code: string,
+                userGesture?: boolean,
+              ) => Promise<unknown>;
+              downloadURL: (url: string) => void;
+              session: {
+                on: (
+                  channel: string,
+                  listener: (...args: unknown[]) => void,
+                ) => void;
+                removeListener: (
+                  channel: string,
+                  listener: (...args: unknown[]) => void,
+                ) => void;
+              };
+            };
+          }
+        | undefined;
+      if (!researchView) return { found: false };
+
+      const { webContents } = researchView;
+      const initialUrl = webContents.getURL();
+      const remoteCapabilities = await webContents.executeJavaScript(
+        `({
+          dock: typeof window.dock,
+          nodeProcess: typeof window.process,
+          require: typeof window.require,
+        })`,
+        true,
+      );
+      const popupDenied = await webContents.executeJavaScript(
+        `window.open('https://popup.e2e.test/') === null`,
+        true,
+      );
+      const permissionDenied = await webContents.executeJavaScript(
+        `new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            () => resolve(false),
+            (error) => resolve(error.code === error.PERMISSION_DENIED),
+            { timeout: 500 },
+          );
+        })`,
+        true,
+      );
+      await webContents.executeJavaScript(
+        `try { window.location.assign('file:///research-security-e2e.txt'); } catch {}`,
+        true,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const navigationBlocked = webContents.getURL() === initialUrl;
+      const downloadPrevented = await new Promise((resolve) => {
+        const onDownload = (event: { defaultPrevented: boolean }) => {
+          webContents.session.removeListener('will-download', onDownload);
+          resolve(event.defaultPrevented);
+        };
+        webContents.session.on('will-download', onDownload);
+        webContents.downloadURL('data:text/plain,research-security-e2e');
+        setTimeout(() => {
+          webContents.session.removeListener('will-download', onDownload);
+          resolve(false);
+        }, 1_000);
+      });
+
+      return {
+        found: true,
+        remoteCapabilities,
+        popupDenied,
+        permissionDenied,
+        navigationBlocked,
+        downloadPrevented,
+      };
+    });
+
+    expect(boundary).toMatchObject({
+      found: true,
+      remoteCapabilities: {
+        dock: 'undefined',
+        nodeProcess: 'undefined',
+        require: 'undefined',
+      },
+      popupDenied: true,
+      permissionDenied: true,
+      navigationBlocked: true,
+      downloadPrevented: true,
+    });
+    expect(await app.windows()).toHaveLength(
+      windowCountBeforePrivilegedActions,
+    );
+  } finally {
+    await app.close();
+  }
+});
+
 test('Dock completes the mock /image search and keeps the document unchanged', async () => {
   const app = await launchDock(['--dock-e2e-image']);
 

@@ -82,7 +82,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   useEffect(() => {
     setState(initialState);
     const e2eMode = new URLSearchParams(window.location.search).get('e2e');
-    if (e2eMode !== 'link' && e2eMode !== 'image') {
+    if (
+      e2eMode !== 'link' &&
+      e2eMode !== 'image' &&
+      e2eMode !== 'research-security'
+    ) {
       return;
     }
     setWorkspaceId('11111111-1111-4111-8111-111111111111');
