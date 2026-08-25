@@ -7,6 +7,10 @@ import path from 'node:path';
 const desktopDirectory = path.resolve(__dirname, '../..');
 const electronExecutablePath =
   electronExecutablePathModule as unknown as string;
+const LARGE_MARKDOWN_CONTENT = `# Large document\n\n${Array.from(
+  { length: 6_000 },
+  (_, index) => `## Section ${index + 1}\n\nLarge Markdown regression content.`,
+).join('\n\n')}`;
 
 const launchDock = (
   extraArgs: string[] = [],
@@ -22,6 +26,37 @@ const launchDock = (
     env: environment,
   });
 };
+
+test('Dock opens a large Markdown document without truncating the editor value', async () => {
+  const workspaceRoot = mkdtempSync(
+    path.join(os.tmpdir(), 'dock-e2e-large-document-'),
+  );
+  writeFileSync(
+    path.join(workspaceRoot, 'large.md'),
+    LARGE_MARKDOWN_CONTENT,
+    'utf8',
+  );
+  const app = await launchDock(['--dock-e2e-document'], {
+    DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot,
+  });
+
+  try {
+    const page = await app.firstWindow();
+    const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
+    await page.getByRole('button', { name: '폴더 선택' }).click();
+    await page.getByRole('button', { name: 'large.md' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Large document' })).toBeVisible();
+    expect(
+      await editor.evaluate(
+        (element) => (element as HTMLTextAreaElement).value.length,
+      ),
+    ).toBe(LARGE_MARKDOWN_CONTENT.length);
+  } finally {
+    await app.close();
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
 
 test('Dock returns to the empty state when document workspace selection is cancelled', async () => {
   const app = await launchDock(['--dock-e2e-document-cancel']);

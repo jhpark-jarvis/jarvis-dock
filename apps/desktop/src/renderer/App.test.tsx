@@ -42,6 +42,30 @@ describe('App', () => {
     ).toHaveFocus();
   });
 
+  it('opens the command palette as a dialog and closes it with Escape', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const trigger = screen.getByRole('button', { name: '명령 팔레트 열기' });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await user.click(trigger);
+
+    expect(screen.getByRole('dialog', { name: '명령 팔레트' })).toBeVisible();
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: '닫기' })).toHaveFocus();
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(screen.getByRole('button', { name: /\/image/ })).toHaveFocus();
+    await user.keyboard('{Tab}');
+    expect(screen.getByRole('button', { name: '닫기' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+
+    expect(
+      screen.queryByRole('dialog', { name: '명령 팔레트' }),
+    ).not.toBeInTheDocument();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger).toHaveFocus();
+  });
+
   it('shows loading and error messages as distinct accessible states', () => {
     const { rerender } = render(<App state="loading" />);
 

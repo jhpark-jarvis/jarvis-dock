@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { MouseEvent } from 'react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 import type { ResearchSearchResult, WorkspaceFile } from '../shared/ipc';
 import {
   formatMarkdownLink,
@@ -47,8 +47,30 @@ const WorkspaceState = ({ state }: Required<AppProps>) => {
   );
 };
 
+const trapDialogFocus = (event: KeyboardEvent<HTMLElement>): void => {
+  if (event.key !== 'Tab') return;
+  const focusable = Array.from(
+    event.currentTarget.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  );
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const activeElement = document.activeElement;
+
+  if (event.shiftKey && activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+};
+
 const App = ({ state: initialState = 'empty' }: AppProps) => {
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const commandTriggerRef = useRef<HTMLButtonElement>(null);
   const [state, setState] = useState<ShellState>(initialState);
   const [workspaceId, setWorkspaceId] = useState<string>();
   const [workspaceName, setWorkspaceName] = useState<string>();
@@ -217,6 +239,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setImageStatus('idle');
     setSelectedImage(undefined);
     setImageAltText('');
+    requestAnimationFrame(() => commandTriggerRef.current?.focus());
   };
 
   const openLinkSearch = async () => {
@@ -416,6 +439,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             </>
           )}
           <button
+            ref={commandTriggerRef}
+            aria-controls="command-dialog"
+            aria-expanded={commandPaletteOpen}
+            aria-haspopup="dialog"
             className="button button--quiet"
             type="button"
             onClick={openCommandPalette}
@@ -469,10 +496,19 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       {commandPaletteOpen && (
         <div className="dialog-backdrop">
           <section
+            id="command-dialog"
             className="command-dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby="command-dialog-title"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                closeCommandPalette();
+              } else {
+                trapDialogFocus(event);
+              }
+            }}
           >
             <div className="panel-heading">
               <div>
@@ -480,6 +516,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                 <h2 id="command-dialog-title">명령 팔레트</h2>
               </div>
               <button
+                autoFocus
                 className="button button--quiet"
                 type="button"
                 onClick={closeCommandPalette}

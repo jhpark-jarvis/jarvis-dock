@@ -201,6 +201,7 @@ input:focus-visible {
 
 .editor-panel {
   background: #0f1928;
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .editor-save-error {
