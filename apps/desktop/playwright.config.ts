@@ -6,7 +6,7 @@ export default defineConfig({
   timeout: 30_000,
   fullyParallel: false,
   workers: 1,
-  reporter: 'list',
+  reporter: process.env.GITHUB_ACTIONS ? 'github' : 'list',
   use: {
     trace: 'retain-on-failure',
   },
