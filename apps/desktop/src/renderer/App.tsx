@@ -99,6 +99,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   >('idle');
   const [imageResults, setImageResults] = useState<ImageSearchResult[]>([]);
   const [imageError, setImageError] = useState('');
+  const [imageErrorCode, setImageErrorCode] = useState('');
   const [selectedImage, setSelectedImage] = useState<ImageSearchResult>();
   const [imageAltText, setImageAltText] = useState('');
 
@@ -221,6 +222,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setLinkStatus('idle');
     setImageResults([]);
     setImageError('');
+    setImageErrorCode('');
     setImageStatus('idle');
     setSelectedImage(undefined);
     setImageAltText('');
@@ -236,6 +238,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setImageQuery('');
     setImageResults([]);
     setImageError('');
+    setImageErrorCode('');
     setImageStatus('idle');
     setSelectedImage(undefined);
     setImageAltText('');
@@ -351,11 +354,13 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const downloadImage = async () => {
     if (!workspaceId || !selectedPath || !selectedImage) {
       setImageError('먼저 Markdown 문서를 선택해 주세요.');
+      setImageErrorCode('WORKSPACE_NOT_SELECTED');
       setImageStatus('error');
       return;
     }
     setImageStatus('loading');
     setImageError('');
+    setImageErrorCode('');
     try {
       const response = await window.dock.image.download({
         workspaceId,
@@ -363,6 +368,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         image: selectedImage,
       });
       if (response.ok === false) {
+        setImageErrorCode(response.error.code);
         setImageError(
           response.error.code === 'IMAGE_TOO_LARGE'
             ? '이미지 파일이 너무 큽니다.'
@@ -392,6 +398,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         editorRef.current?.setSelectionRange(cursor, cursor);
       });
     } catch {
+      setImageErrorCode('INTERNAL');
       setImageError('이미지를 다운로드하거나 저장하지 못했습니다.');
       setImageStatus('error');
     }
@@ -645,7 +652,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               </p>
             )}
             {activeCommand === 'image' && imageStatus === 'error' && (
-              <p className="dialog-message dialog-message--error" role="alert">
+              <p
+                className="dialog-message dialog-message--error"
+                role="alert"
+                data-image-error-code={imageErrorCode || undefined}
+              >
                 {imageError}
               </p>
             )}

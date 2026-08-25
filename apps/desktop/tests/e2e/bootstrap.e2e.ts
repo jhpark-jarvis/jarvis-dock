@@ -417,7 +417,10 @@ test('Dock downloads the selected image before inserting Markdown', async () => 
             const error = dialog
               ?.querySelector('[role="alert"]')
               ?.textContent?.trim();
-            if (error) return `error: ${error}`;
+            const errorCode = dialog
+              ?.querySelector('[role="alert"]')
+              ?.getAttribute('data-image-error-code');
+            if (error) return `error: ${errorCode ?? 'unknown'}: ${error}`;
             const status = dialog
               ?.querySelector('[role="status"]')
               ?.textContent?.trim();
