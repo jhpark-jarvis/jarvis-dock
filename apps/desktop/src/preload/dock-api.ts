@@ -19,6 +19,7 @@ import {
   ResearchOpenRequestSchema,
   ResearchOpenResultEnvelopeSchema,
   ResearchTabRequestSchema,
+  ResearchVisibilityRequestSchema,
   ImageDownloadRequestSchema,
   ImageDownloadResultEnvelopeSchema,
   ImageAssetRequestSchema,
@@ -220,7 +221,9 @@ const invokeResearchTabAction = async (
   const parsed =
     channel === IPC.RESEARCH_SELECT_TAB || channel === IPC.RESEARCH_CLOSE_TAB
       ? ResearchTabRequestSchema.safeParse(request)
-      : ResearchActionRequestSchema.safeParse(request);
+      : channel === IPC.RESEARCH_SET_VISIBLE
+        ? ResearchVisibilityRequestSchema.safeParse(request)
+        : ResearchActionRequestSchema.safeParse(request);
   if (!parsed.success)
     return {
       ok: false,
@@ -373,6 +376,8 @@ export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
     stop: () => invokeResearchTabAction(ipcRenderer, IPC.RESEARCH_STOP, {}),
     closeTab: (request) =>
       invokeResearchTabAction(ipcRenderer, IPC.RESEARCH_CLOSE_TAB, request),
+    setVisible: (request) =>
+      invokeResearchTabAction(ipcRenderer, IPC.RESEARCH_SET_VISIBLE, request),
   },
   image: {
     search: (request) => invokeImageSearch(ipcRenderer, request),

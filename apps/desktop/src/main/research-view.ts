@@ -194,6 +194,13 @@ export class ResearchViewManager {
     return true;
   }
 
+  setVisible(visible: boolean): boolean {
+    const view = this.activeView();
+    if (!view) return false;
+    view.setVisible(visible);
+    return true;
+  }
+
   closeTab(tabId: string): boolean {
     const view = this.tabs.get(tabId);
     if (!view) return false;
@@ -236,6 +243,7 @@ export class ResearchViewManager {
     this.resultsByTab.set(id, []);
     this.activeTabId = id;
     this.mainWindow.contentView.addChildView(view);
+    view.setVisible(false);
     view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
     return { id, view };
   }

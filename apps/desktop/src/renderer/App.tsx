@@ -373,8 +373,16 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     return editorSelectionRef.current;
   };
 
+  const setResearchViewVisibility = (visible: boolean) => {
+    if (!researchOpen) return;
+    const setVisible = window.dock?.research?.setVisible;
+    if (!setVisible) return;
+    void setVisible({ visible });
+  };
+
   const openCommandPalette = () => {
     rememberEditorSelection();
+    setResearchViewVisibility(false);
     setLinkQuery('');
     setImageQuery('');
     setActiveCommand(undefined);
@@ -391,6 +399,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   };
 
   const closeCommandPalette = () => {
+    setResearchViewVisibility(true);
     setCommandPaletteOpen(false);
     setActiveCommand(undefined);
     setLinkQuery('');

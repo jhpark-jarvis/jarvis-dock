@@ -11,6 +11,7 @@ import {
   ResearchOpenRequestSchema,
   ResearchOpenResultEnvelopeSchema,
   ResearchTabRequestSchema,
+  ResearchVisibilityRequestSchema,
   type DockError,
   type ResearchSearchResult,
 } from '../shared/ipc';
@@ -27,6 +28,7 @@ export interface ResearchController {
   reload: () => boolean;
   stop: () => boolean;
   closeTab: (tabId: string) => boolean;
+  setVisible: (visible: boolean) => boolean;
 }
 
 export interface ResearchHandlerDependencies {
@@ -257,6 +259,39 @@ export const registerResearchHandlers = ({
     }
     const controller = getResearchController();
     if (!controller || !controller.stop()) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: error('RESEARCH_NOT_OPEN', 'The research view is not open.'),
+      });
+    }
+    return ResearchActionResultEnvelopeSchema.parse({
+      ok: true,
+      value: { updated: true },
+    });
+  });
+
+  ipcMain.handle(IPC.RESEARCH_SET_VISIBLE, (event, request) => {
+    if (!isTrustedSender(event.senderFrame.url)) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: senderError(),
+      });
+    }
+    const parsed = ResearchVisibilityRequestSchema.safeParse(request);
+    if (!parsed.success) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: requestError(),
+      });
+    }
+    const controller = getResearchController();
+    if (!controller) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: error('RESEARCH_NOT_OPEN', 'The research view is not open.'),
+      });
+    }
+    if (!controller.setVisible(parsed.data.visible)) {
       return ResearchActionResultEnvelopeSchema.parse({
         ok: false,
         error: error('RESEARCH_NOT_OPEN', 'The research view is not open.'),

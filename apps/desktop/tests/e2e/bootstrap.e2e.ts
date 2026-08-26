@@ -268,6 +268,15 @@ test('Dock keeps an actual Research View isolated and blocks privileged actions'
         name: /^Research security fixture https:/,
       }),
     ).toBeVisible();
+    await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
+    await expect(
+      page.getByRole('dialog', { name: '명령 팔레트' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: /\/image/ }).click();
+    await expect(
+      page.getByRole('textbox', { name: '이미지 검색어' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: '취소' }).click();
     await app.evaluate(async ({ BrowserWindow }) => {
       const mainWindow = BrowserWindow.getAllWindows()[0];
       const researchView = mainWindow?.contentView.children.find((child) => {

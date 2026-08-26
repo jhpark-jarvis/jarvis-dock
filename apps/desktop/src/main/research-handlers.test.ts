@@ -41,6 +41,7 @@ const createController = (): ResearchController => ({
   reload: () => true,
   stop: () => true,
   closeTab: () => true,
+  setVisible: () => true,
 });
 
 const createHarness = (controller: ResearchController | undefined) => {
@@ -115,6 +116,12 @@ describe('registerResearchHandlers', () => {
         url: 'https://www.electronjs.org/docs/latest/tutorial/security',
       },
     });
+    const setVisible = vi.spyOn(controller, 'setVisible');
+    expect(invoke(IPC.RESEARCH_SET_VISIBLE, { visible: false })).toEqual({
+      ok: true,
+      value: { updated: true },
+    });
+    expect(setVisible).toHaveBeenCalledWith(false);
     expect(invoke(IPC.RESEARCH_CLOSE, {})).toEqual({
       ok: true,
       value: { closed: true },

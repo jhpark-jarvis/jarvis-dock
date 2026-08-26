@@ -35,18 +35,20 @@ describe('createDockApi', () => {
     const invoke = vi.fn(async (channel: string) =>
       channel === IPC.RESEARCH_CLOSE
         ? { ok: true, value: { closed: true } }
-        : {
-            ok: true,
-            value: {
-              opened: true,
-              results: [
-                {
-                  title: 'Electron Security',
-                  url: 'https://www.electronjs.org/docs/latest/tutorial/security',
-                },
-              ],
+        : channel === IPC.RESEARCH_SET_VISIBLE
+          ? { ok: true, value: { updated: true } }
+          : {
+              ok: true,
+              value: {
+                opened: true,
+                results: [
+                  {
+                    title: 'Electron Security',
+                    url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+                  },
+                ],
+              },
             },
-          },
     );
     const dock = createDockApi({ invoke });
 
@@ -58,6 +60,12 @@ describe('createDockApi', () => {
     });
     await expect(dock.research.close()).resolves.toMatchObject({ ok: true });
     expect(invoke).toHaveBeenCalledWith(IPC.RESEARCH_CLOSE, {});
+    await expect(
+      dock.research.setVisible({ visible: false }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(invoke).toHaveBeenCalledWith(IPC.RESEARCH_SET_VISIBLE, {
+      visible: false,
+    });
   });
 
   it('validates and invokes the fixed image download channel', async () => {

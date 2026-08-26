@@ -242,6 +242,7 @@ const createE2eResearchController = (): ResearchController => {
       open = false;
       return true;
     },
+    setVisible: () => open,
   };
 };
 

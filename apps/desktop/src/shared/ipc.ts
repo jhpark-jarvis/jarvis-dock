@@ -17,6 +17,7 @@ export const IPC = {
   RESEARCH_RELOAD: 'research:reload',
   RESEARCH_STOP: 'research:stop',
   RESEARCH_CLOSE_TAB: 'research:close-tab',
+  RESEARCH_SET_VISIBLE: 'research:set-visible',
   SEARCH_IMAGES: 'search:images',
   IMAGE_DOWNLOAD: 'image:download',
   IMAGE_READ_ASSET: 'image:read-asset',
@@ -239,6 +240,9 @@ export const ResearchTabRequestSchema = z
   .object({ tabId: z.string().min(1).max(50) })
   .strict();
 export const ResearchActionRequestSchema = EmptyRequestSchema;
+export const ResearchVisibilityRequestSchema = z
+  .object({ visible: z.boolean() })
+  .strict();
 export const ResearchActionResultSchema = z
   .object({ updated: z.literal(true) })
   .strict();
@@ -429,6 +433,9 @@ export interface DockApi {
     stop: () => Promise<ResearchActionResultEnvelope>;
     closeTab: (request: {
       tabId: string;
+    }) => Promise<ResearchActionResultEnvelope>;
+    setVisible: (request: {
+      visible: boolean;
     }) => Promise<ResearchActionResultEnvelope>;
   };
   image: {

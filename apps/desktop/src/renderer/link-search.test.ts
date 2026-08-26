@@ -35,4 +35,20 @@ describe('link insertion flow', () => {
       }),
     ).toThrow('Only http and https URLs are allowed.');
   });
+
+  it('keeps a current Naver page as a regular link', () => {
+    expect(
+      insertMarkdownLink(
+        '# Start',
+        {
+          title: 'C 언어 - Hello World 출력하기 : 네이버 블로그',
+          url: 'https://blog.naver.com/ghini7170/222144313413',
+        },
+        2,
+        2,
+      ),
+    ).toBe(
+      '# [C 언어 - Hello World 출력하기 : 네이버 블로그](https://blog.naver.com/ghini7170/222144313413)Start',
+    );
+  });
 });
