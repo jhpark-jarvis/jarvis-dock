@@ -12,6 +12,9 @@ import {
 const GOOGLE_SEARCH_URL = 'https://www.google.com/search';
 const RESEARCH_PARTITION = 'dock-research';
 const RESEARCH_TOOLBAR_HEIGHT = 72;
+const RESEARCH_PANEL_HEIGHT_RATIO = 0.44;
+const MIN_RESEARCH_PANEL_HEIGHT = 320;
+const MAX_RESEARCH_PANEL_HEIGHT = 544;
 const MAX_LINK_TITLE_LENGTH = 500;
 const MAX_LINK_URL_LENGTH = 2048;
 const MAX_RESEARCH_RESULTS = 10;
@@ -185,11 +188,22 @@ export class ResearchViewManager {
     if (!view || this.mainWindow.isDestroyed()) return;
     const { width, height } = this.mainWindow.getContentBounds();
     const x = Math.floor(width * 0.52);
+    const availableHeight = Math.max(0, height - RESEARCH_TOOLBAR_HEIGHT);
+    const researchHeight = Math.min(
+      availableHeight,
+      Math.min(
+        MAX_RESEARCH_PANEL_HEIGHT,
+        Math.max(
+          MIN_RESEARCH_PANEL_HEIGHT,
+          Math.floor(height * RESEARCH_PANEL_HEIGHT_RATIO),
+        ),
+      ),
+    );
     view.setBounds({
       x,
       y: RESEARCH_TOOLBAR_HEIGHT,
       width: Math.max(0, width - x),
-      height: Math.max(0, height - RESEARCH_TOOLBAR_HEIGHT),
+      height: researchHeight,
     });
   }
 }

@@ -71,6 +71,7 @@ const trapDialogFocus = (event: KeyboardEvent<HTMLElement>): void => {
 const App = ({ state: initialState = 'empty' }: AppProps) => {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const commandTriggerRef = useRef<HTMLButtonElement>(null);
+  const editorSelectionRef = useRef({ start: 0, end: 0 });
   const [state, setState] = useState<ShellState>(initialState);
   const [workspaceId, setWorkspaceId] = useState<string>();
   const [workspaceName, setWorkspaceName] = useState<string>();
@@ -87,7 +88,6 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     'idle' | 'search' | 'opening' | 'error'
   >('idle');
   const [linkError, setLinkError] = useState('');
-  const [linkSelection, setLinkSelection] = useState({ start: 0, end: 0 });
   const [researchOpen, setResearchOpen] = useState(false);
   const [researchError, setResearchError] = useState('');
   const [researchResults, setResearchResults] = useState<
@@ -163,6 +163,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setSelectedPath(relativePath);
     setContent(result.value.content);
     setSavedContent(result.value.content);
+    editorSelectionRef.current = {
+      start: result.value.content.length,
+      end: result.value.content.length,
+    };
     setSaveError('');
   };
 
@@ -201,6 +205,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setSelectedPath(relativePath);
     setContent('');
     setSavedContent('');
+    editorSelectionRef.current = { start: 0, end: 0 };
     setSaveError('');
     setNewDocumentPath('');
     setState('empty');
@@ -209,12 +214,18 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const dirty = content !== savedContent;
   const previewHtml = selectedPath ? renderMarkdownPreview(content) : '';
 
-  const openCommandPalette = () => {
+  const rememberEditorSelection = () => {
     const editor = editorRef.current;
-    setLinkSelection({
-      start: editor?.selectionStart ?? content.length,
-      end: editor?.selectionEnd ?? content.length,
-    });
+    if (!editor) return editorSelectionRef.current;
+    editorSelectionRef.current = {
+      start: editor.selectionStart,
+      end: editor.selectionEnd,
+    };
+    return editorSelectionRef.current;
+  };
+
+  const openCommandPalette = () => {
+    rememberEditorSelection();
     setLinkQuery('');
     setImageQuery('');
     setActiveCommand(undefined);
@@ -273,15 +284,17 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       return;
     }
     try {
+      const selection = editorSelectionRef.current;
       const nextContent = insertMarkdownLink(
         content,
         result,
-        linkSelection.start,
-        linkSelection.end,
+        selection.start,
+        selection.end,
       );
       setContent(nextContent);
       setResearchError('');
-      const cursor = linkSelection.start + formatMarkdownLink(result).length;
+      const cursor = selection.start + formatMarkdownLink(result).length;
+      editorSelectionRef.current = { start: cursor, end: cursor };
       requestAnimationFrame(() => {
         editorRef.current?.focus();
         editorRef.current?.setSelectionRange(cursor, cursor);
@@ -383,16 +396,18 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       }
       const altText = imageAltText.trim() || selectedImage.title;
       const markdown = formatMarkdownImage(altText, response.value.assetPath);
+      const selection = editorSelectionRef.current;
       const nextContent = insertMarkdownImage(
         content,
         altText,
         response.value.assetPath,
-        linkSelection.start,
-        linkSelection.end,
+        selection.start,
+        selection.end,
       );
       setContent(nextContent);
       closeCommandPalette();
-      const cursor = linkSelection.start + markdown.length;
+      const cursor = selection.start + markdown.length;
+      editorSelectionRef.current = { start: cursor, end: cursor };
       requestAnimationFrame(() => {
         editorRef.current?.focus();
         editorRef.current?.setSelectionRange(cursor, cursor);
@@ -791,8 +806,16 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             className="markdown-editor"
             placeholder="문서를 선택하거나 새 Markdown을 작성하세요."
             value={content}
+            onClick={rememberEditorSelection}
+            onFocus={rememberEditorSelection}
+            onKeyUp={rememberEditorSelection}
+            onSelect={rememberEditorSelection}
             onChange={(event) => {
               setContent(event.target.value);
+              editorSelectionRef.current = {
+                start: event.target.selectionStart,
+                end: event.target.selectionEnd,
+              };
               setSaveError('');
             }}
           />

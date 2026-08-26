@@ -10,14 +10,20 @@
   font-synthesis: none;
 }
 
+html {
+  height: 100%;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
+  height: 100%;
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 0;
   margin: 0;
+  overflow: hidden;
   background: #0b1220;
 }
 
@@ -34,13 +40,16 @@ input:focus-visible {
 }
 
 #root {
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
 }
 
 .app-shell {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   background: #0b1220;
 }
 
@@ -81,11 +90,16 @@ input:focus-visible {
 
 .research-panel {
   display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 0.6rem;
-  width: min(52%, 44rem);
+  width: 52%;
+  height: clamp(20rem, 44vh, 34rem);
+  flex: 0 0 clamp(20rem, 44vh, 34rem);
+  min-height: 0;
   padding: 0.6rem 1rem 0.75rem;
   border-bottom: 1px solid #243248;
   background: #101a2a;
+  overflow: hidden;
 }
 
 .research-panel .research-status {
@@ -119,9 +133,12 @@ input:focus-visible {
 .research-results {
   display: grid;
   gap: 0.45rem;
+  align-content: start;
+  min-height: 0;
+  overflow: auto;
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 0.25rem 0 0;
 }
 
 .research-result {
@@ -175,6 +192,7 @@ input:focus-visible {
   display: grid;
   flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
   grid-template-columns: minmax(12rem, 0.72fr) minmax(18rem, 1.3fr) minmax(
       16rem,
       1fr
@@ -425,7 +443,7 @@ input:focus-visible {
 }
 
 .preview-content {
-  min-height: 18rem;
+  min-height: 0;
   margin: 0;
   overflow: auto;
   white-space: pre-wrap;
@@ -433,7 +451,9 @@ input:focus-visible {
 
 .markdown-editor {
   width: 100%;
-  min-height: 14rem;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
   resize: none;
   border: 1px solid #3a4b66;
   border-radius: 0.55rem;
@@ -448,6 +468,7 @@ input:focus-visible {
 }
 
 .app-status {
+  flex: 0 0 auto;
   min-height: 2.8rem;
   border-width: 1px 0 0;
   color: #8da2bd;

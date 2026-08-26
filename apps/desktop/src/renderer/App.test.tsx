@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import App from './App';
@@ -247,6 +247,87 @@ describe('App', () => {
       screen.getByRole('textbox', { name: 'Markdown 편집기' }),
     ).toHaveValue(
       '# Today\nEdited[Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)',
+    );
+  });
+
+  it('inserts a selected link at the editor selection captured before opening the palette', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [{ relativePath: 'today.md', displayName: 'today.md' }],
+            },
+          }),
+        },
+        document: {
+          read: async () => ({
+            ok: true as const,
+            value: { relativePath: 'today.md', content: '# Today' },
+          }),
+        },
+        research: {
+          open: async () => ({
+            ok: true as const,
+            value: {
+              opened: true,
+              results: [
+                {
+                  title: 'Electron Security',
+                  url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+                },
+              ],
+            },
+          }),
+          close: async () => ({
+            ok: true as const,
+            value: { closed: true },
+          }),
+          currentLink: async () => ({
+            ok: false as const,
+            error: {
+              code: 'RESEARCH_INVALID_PAGE' as const,
+              message: 'The current research page cannot be inserted.',
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    await user.click(await screen.findByRole('button', { name: 'today.md' }));
+    const editor = screen.getByRole('textbox', {
+      name: 'Markdown 편집기',
+    }) as HTMLTextAreaElement;
+    editor.setSelectionRange(2, 2);
+    fireEvent.select(editor);
+
+    await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
+    await user.click(screen.getByRole('button', { name: /\/link/ }));
+    await user.type(
+      screen.getByRole('textbox', { name: '링크 검색어' }),
+      'electron',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Research View 열기' }),
+    );
+    await user.click(
+      await screen.findByRole('button', { name: /^Electron Security/ }),
+    );
+
+    expect(editor).toHaveValue(
+      '# [Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)Today',
     );
   });
 

@@ -225,6 +225,12 @@ test('Dock opens Research View and inserts a selected experimental link card', a
     const page = await app.firstWindow();
     const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
     await expect(editor).toHaveValue('# Start');
+    await editor.evaluate((element) => {
+      const textarea = element as HTMLTextAreaElement;
+      textarea.focus();
+      textarea.setSelectionRange(2, 2);
+      textarea.dispatchEvent(new Event('select', { bubbles: true }));
+    });
 
     await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
     await page.getByRole('button', { name: /\/link/ }).click();
@@ -236,7 +242,7 @@ test('Dock opens Research View and inserts a selected experimental link card', a
     await page.getByRole('button', { name: /^Electron Security/ }).click();
 
     await expect(editor).toHaveValue(
-      '# Start[Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)',
+      '# [Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)Start',
     );
   } finally {
     await app.close();
@@ -255,6 +261,31 @@ test('Dock keeps an actual Research View isolated and blocks privileged actions'
     await expect(
       page.getByRole('button', { name: /^Research security fixture/ }),
     ).toBeVisible();
+    const editorBounds = await page
+      .getByRole('textbox', { name: 'Markdown 편집기' })
+      .boundingBox();
+    const researchBounds = await app.evaluate(({ BrowserWindow }) => {
+      const mainWindow = BrowserWindow.getAllWindows()[0];
+      const researchView = mainWindow?.contentView.children.find((child) => {
+        const candidate = child as unknown as {
+          webContents?: { getURL: () => string };
+        };
+        return candidate.webContents
+          ?.getURL()
+          .startsWith('https://www.google.com/search');
+      }) as unknown as
+        | { getBounds: () => { x: number; y: number; width: number; height: number } }
+        | undefined;
+      return researchView?.getBounds();
+    });
+    expect(editorBounds).not.toBeNull();
+    expect(researchBounds).toBeDefined();
+    if (!editorBounds || !researchBounds) {
+      throw new Error('Research View and editor bounds are required.');
+    }
+    expect(researchBounds.y + researchBounds.height).toBeLessThanOrEqual(
+      editorBounds.y,
+    );
     const windowCountBeforePrivilegedActions = (await app.windows()).length;
 
     const boundary = await app.evaluate(async ({ BrowserWindow }) => {
@@ -369,6 +400,12 @@ test('Dock inserts the current allowed Research View page as a fallback link', a
   try {
     const page = await app.firstWindow();
     const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
+    await editor.evaluate((element) => {
+      const textarea = element as HTMLTextAreaElement;
+      textarea.focus();
+      textarea.setSelectionRange(2, 2);
+      textarea.dispatchEvent(new Event('select', { bubbles: true }));
+    });
     await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
     await page.getByRole('button', { name: /\/link/ }).click();
     await page.getByRole('textbox', { name: '링크 검색어' }).fill('electron');
@@ -444,7 +481,7 @@ test('Dock inserts the current allowed Research View page as a fallback link', a
 
     await page.getByRole('button', { name: '현재 페이지 링크 삽입' }).click();
     await expect(editor).toHaveValue(
-      '# Start[Research fallback page](https://example.com/research-fallback)',
+      '# [Research fallback page](https://example.com/research-fallback)Start',
     );
   } finally {
     await app.close();
