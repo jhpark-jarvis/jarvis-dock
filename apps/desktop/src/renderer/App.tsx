@@ -323,10 +323,6 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   };
 
   const insertResearchLink = (result: LinkInsertTarget) => {
-    if (!selectedPath) {
-      setResearchError('먼저 Markdown 문서를 선택해 주세요.');
-      return;
-    }
     try {
       const selection = editorSelectionRef.current;
       const nextContent = insertMarkdownLink(

@@ -391,6 +391,68 @@ describe('App', () => {
     );
   });
 
+  it('inserts a link into the editable draft before a Markdown document is selected', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        research: {
+          open: async () => ({
+            ok: true as const,
+            value: {
+              opened: true,
+              results: [
+                {
+                  title: 'Electron Security',
+                  url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+                },
+              ],
+            },
+          }),
+          info: async () => ({
+            ok: true as const,
+            value: {
+              activeTabId: 'research-1',
+              tabs: [
+                {
+                  id: 'research-1',
+                  title: 'Google Search',
+                  url: 'https://www.google.com/search?q=electron',
+                  loading: false,
+                },
+              ],
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    const editor = screen.getByRole('textbox', {
+      name: 'Markdown 편집기',
+    }) as HTMLTextAreaElement;
+    editor.focus();
+    editor.setSelectionRange(0, 0);
+    fireEvent.select(editor);
+
+    await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
+    await user.click(screen.getByRole('button', { name: /\/link/ }));
+    await user.type(
+      screen.getByRole('textbox', { name: '링크 검색어' }),
+      'electron',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Research View 열기' }),
+    );
+    await user.click(
+      await screen.findByRole('button', { name: /^Electron Security/ }),
+    );
+
+    expect(editor).toHaveValue(
+      '[Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)',
+    );
+  });
+
   it('downloads a selected mock image before inserting its relative Markdown path', async () => {
     const user = userEvent.setup();
     Object.defineProperty(window, 'dock', {
