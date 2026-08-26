@@ -18,6 +18,9 @@ export const IPC = {
   RESEARCH_CLOSE_TAB: 'research:close-tab',
   SEARCH_IMAGES: 'search:images',
   IMAGE_DOWNLOAD: 'image:download',
+  IMAGE_READ_ASSET: 'image:read-asset',
+  IMAGE_DELETE_ASSET: 'image:delete-asset',
+  IMAGE_SAVE_CLIPBOARD: 'image:save-clipboard',
 } as const;
 
 export const EmptyRequestSchema = z.object({}).strict();
@@ -44,6 +47,7 @@ export const DockErrorSchema = z
       'IMAGE_SEARCH_FAILED',
       'IMAGE_SEARCH_UNAVAILABLE',
       'IMAGE_DOWNLOAD_FAILED',
+      'IMAGE_ASSET_IN_USE',
       'IMAGE_TOO_LARGE',
       'IMAGE_UNSUPPORTED',
       'IMAGE_UNAVAILABLE',
@@ -263,6 +267,47 @@ export const ImageDownloadResultEnvelopeSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), value: ImageDownloadResultSchema }).strict(),
   z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
 ]);
+export const ImageAssetRequestSchema = z
+  .object({
+    workspaceId: WorkspaceIdSchema,
+    assetPath: RelativeMarkdownPathSchema,
+  })
+  .strict();
+export const ImageAssetReadResultSchema = z
+  .object({
+    assetPath: RelativeMarkdownPathSchema,
+    dataUrl: z.string().max(15_000_000),
+    mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+  })
+  .strict();
+export const ImageAssetReadResultEnvelopeSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), value: ImageAssetReadResultSchema }).strict(),
+  z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+]);
+export const ImageAssetDeleteResultSchema = z
+  .object({
+    assetPath: RelativeMarkdownPathSchema,
+    deleted: z.boolean(),
+  })
+  .strict();
+export const ImageAssetDeleteResultEnvelopeSchema = z.discriminatedUnion('ok', [
+  z
+    .object({ ok: z.literal(true), value: ImageAssetDeleteResultSchema })
+    .strict(),
+  z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+]);
+export const ImageClipboardSaveRequestSchema = z
+  .object({
+    workspaceId: WorkspaceIdSchema,
+    relativePath: RelativeMarkdownPathSchema,
+    mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+    bytes: z
+      .instanceof(Uint8Array)
+      .refine(
+        (value) => value.byteLength > 0 && value.byteLength <= 10 * 1024 * 1024,
+      ),
+  })
+  .strict();
 
 export type DockError = z.infer<typeof DockErrorSchema>;
 export type HealthResult = z.infer<typeof HealthResultSchema>;
@@ -302,6 +347,20 @@ export type ImageDownloadRequest = z.infer<typeof ImageDownloadRequestSchema>;
 export type ImageDownloadResult = z.infer<typeof ImageDownloadResultSchema>;
 export type ImageDownloadResultEnvelope = z.infer<
   typeof ImageDownloadResultEnvelopeSchema
+>;
+export type ImageAssetRequest = z.infer<typeof ImageAssetRequestSchema>;
+export type ImageAssetReadResult = z.infer<typeof ImageAssetReadResultSchema>;
+export type ImageAssetReadResultEnvelope = z.infer<
+  typeof ImageAssetReadResultEnvelopeSchema
+>;
+export type ImageAssetDeleteResult = z.infer<
+  typeof ImageAssetDeleteResultSchema
+>;
+export type ImageAssetDeleteResultEnvelope = z.infer<
+  typeof ImageAssetDeleteResultEnvelopeSchema
+>;
+export type ImageClipboardSaveRequest = z.infer<
+  typeof ImageClipboardSaveRequestSchema
 >;
 
 export interface DockApi {
@@ -348,6 +407,13 @@ export interface DockApi {
     search: (request: { query: string }) => Promise<ImageSearchResultEnvelope>;
     download: (
       request: ImageDownloadRequest,
+    ) => Promise<ImageDownloadResultEnvelope>;
+    read: (request: ImageAssetRequest) => Promise<ImageAssetReadResultEnvelope>;
+    delete: (
+      request: ImageAssetRequest,
+    ) => Promise<ImageAssetDeleteResultEnvelope>;
+    saveClipboard: (
+      request: ImageClipboardSaveRequest,
     ) => Promise<ImageDownloadResultEnvelope>;
   };
 }

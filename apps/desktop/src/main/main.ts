@@ -6,7 +6,13 @@ import {
   session,
   type WebContents,
 } from 'electron';
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -25,6 +31,7 @@ import { ResearchViewManager } from './research-view';
 import { createMainWindowOptions } from './window-options';
 import { registerImageSearchHandlers } from './image-search-handlers';
 import { registerImageDownloadHandlers } from './image-download-handlers';
+import { registerImageAssetHandlers } from './image-asset-handlers';
 import { WIKIMEDIA_IMAGE_HOSTS } from './image-search-service';
 import { registerWorkspaceHandlers } from './workspace-handlers';
 import { createWorkspaceStore, type WorkspaceStore } from './workspace-service';
@@ -117,12 +124,25 @@ const failE2eDocumentWrite = async (): Promise<never> => {
   });
 };
 
-const downloadE2eImage = (): Promise<ImageDownloadResult> =>
-  Promise.resolve({
+const E2E_IMAGE_BYTES = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
+
+const downloadE2eImage = ({
+  root,
+}: {
+  root: string;
+}): Promise<ImageDownloadResult> => {
+  const assetPath = path.join(root, 'assets', 'electron-process-model.png');
+  mkdirSync(path.dirname(assetPath), { recursive: true });
+  writeFileSync(assetPath, E2E_IMAGE_BYTES);
+  return Promise.resolve({
     assetPath: 'assets/electron-process-model.png',
-    bytesWritten: 12,
+    bytesWritten: E2E_IMAGE_BYTES.byteLength,
     mimeType: 'image/png',
   });
+};
 
 const registerE2eResearchSecurityFixture = (): void => {
   if (!process.argv.includes('--dock-e2e-research-security')) return;
@@ -307,6 +327,12 @@ const registerIpcHandlers = () => {
     store: workspaceStore,
     downloadImage: cleanupE2eWorkspace ? downloadE2eImage : undefined,
     allowedHosts: new Set(['images.example.test', ...WIKIMEDIA_IMAGE_HOSTS]),
+    isTrustedSender: (senderUrl) =>
+      isTrustedRendererUrl(senderUrl, getRendererUrl()),
+  });
+  registerImageAssetHandlers({
+    ipcMain,
+    store: workspaceStore,
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
   });

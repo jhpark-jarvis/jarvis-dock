@@ -1,4 +1,5 @@
 import type { ImageSearchResult as SharedImageSearchResult } from '../shared/ipc';
+import { formatWorkspaceAssetReference } from '../shared/image-assets';
 
 export type ImageSearchResult = SharedImageSearchResult;
 
@@ -53,6 +54,7 @@ export const escapeMarkdownImageAlt = (value: string): string =>
 export const formatMarkdownImage = (
   altText: string,
   assetPath: string,
+  documentPath?: string,
 ): string => {
   if (
     !assetPath.startsWith('assets/') ||
@@ -62,7 +64,10 @@ export const formatMarkdownImage = (
   ) {
     throw new Error('Only safe workspace asset paths are allowed.');
   }
-  return `![${escapeMarkdownImageAlt(altText)}](./${assetPath})`;
+  const reference = documentPath
+    ? formatWorkspaceAssetReference(documentPath, assetPath)
+    : `./${assetPath}`;
+  return `![${escapeMarkdownImageAlt(altText)}](${reference})`;
 };
 
 export const insertMarkdownImage = (
@@ -71,9 +76,10 @@ export const insertMarkdownImage = (
   assetPath: string,
   selectionStart: number,
   selectionEnd: number,
+  documentPath?: string,
 ): string => {
   const start = Math.max(0, Math.min(selectionStart, content.length));
   const end = Math.max(start, Math.min(selectionEnd, content.length));
-  const markdown = formatMarkdownImage(altText, assetPath);
+  const markdown = formatMarkdownImage(altText, assetPath, documentPath);
   return `${content.slice(0, start)}${markdown}${content.slice(end)}`;
 };

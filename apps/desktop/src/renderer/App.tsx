@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { KeyboardEvent, MouseEvent } from 'react';
+import type { ClipboardEvent, KeyboardEvent, MouseEvent } from 'react';
 import type {
   ResearchSearchResult,
   ResearchTabInfo,
   WorkspaceFile,
 } from '../shared/ipc';
+import {
+  extractWorkspaceImageAssets,
+  findRemovedWorkspaceImageAssets,
+} from '../shared/image-assets';
 import {
   formatMarkdownLink,
   insertMarkdownLink,
@@ -113,6 +117,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [imageErrorCode, setImageErrorCode] = useState('');
   const [selectedImage, setSelectedImage] = useState<ImageSearchResult>();
   const [imageAltText, setImageAltText] = useState('');
+  const [previewImageSources, setPreviewImageSources] = useState<
+    Record<string, string>
+  >({});
 
   useEffect(() => {
     setState(initialState);
@@ -155,6 +162,47 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     }, 500);
     return () => window.clearInterval(interval);
   }, [researchOpen, refreshResearchInfo]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!workspaceId || !selectedPath) {
+      setPreviewImageSources({});
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const assetPaths = extractWorkspaceImageAssets(content, selectedPath);
+    setPreviewImageSources((current) =>
+      Object.fromEntries(
+        assetPaths
+          .filter((assetPath) => current[assetPath])
+          .map((assetPath) => [assetPath, current[assetPath]]),
+      ),
+    );
+    void Promise.all(
+      assetPaths.map(async (assetPath) => {
+        try {
+          const response = await window.dock.image.read({
+            workspaceId,
+            assetPath,
+          });
+          return response.ok
+            ? ([assetPath, response.value.dataUrl] as const)
+            : null;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((sources) => {
+      if (cancelled) return;
+      setPreviewImageSources(Object.fromEntries(sources.filter(Boolean)));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [content, selectedPath, workspaceId]);
 
   const refreshFiles = async (nextWorkspaceId: string) => {
     const listed = await window.dock.workspace.listMarkdownFiles({
@@ -207,6 +255,16 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
 
   const saveDocument = async () => {
     if (!workspaceId || !selectedPath) return;
+    const removedAssets = findRemovedWorkspaceImageAssets(
+      savedContent,
+      content,
+      selectedPath,
+    );
+    const shouldDeleteAssets =
+      removedAssets.length > 0 &&
+      window.confirm(
+        `본문에서 ${removedAssets.length}개의 이미지 참조가 제거되었습니다.\n저장된 원본 파일도 삭제하시겠습니까?`,
+      );
     const result = await window.dock.document.write({
       workspaceId,
       relativePath: selectedPath,
@@ -215,6 +273,25 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     if (result.ok) {
       setSavedContent(content);
       setSaveError('');
+      if (shouldDeleteAssets) {
+        const cleanupResults = await Promise.all(
+          removedAssets.map((assetPath) =>
+            window.dock.image.delete({
+              workspaceId,
+              assetPath,
+            }),
+          ),
+        );
+        if (
+          cleanupResults.some(
+            (cleanup) => !cleanup.ok || !cleanup.value.deleted,
+          )
+        ) {
+          setSaveError(
+            '문서는 저장했지만 일부 이미지 원본을 삭제하지 못했습니다.',
+          );
+        }
+      }
     } else {
       setSaveError('문서를 저장하지 못했습니다. 편집 내용은 유지됩니다.');
     }
@@ -247,7 +324,12 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   };
 
   const dirty = content !== savedContent;
-  const previewHtml = selectedPath ? renderMarkdownPreview(content) : '';
+  const previewHtml = selectedPath
+    ? renderMarkdownPreview(content, {
+        documentPath: selectedPath,
+        imageSources: previewImageSources,
+      })
+    : '';
 
   const rememberEditorSelection = () => {
     const editor = editorRef.current;
@@ -491,7 +573,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         return;
       }
       const altText = imageAltText.trim() || selectedImage.title;
-      const markdown = formatMarkdownImage(altText, response.value.assetPath);
+      const markdown = formatMarkdownImage(
+        altText,
+        response.value.assetPath,
+        selectedPath,
+      );
       const selection = editorSelectionRef.current;
       const nextContent = insertMarkdownImage(
         content,
@@ -499,6 +585,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         response.value.assetPath,
         selection.start,
         selection.end,
+        selectedPath,
       );
       setContent(nextContent);
       closeCommandPalette();
@@ -513,6 +600,71 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       setImageError('이미지를 다운로드하거나 저장하지 못했습니다.');
       setImageStatus('error');
     }
+  };
+
+  const insertClipboardImage = async (file: File) => {
+    if (!workspaceId || !selectedPath) {
+      setSaveError('이미지를 붙여넣으려면 먼저 Markdown 문서를 선택해 주세요.');
+      return;
+    }
+    const supportedMimeTypes = [
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+    ] as const;
+    if (!(supportedMimeTypes as readonly string[]).includes(file.type)) {
+      setSaveError('PNG, JPEG, WebP 이미지만 붙여넣을 수 있습니다.');
+      return;
+    }
+    const mimeType = file.type as (typeof supportedMimeTypes)[number];
+    try {
+      const response = await window.dock.image.saveClipboard({
+        workspaceId,
+        relativePath: selectedPath,
+        mimeType,
+        bytes: new Uint8Array(await file.arrayBuffer()),
+      });
+      if (response.ok === false) {
+        setSaveError('클립보드 이미지를 저장하지 못했습니다.');
+        return;
+      }
+      const altText = '붙여넣은 이미지';
+      const markdown = formatMarkdownImage(
+        altText,
+        response.value.assetPath,
+        selectedPath,
+      );
+      const selection = editorSelectionRef.current;
+      setContent(
+        insertMarkdownImage(
+          content,
+          altText,
+          response.value.assetPath,
+          selection.start,
+          selection.end,
+          selectedPath,
+        ),
+      );
+      setSaveError('');
+      const cursor = selection.start + markdown.length;
+      editorSelectionRef.current = { start: cursor, end: cursor };
+      requestAnimationFrame(() => {
+        editorRef.current?.focus();
+        editorRef.current?.setSelectionRange(cursor, cursor);
+      });
+    } catch {
+      setSaveError('클립보드 이미지를 저장하지 못했습니다.');
+    }
+  };
+
+  const handleEditorPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageItem = Array.from(event.clipboardData.items).find(
+      (item) => item.kind === 'file' && item.type.startsWith('image/'),
+    );
+    if (!imageItem) return;
+    event.preventDefault();
+    const file = imageItem.getAsFile();
+    if (file) void insertClipboardImage(file);
   };
 
   const handlePreviewClick = (event: MouseEvent<HTMLElement>) => {
@@ -974,6 +1126,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             onFocus={rememberEditorSelection}
             onKeyUp={rememberEditorSelection}
             onSelect={rememberEditorSelection}
+            onPaste={handleEditorPaste}
             onChange={(event) => {
               setContent(event.target.value);
               editorSelectionRef.current = {

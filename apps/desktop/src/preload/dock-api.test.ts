@@ -116,4 +116,69 @@ describe('createDockApi', () => {
       query: 'electron',
     });
   });
+
+  it('validates and invokes image asset read, delete, and clipboard channels', async () => {
+    const invoke = vi.fn(async (channel: string) => {
+      if (channel === IPC.IMAGE_READ_ASSET) {
+        return {
+          ok: true,
+          value: {
+            assetPath: 'assets/diagram.png',
+            dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+            mimeType: 'image/png',
+          },
+        };
+      }
+      if (channel === IPC.IMAGE_DELETE_ASSET) {
+        return {
+          ok: true,
+          value: { assetPath: 'assets/diagram.png', deleted: true },
+        };
+      }
+      return {
+        ok: true,
+        value: {
+          assetPath: 'assets/pasted-image.png',
+          bytesWritten: 8,
+          mimeType: 'image/png',
+        },
+      };
+    });
+    const dock = createDockApi({ invoke });
+    const assetRequest = {
+      workspaceId: '11111111-1111-4111-8111-111111111111',
+      assetPath: 'assets/diagram.png',
+    };
+
+    await expect(dock.image.read(assetRequest)).resolves.toMatchObject({
+      ok: true,
+    });
+    await expect(dock.image.delete(assetRequest)).resolves.toMatchObject({
+      ok: true,
+    });
+    await expect(
+      dock.image.saveClipboard({
+        workspaceId: assetRequest.workspaceId,
+        relativePath: 'guide.md',
+        mimeType: 'image/png',
+        bytes: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(invoke).toHaveBeenNthCalledWith(
+      1,
+      IPC.IMAGE_READ_ASSET,
+      assetRequest,
+    );
+    expect(invoke).toHaveBeenNthCalledWith(
+      2,
+      IPC.IMAGE_DELETE_ASSET,
+      assetRequest,
+    );
+    expect(invoke).toHaveBeenNthCalledWith(3, IPC.IMAGE_SAVE_CLIPBOARD, {
+      workspaceId: assetRequest.workspaceId,
+      relativePath: 'guide.md',
+      mimeType: 'image/png',
+      bytes: expect.any(Uint8Array),
+    });
+  });
 });

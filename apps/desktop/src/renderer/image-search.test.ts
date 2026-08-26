@@ -43,6 +43,9 @@ describe('mock image search provider', () => {
         12,
       ),
     ).toBe('before ![diagram](./assets/diagram.png)');
+    expect(
+      formatMarkdownImage('diagram', 'assets/diagram.png', 'docs/guide.md'),
+    ).toBe('![diagram](../assets/diagram.png)');
     expect(() => formatMarkdownImage('diagram', '../outside.png')).toThrow();
   });
 });

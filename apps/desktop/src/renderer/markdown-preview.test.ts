@@ -26,4 +26,19 @@ describe('renderMarkdownPreview', () => {
     expect(html).not.toContain('file:///');
     expect(html).not.toContain('javascript:');
   });
+
+  it('renders only resolved workspace images as data-backed image elements', () => {
+    const html = renderMarkdownPreview(
+      '![safe](./assets/safe.png) ![remote](https://example.com/remote.png)',
+      {
+        documentPath: 'guide.md',
+        imageSources: {
+          'assets/safe.png': 'data:image/png;base64,AA==',
+        },
+      },
+    );
+
+    expect(html).toContain('<img src="data:image/png;base64,AA==" alt="safe">');
+    expect(html).not.toContain('remote');
+  });
 });

@@ -587,6 +587,9 @@ test('Dock downloads the selected image before inserting Markdown', async () => 
       )
       .toBe('complete');
     await expect(editor).toHaveValue(expectedContent);
+    await expect(
+      page.locator('.preview-content img[alt="Electron process model"]'),
+    ).toBeVisible();
   } finally {
     await app.close();
   }

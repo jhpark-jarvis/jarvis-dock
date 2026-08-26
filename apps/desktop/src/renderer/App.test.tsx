@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 
 describe('App', () => {
@@ -508,6 +508,157 @@ describe('App', () => {
         '카드 추출 결과가 없습니다. Research View에서 직접 탐색한 뒤 현재 페이지 링크를 삽입할 수 있습니다.',
       ),
     ).resolves.toBeInTheDocument();
+  });
+
+  it('saves a pasted clipboard image into assets and inserts its Markdown reference', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [{ relativePath: 'guide.md', displayName: 'guide.md' }],
+            },
+          }),
+        },
+        document: {
+          read: async () => ({
+            ok: true as const,
+            value: { relativePath: 'guide.md', content: '# Guide' },
+          }),
+        },
+        image: {
+          read: async () => ({
+            ok: false as const,
+            error: {
+              code: 'NOT_FOUND' as const,
+              message: 'The image asset was not found.',
+            },
+          }),
+          saveClipboard: async () => ({
+            ok: true as const,
+            value: {
+              assetPath: 'assets/pasted-image.png',
+              bytesWritten: 8,
+              mimeType: 'image/png' as const,
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    await user.click(await screen.findByRole('button', { name: 'guide.md' }));
+    const editor = screen.getByRole('textbox', {
+      name: 'Markdown 편집기',
+    });
+    const file = {
+      type: 'image/png',
+      arrayBuffer: async () =>
+        new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]).buffer,
+    } as File;
+    fireEvent.paste(editor, {
+      clipboardData: {
+        items: [
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => file,
+          },
+        ],
+      },
+    });
+
+    await waitFor(() =>
+      expect(editor).toHaveValue(
+        '# Guide![붙여넣은 이미지](./assets/pasted-image.png)',
+      ),
+    );
+  });
+
+  it('asks before deleting removed image assets when saving a document', async () => {
+    const user = userEvent.setup();
+    const deleteAsset = vi.fn(async () => ({
+      ok: true as const,
+      value: { assetPath: 'assets/old.png', deleted: true },
+    }));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [{ relativePath: 'guide.md', displayName: 'guide.md' }],
+            },
+          }),
+        },
+        document: {
+          read: async () => ({
+            ok: true as const,
+            value: {
+              relativePath: 'guide.md',
+              content: '# Guide\n![old](./assets/old.png)',
+            },
+          }),
+          write: async () => ({
+            ok: true as const,
+            value: {
+              relativePath: 'guide.md',
+              bytesWritten: 7,
+              savedAt: '2026-08-27T00:00:00.000Z',
+            },
+          }),
+        },
+        image: {
+          read: async () => ({
+            ok: false as const,
+            error: {
+              code: 'NOT_FOUND' as const,
+              message: 'The image asset was not found.',
+            },
+          }),
+          delete: deleteAsset,
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    await user.click(await screen.findByRole('button', { name: 'guide.md' }));
+    const editor = screen.getByRole('textbox', {
+      name: 'Markdown 편집기',
+    });
+    await user.clear(editor);
+    await user.type(editor, '# Guide');
+    await user.click(screen.getByRole('button', { name: '저장' }));
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      '본문에서 1개의 이미지 참조가 제거되었습니다.\n저장된 원본 파일도 삭제하시겠습니까?',
+    );
+    expect(deleteAsset).toHaveBeenCalledWith({
+      workspaceId: '11111111-1111-4111-8111-111111111111',
+      assetPath: 'assets/old.png',
+    });
+    vi.mocked(window.confirm).mockRestore();
   });
 
   it('downloads a selected mock image before inserting its relative Markdown path', async () => {

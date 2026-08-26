@@ -21,6 +21,10 @@ import {
   ResearchTabRequestSchema,
   ImageDownloadRequestSchema,
   ImageDownloadResultEnvelopeSchema,
+  ImageAssetRequestSchema,
+  ImageAssetReadResultEnvelopeSchema,
+  ImageAssetDeleteResultEnvelopeSchema,
+  ImageClipboardSaveRequestSchema,
   ImageSearchRequestSchema,
   ImageSearchResultEnvelopeSchema,
   WorkspaceChooseResultSchema,
@@ -37,6 +41,8 @@ import {
   type ResearchActionResultEnvelope,
   type ResearchOpenResultEnvelope,
   type ImageDownloadResultEnvelope,
+  type ImageAssetReadResultEnvelope,
+  type ImageAssetDeleteResultEnvelope,
   type ImageSearchResultEnvelope,
 } from '../shared/ipc';
 
@@ -245,6 +251,63 @@ const invokeImageSearch = async (
   return result.success ? result.data : { ok: false, error: internalError() };
 };
 
+const invokeImageAssetRead = async (
+  ipcRenderer: IpcInvoker,
+  request: unknown,
+): Promise<ImageAssetReadResultEnvelope> => {
+  const parsed = ImageAssetRequestSchema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = ImageAssetReadResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(IPC.IMAGE_READ_ASSET, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
+const invokeImageAssetDelete = async (
+  ipcRenderer: IpcInvoker,
+  request: unknown,
+): Promise<ImageAssetDeleteResultEnvelope> => {
+  const parsed = ImageAssetRequestSchema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = ImageAssetDeleteResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(IPC.IMAGE_DELETE_ASSET, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
+const invokeImageClipboardSave = async (
+  ipcRenderer: IpcInvoker,
+  request: unknown,
+): Promise<ImageDownloadResultEnvelope> => {
+  const parsed = ImageClipboardSaveRequestSchema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = ImageDownloadResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(IPC.IMAGE_SAVE_CLIPBOARD, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
 export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
   system: {
     health: () => invokeHealth(ipcRenderer),
@@ -291,5 +354,8 @@ export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
   image: {
     search: (request) => invokeImageSearch(ipcRenderer, request),
     download: (request) => invokeImageDownload(ipcRenderer, request),
+    read: (request) => invokeImageAssetRead(ipcRenderer, request),
+    delete: (request) => invokeImageAssetDelete(ipcRenderer, request),
+    saveClipboard: (request) => invokeImageClipboardSave(ipcRenderer, request),
   },
 });

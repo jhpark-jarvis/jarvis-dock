@@ -558,6 +558,15 @@ input:focus-visible {
   white-space: pre-wrap;
 }
 
+.preview-content img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.75rem 0;
+  border: 1px solid #3a4b66;
+  border-radius: 0.45rem;
+}
+
 .markdown-editor {
   width: 100%;
   height: auto;

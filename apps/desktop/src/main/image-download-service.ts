@@ -291,3 +291,30 @@ export const downloadImageToWorkspace = async (
     clearTimeout(timeout);
   }
 };
+
+export const saveImageBytesToWorkspace = async (request: {
+  root: string;
+  title: string;
+  mimeType: ImageDownloadResult['mimeType'];
+  bytes: Uint8Array;
+}): Promise<ImageDownloadResult> => {
+  const bytes = Buffer.from(request.bytes);
+  if (bytes.length > MAX_IMAGE_BYTES) {
+    throw new ImageDownloadServiceError(
+      'IMAGE_TOO_LARGE',
+      'The image response is too large.',
+    );
+  }
+  if (!bytes.length || !matchesMagicBytes(bytes, request.mimeType)) {
+    throw new ImageDownloadServiceError(
+      'IMAGE_UNSUPPORTED',
+      'The image bytes do not match the declared format.',
+    );
+  }
+  return saveWithoutOverwrite(
+    request.root,
+    request.title,
+    request.mimeType,
+    bytes,
+  );
+};
