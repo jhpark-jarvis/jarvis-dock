@@ -113,8 +113,9 @@ input:focus-visible {
   min-height: 5.5rem;
   padding: 0.45rem 0.75rem;
   border-right: 1px solid #243248;
-  border-bottom: 1px solid #243248;
+  border-bottom: 2px solid #3a5f85;
   background: #101a2a;
+  box-shadow: 0 3px 0 rgb(3 8 18 / 55%);
 }
 
 .research-tabs,
