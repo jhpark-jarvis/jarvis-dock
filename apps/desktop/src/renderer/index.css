@@ -471,6 +471,7 @@ input:focus-visible {
   max-width: 26rem;
   color: #aebed1;
   line-height: 1.6;
+  word-break: keep-all;
 }
 
 .workspace-state__title,
