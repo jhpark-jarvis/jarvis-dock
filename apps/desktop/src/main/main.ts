@@ -266,7 +266,9 @@ const createWindow = () => {
   mainWindow.loadURL(rendererUrl);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.webContents.openDevTools();
+    // Keep DevTools in a separate window so its docked viewport does not
+    // change the coordinate space used by the native Research View.
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 };
 

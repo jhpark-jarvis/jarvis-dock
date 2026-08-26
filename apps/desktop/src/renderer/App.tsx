@@ -145,12 +145,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     );
     setResearchUrl(activeTab?.url ?? '');
     setResearchLoading(activeTab?.loading ?? false);
-    setResearchResults(
-      response.value.activeTabId
-        ? (researchResultsByTab[response.value.activeTabId] ?? [])
-        : [],
-    );
-  }, [researchResultsByTab]);
+  }, []);
 
   useEffect(() => {
     if (!researchOpen) return;
@@ -310,6 +305,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       }
       setResearchOpen(true);
       setResearchError('');
+      setResearchResults(response.value.results);
       const info = await window.dock.research.info();
       if (info.ok && info.value.activeTabId) {
         setResearchResultsByTab((current) => ({
