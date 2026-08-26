@@ -20,7 +20,7 @@ describe('App', () => {
     expect(
       screen.getByRole('region', { name: '미리보기' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('열어 둔 문서가 없습니다.')).toBeInTheDocument();
+    expect(screen.getByText('선택된 폴더가 없습니다.')).toBeInTheDocument();
     expect(screen.getByText('미리볼 문서가 없습니다.')).toBeInTheDocument();
   });
 

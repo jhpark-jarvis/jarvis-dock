@@ -67,7 +67,7 @@ test('Dock returns to the empty state when document workspace selection is cance
     const page = await app.firstWindow();
     await page.getByRole('button', { name: '폴더 선택' }).click();
 
-    await expect(page.getByText('열어 둔 문서가 없습니다.')).toBeVisible();
+    await expect(page.getByText('선택된 폴더가 없습니다.')).toBeVisible();
     const result = await page.evaluate(() => window.dock.workspace.choose());
     expect(result).toEqual({
       ok: false,

@@ -28,6 +28,19 @@ interface AppProps {
   state?: ShellState;
 }
 
+const EmptyStateChip = ({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) => (
+  <div className="empty-state-chip" aria-live="polite">
+    <p className="empty-state-chip__title">{title}</p>
+    <p className="empty-state-chip__description">{description}</p>
+  </div>
+);
+
 const WorkspaceState = ({ state }: Required<AppProps>) => {
   if (state === 'loading') {
     return (
@@ -46,12 +59,10 @@ const WorkspaceState = ({ state }: Required<AppProps>) => {
   }
 
   return (
-    <div className="workspace-state">
-      <p className="workspace-state__title">열어 둔 문서가 없습니다.</p>
-      <p className="workspace-state__description">
-        로컬 문서 폴더를 선택하면 Markdown 파일이 여기에 표시됩니다.
-      </p>
-    </div>
+    <EmptyStateChip
+      title="선택된 폴더가 없습니다."
+      description="로컬 문서 폴더를 선택하면 Markdown 파일이 여기에 표시됩니다."
+    />
   );
 };
 
@@ -1245,12 +1256,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               dangerouslySetInnerHTML={{ __html: previewHtml }}
             />
           ) : (
-            <div className="preview-empty">
-              <p className="preview-empty__title">미리볼 문서가 없습니다.</p>
-              <p>
-                문서를 열면 안전한 Markdown 미리보기가 이 영역에 표시됩니다.
-              </p>
-            </div>
+            <EmptyStateChip
+              title="미리볼 문서가 없습니다."
+              description="문서를 열면 안전한 Markdown 미리보기가 이 영역에 표시됩니다."
+            />
           )}
         </section>
       </div>
