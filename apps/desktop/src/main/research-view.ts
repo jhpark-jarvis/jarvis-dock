@@ -6,18 +6,21 @@ import {
 import { isAllowedLinkUrl } from '../shared/link';
 import {
   ResearchSearchResultSchema,
+  type ResearchTabInfo,
   type ResearchSearchResult,
 } from '../shared/ipc';
 
 const GOOGLE_SEARCH_URL = 'https://www.google.com/search';
 const RESEARCH_PARTITION = 'dock-research';
-const RESEARCH_TOOLBAR_HEIGHT = 72;
-const RESEARCH_PANEL_HEIGHT_RATIO = 0.44;
-const MIN_RESEARCH_PANEL_HEIGHT = 320;
-const MAX_RESEARCH_PANEL_HEIGHT = 544;
+const MAIN_HEADER_HEIGHT = 72;
+const RESEARCH_TOOLBAR_HEIGHT = 88;
+const RESEARCH_WORKBENCH_HEIGHT_RATIO = 0.4;
+const MIN_RESEARCH_WORKBENCH_HEIGHT = 352;
+const MAX_RESEARCH_WORKBENCH_HEIGHT = 512;
 const MAX_LINK_TITLE_LENGTH = 500;
 const MAX_LINK_URL_LENGTH = 2048;
 const MAX_RESEARCH_RESULTS = 10;
+const MAX_RESEARCH_TABS = 6;
 
 const GOOGLE_RESULT_EXTRACTOR = `
 (() => Array.from(document.querySelectorAll('a')).flatMap((anchor) => {
@@ -31,6 +34,11 @@ const GOOGLE_RESULT_EXTRACTOR = `
 export interface ResearchCurrentLink {
   title: string;
   url: string;
+}
+
+export interface ResearchInfo {
+  activeTabId: string | null;
+  tabs: ResearchTabInfo[];
 }
 
 type ResearchResultCandidate = {
@@ -102,7 +110,9 @@ const createResearchView = (
 ): WebContentsView => new WebContentsView(options);
 
 export class ResearchViewManager {
-  private view: WebContentsView | undefined;
+  private readonly tabs = new Map<string, WebContentsView>();
+  private activeTabId: string | undefined;
+  private nextTabId = 1;
 
   constructor(
     private readonly mainWindow: BrowserWindow,
@@ -113,19 +123,25 @@ export class ResearchViewManager {
   }
 
   async open(query: string): Promise<ResearchSearchResult[]> {
-    if (!this.view) {
-      this.view = this.createView({
-        webPreferences: createResearchWebPreferences(),
-      });
-      this.configure(this.view);
-      this.mainWindow.contentView.addChildView(this.view);
-    }
-
+    const tab = this.createTab();
     this.layout();
-    await this.view.webContents.loadURL(createGoogleSearchUrl(query));
-    if (!this.isGoogleSearchPage()) return [];
     try {
-      const candidates = await this.view.webContents.executeJavaScript(
+      await tab.view.webContents.loadURL(createGoogleSearchUrl(query));
+    } catch (error) {
+      // Google may finish on an allowed anti-bot or consent page while
+      // Chromium reports the intermediate navigation as aborted. Keep that
+      // page available for explicit user navigation and current-page insert.
+      try {
+        if (isAllowedResearchUrl(tab.view.webContents.getURL())) return [];
+      } catch {
+        // Fall through to the real load failure path.
+      }
+      this.closeTab(tab.id);
+      throw error;
+    }
+    if (!this.isGoogleSearchPage(tab.view)) return [];
+    try {
+      const candidates = await tab.view.webContents.executeJavaScript(
         GOOGLE_RESULT_EXTRACTOR,
         true,
       );
@@ -136,15 +152,55 @@ export class ResearchViewManager {
   }
 
   close(): void {
-    const view = this.view;
-    if (!view) return;
-    this.view = undefined;
+    for (const [id] of this.tabs) this.closeTab(id);
+  }
+
+  info(): ResearchInfo {
+    return {
+      activeTabId: this.activeTabId ?? null,
+      tabs: [...this.tabs.entries()].map(([id, view]) =>
+        this.toTabInfo(id, view),
+      ),
+    };
+  }
+
+  selectTab(tabId: string): boolean {
+    if (!this.tabs.has(tabId)) return false;
+    this.activeTabId = tabId;
+    this.layout();
+    return true;
+  }
+
+  reload(): boolean {
+    const view = this.activeView();
+    if (!view) return false;
+    view.webContents.reload();
+    return true;
+  }
+
+  stop(): boolean {
+    const view = this.activeView();
+    if (!view) return false;
+    view.webContents.stop();
+    return true;
+  }
+
+  closeTab(tabId: string): boolean {
+    const view = this.tabs.get(tabId);
+    if (!view) return false;
+    this.tabs.delete(tabId);
     this.mainWindow.contentView.removeChildView(view);
     if (!view.webContents.isDestroyed()) view.webContents.close();
+    if (this.activeTabId === tabId) {
+      const nextTab = [...this.tabs.keys()].at(-1);
+      this.activeTabId = nextTab;
+    }
+    this.layout();
+    return true;
   }
 
   currentLink(): ResearchCurrentLink | undefined {
-    const view = this.view;
+    const view = this.activeView();
     if (!view || view.webContents.isDestroyed()) return undefined;
     const url = view.webContents.getURL();
     if (!isAllowedResearchUrl(url) || url.length > MAX_LINK_URL_LENGTH) {
@@ -156,6 +212,60 @@ export class ResearchViewManager {
     return title ? { title, url } : undefined;
   }
 
+  private createTab(): { id: string; view: WebContentsView } {
+    if (this.tabs.size >= MAX_RESEARCH_TABS) {
+      const oldestTabId = this.tabs.keys().next().value;
+      if (oldestTabId) this.closeTab(oldestTabId);
+    }
+    const id = `research-${this.nextTabId++}`;
+    const view = this.createView({
+      webPreferences: createResearchWebPreferences(),
+    });
+    this.configure(view);
+    this.tabs.set(id, view);
+    this.activeTabId = id;
+    this.mainWindow.contentView.addChildView(view);
+    return { id, view };
+  }
+
+  private activeView(): WebContentsView | undefined {
+    return this.activeTabId ? this.tabs.get(this.activeTabId) : undefined;
+  }
+
+  private async openTabUrl(url: string): Promise<void> {
+    if (!isAllowedResearchUrl(url)) return;
+    const tab = this.createTab();
+    this.layout();
+    try {
+      await tab.view.webContents.loadURL(url);
+    } catch {
+      try {
+        if (isAllowedResearchUrl(tab.view.webContents.getURL())) return;
+      } catch {
+        // Close the tab when no safe page reached the view.
+      }
+      this.closeTab(tab.id);
+    }
+  }
+
+  private toTabInfo(id: string, view: WebContentsView): ResearchTabInfo {
+    const webContents = view.webContents;
+    let url = '';
+    try {
+      const candidate = webContents.getURL();
+      if (isAllowedResearchUrl(candidate))
+        url = candidate.slice(0, MAX_LINK_URL_LENGTH);
+    } catch {
+      url = '';
+    }
+    return {
+      id,
+      title: webContents.getTitle().trim().slice(0, MAX_LINK_TITLE_LENGTH),
+      url,
+      loading: webContents.isLoading(),
+    };
+  }
+
   private configure(view: WebContentsView): void {
     const { webContents } = view;
     webContents.session.setPermissionCheckHandler(() => false);
@@ -163,7 +273,10 @@ export class ResearchViewManager {
       (_webContents, _permission, callback) => callback(false),
     );
     webContents.session.on('will-download', (event) => event.preventDefault());
-    webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    webContents.setWindowOpenHandler(({ url }) => {
+      void this.openTabUrl(url);
+      return { action: 'deny' };
+    });
     webContents.on('will-navigate', (event, url) => {
       if (!isAllowedResearchUrl(url)) event.preventDefault();
     });
@@ -172,8 +285,7 @@ export class ResearchViewManager {
     });
   }
 
-  private isGoogleSearchPage(): boolean {
-    const view = this.view;
+  private isGoogleSearchPage(view: WebContentsView): boolean {
     if (!view || view.webContents.isDestroyed()) return false;
     try {
       const url = new URL(view.webContents.getURL());
@@ -184,26 +296,28 @@ export class ResearchViewManager {
   }
 
   private layout(): void {
-    const view = this.view;
-    if (!view || this.mainWindow.isDestroyed()) return;
+    if (this.mainWindow.isDestroyed()) return;
     const { width, height } = this.mainWindow.getContentBounds();
-    const x = Math.floor(width * 0.52);
-    const availableHeight = Math.max(0, height - RESEARCH_TOOLBAR_HEIGHT);
-    const researchHeight = Math.min(
+    const availableHeight = Math.max(0, height - MAIN_HEADER_HEIGHT);
+    const workbenchHeight = Math.min(
       availableHeight,
       Math.min(
-        MAX_RESEARCH_PANEL_HEIGHT,
+        MAX_RESEARCH_WORKBENCH_HEIGHT,
         Math.max(
-          MIN_RESEARCH_PANEL_HEIGHT,
-          Math.floor(height * RESEARCH_PANEL_HEIGHT_RATIO),
+          MIN_RESEARCH_WORKBENCH_HEIGHT,
+          Math.floor(height * RESEARCH_WORKBENCH_HEIGHT_RATIO),
         ),
       ),
     );
+    for (const view of this.tabs.values())
+      view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+    const view = this.activeView();
+    if (!view) return;
     view.setBounds({
-      x,
-      y: RESEARCH_TOOLBAR_HEIGHT,
-      width: Math.max(0, width - x),
-      height: researchHeight,
+      x: 0,
+      y: MAIN_HEADER_HEIGHT + RESEARCH_TOOLBAR_HEIGHT,
+      width: Math.floor(width * 0.52),
+      height: Math.max(0, workbenchHeight - RESEARCH_TOOLBAR_HEIGHT),
     });
   }
 }

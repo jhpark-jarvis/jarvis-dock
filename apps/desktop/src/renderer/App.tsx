@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, MouseEvent } from 'react';
-import type { ResearchSearchResult, WorkspaceFile } from '../shared/ipc';
+import type {
+  ResearchSearchResult,
+  ResearchTabInfo,
+  WorkspaceFile,
+} from '../shared/ipc';
 import {
   formatMarkdownLink,
   insertMarkdownLink,
@@ -93,6 +97,13 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [researchResults, setResearchResults] = useState<
     ResearchSearchResult[]
   >([]);
+  const [researchResultsByTab, setResearchResultsByTab] = useState<
+    Record<string, ResearchSearchResult[]>
+  >({});
+  const [researchTabs, setResearchTabs] = useState<ResearchTabInfo[]>([]);
+  const [activeResearchTabId, setActiveResearchTabId] = useState<string>();
+  const [researchUrl, setResearchUrl] = useState('');
+  const [researchLoading, setResearchLoading] = useState(false);
   const [imageQuery, setImageQuery] = useState('');
   const [imageStatus, setImageStatus] = useState<
     'idle' | 'search' | 'loading' | 'results' | 'empty' | 'error' | 'selected'
@@ -120,6 +131,35 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setContent('# Start');
     setSavedContent('# Start');
   }, [initialState]);
+
+  const refreshResearchInfo = useCallback(async () => {
+    const response = await window.dock.research.info();
+    if (response.ok === false) {
+      if (response.error.code === 'RESEARCH_NOT_OPEN') setResearchOpen(false);
+      return;
+    }
+    setResearchTabs(response.value.tabs);
+    setActiveResearchTabId(response.value.activeTabId ?? undefined);
+    const activeTab = response.value.tabs.find(
+      (tab) => tab.id === response.value.activeTabId,
+    );
+    setResearchUrl(activeTab?.url ?? '');
+    setResearchLoading(activeTab?.loading ?? false);
+    setResearchResults(
+      response.value.activeTabId
+        ? (researchResultsByTab[response.value.activeTabId] ?? [])
+        : [],
+    );
+  }, [researchResultsByTab]);
+
+  useEffect(() => {
+    if (!researchOpen) return;
+    void refreshResearchInfo();
+    const interval = window.setInterval(() => {
+      void refreshResearchInfo();
+    }, 500);
+    return () => window.clearInterval(interval);
+  }, [researchOpen, refreshResearchInfo]);
 
   const refreshFiles = async (nextWorkspaceId: string) => {
     const listed = await window.dock.workspace.listMarkdownFiles({
@@ -270,7 +310,15 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       }
       setResearchOpen(true);
       setResearchError('');
-      setResearchResults(response.value.results);
+      const info = await window.dock.research.info();
+      if (info.ok && info.value.activeTabId) {
+        setResearchResultsByTab((current) => ({
+          ...current,
+          [info.value.activeTabId as string]: response.value.results,
+        }));
+      } else {
+        setResearchResults(response.value.results);
+      }
       closeCommandPalette();
     } catch {
       setLinkError('Research View를 열지 못했습니다. 다시 시도해 주세요.');
@@ -322,6 +370,59 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setResearchOpen(false);
     setResearchError('');
     setResearchResults([]);
+    setResearchResultsByTab({});
+    setResearchTabs([]);
+    setActiveResearchTabId(undefined);
+    setResearchUrl('');
+    setResearchLoading(false);
+  };
+
+  const selectResearchTab = async (tabId: string) => {
+    const response = await window.dock.research.selectTab({ tabId });
+    if (response.ok === false) {
+      setResearchError('Research 탭을 선택하지 못했습니다.');
+      return;
+    }
+    setResearchResults(researchResultsByTab[tabId] ?? []);
+    await refreshResearchInfo();
+  };
+
+  const reloadResearchView = async () => {
+    const response = await window.dock.research.reload();
+    if (response.ok === false) {
+      setResearchError('Research View를 새로고침하지 못했습니다.');
+      return;
+    }
+    setResearchError('');
+    await refreshResearchInfo();
+  };
+
+  const stopResearchView = async () => {
+    const response = await window.dock.research.stop();
+    if (response.ok === false) {
+      setResearchError('Research View 탐색을 중지하지 못했습니다.');
+      return;
+    }
+    await refreshResearchInfo();
+  };
+
+  const closeResearchTab = async (tabId: string) => {
+    const response = await window.dock.research.closeTab({ tabId });
+    if (response.ok === false) {
+      setResearchError('Research 탭을 닫지 못했습니다.');
+      return;
+    }
+    setResearchResultsByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    await refreshResearchInfo();
+    const info = await window.dock.research.info();
+    if (info.ok && info.value.tabs.length === 0) {
+      setResearchOpen(false);
+      setResearchResults([]);
+    }
   };
 
   const searchImages = async () => {
@@ -475,44 +576,112 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       </header>
 
       {researchOpen && (
-        <section className="research-panel" aria-label="실험적 링크 검색 결과">
-          <p className="research-status" role="status">
-            Research View가 오른쪽 영역에서 열려 있습니다.
-          </p>
-          <div className="research-panel__heading">
-            <div>
-              <p className="panel-heading__eyebrow">LOCAL EXPERIMENT</p>
-              <h2>검색 결과</h2>
+        <section className="research-workbench" aria-label="Research View">
+          <div className="research-browser-column">
+            <div className="research-browser-toolbar">
+              <div
+                className="research-tabs"
+                role="tablist"
+                aria-label="Research 탭"
+              >
+                {researchTabs.map((tab) => (
+                  <div className="research-tab" key={tab.id}>
+                    <button
+                      className="research-tab__select"
+                      type="button"
+                      role="tab"
+                      aria-selected={tab.id === activeResearchTabId}
+                      onClick={() => void selectResearchTab(tab.id)}
+                    >
+                      {tab.title || '새 탭'}
+                    </button>
+                    <button
+                      className="research-tab__close"
+                      type="button"
+                      aria-label={`${tab.title || '새 탭'} 닫기`}
+                      onClick={() => void closeResearchTab(tab.id)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="research-browser-controls">
+                <button
+                  className="button button--quiet"
+                  type="button"
+                  onClick={() => void reloadResearchView()}
+                  aria-label="Research View 새로고침"
+                >
+                  ↻
+                </button>
+                <button
+                  className="button button--quiet"
+                  type="button"
+                  onClick={() => void stopResearchView()}
+                  disabled={!researchLoading}
+                  aria-label="Research View 중지"
+                >
+                  ■
+                </button>
+                <input
+                  className="research-browser-url"
+                  aria-label="현재 URL"
+                  value={researchUrl || '페이지 로딩 중'}
+                  readOnly
+                />
+                <button
+                  className="button button--quiet"
+                  type="button"
+                  onClick={() => void closeResearchView()}
+                >
+                  닫기
+                </button>
+              </div>
             </div>
-            <span>제목·HTTPS URL만 표시</span>
           </div>
-          {researchResults.length > 0 ? (
-            <ul className="research-results" aria-label="링크 검색 결과">
-              {researchResults.map((result) => (
-                <li key={result.url}>
-                  <button
-                    className="research-result"
-                    type="button"
-                    onClick={() => insertResearchLink(result)}
-                  >
-                    <strong>{result.title}</strong>
-                    <small>{result.url}</small>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="research-panel__empty">
-              카드 추출 결과가 없습니다. 오른쪽 페이지를 탐색한 뒤 현재 페이지
-              링크를 삽입할 수 있습니다.
-            </p>
-          )}
+          <section
+            className="research-panel"
+            aria-label="실험적 링크 검색 결과"
+          >
+            <div className="research-panel__heading">
+              <div>
+                <p className="panel-heading__eyebrow">LOCAL EXPERIMENT</p>
+                <h2>검색 결과</h2>
+              </div>
+              <span>제목·HTTPS URL만 표시</span>
+            </div>
+            {researchResults.length > 0 ? (
+              <ul className="research-results" aria-label="링크 검색 결과">
+                {researchResults.map((result) => (
+                  <li key={result.url}>
+                    <button
+                      className="research-result"
+                      type="button"
+                      onClick={() => insertResearchLink(result)}
+                    >
+                      <strong>{result.title}</strong>
+                      <small>{result.url}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="research-panel__empty">
+                카드 추출 결과가 없습니다. Research View에서 직접 탐색한 뒤 현재
+                페이지 링크를 삽입할 수 있습니다.
+              </p>
+            )}
+            {researchError && (
+              <p
+                className="research-status research-status--error"
+                role="alert"
+              >
+                {researchError}
+              </p>
+            )}
+          </section>
         </section>
-      )}
-      {researchError && (
-        <p className="research-status research-status--error" role="alert">
-          {researchError}
-        </p>
       )}
 
       {commandPaletteOpen && (

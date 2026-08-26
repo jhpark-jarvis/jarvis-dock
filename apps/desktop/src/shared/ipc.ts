@@ -11,6 +11,11 @@ export const IPC = {
   RESEARCH_OPEN: 'research:open',
   RESEARCH_CLOSE: 'research:close',
   RESEARCH_CURRENT_LINK: 'research:current-link',
+  RESEARCH_INFO: 'research:info',
+  RESEARCH_SELECT_TAB: 'research:select-tab',
+  RESEARCH_RELOAD: 'research:reload',
+  RESEARCH_STOP: 'research:stop',
+  RESEARCH_CLOSE_TAB: 'research:close-tab',
   SEARCH_IMAGES: 'search:images',
   IMAGE_DOWNLOAD: 'image:download',
 } as const;
@@ -35,6 +40,7 @@ export const DockErrorSchema = z
       'RESEARCH_VIEW_FAILED',
       'RESEARCH_NOT_OPEN',
       'RESEARCH_INVALID_PAGE',
+      'RESEARCH_TAB_NOT_FOUND',
       'IMAGE_SEARCH_FAILED',
       'IMAGE_SEARCH_UNAVAILABLE',
       'IMAGE_DOWNLOAD_FAILED',
@@ -186,6 +192,35 @@ export const ResearchCurrentLinkResultEnvelopeSchema = z.discriminatedUnion(
     z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
   ],
 );
+export const ResearchTabInfoSchema = z
+  .object({
+    id: z.string().min(1).max(50),
+    title: z.string().max(500),
+    url: z.string().max(2048),
+    loading: z.boolean(),
+  })
+  .strict();
+export const ResearchInfoSchema = z
+  .object({
+    activeTabId: z.string().min(1).max(50).nullable(),
+    tabs: z.array(ResearchTabInfoSchema).max(6),
+  })
+  .strict();
+export const ResearchInfoResultEnvelopeSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), value: ResearchInfoSchema }).strict(),
+  z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+]);
+export const ResearchTabRequestSchema = z
+  .object({ tabId: z.string().min(1).max(50) })
+  .strict();
+export const ResearchActionRequestSchema = EmptyRequestSchema;
+export const ResearchActionResultSchema = z
+  .object({ updated: z.literal(true) })
+  .strict();
+export const ResearchActionResultEnvelopeSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), value: ResearchActionResultSchema }).strict(),
+  z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+]);
 
 export const ImageSearchResultSchema = z
   .object({
@@ -252,6 +287,13 @@ export type ResearchCurrentLink = z.infer<typeof ResearchCurrentLinkSchema>;
 export type ResearchCurrentLinkResultEnvelope = z.infer<
   typeof ResearchCurrentLinkResultEnvelopeSchema
 >;
+export type ResearchTabInfo = z.infer<typeof ResearchTabInfoSchema>;
+export type ResearchInfoResultEnvelope = z.infer<
+  typeof ResearchInfoResultEnvelopeSchema
+>;
+export type ResearchActionResultEnvelope = z.infer<
+  typeof ResearchActionResultEnvelopeSchema
+>;
 export type ImageSearchResult = z.infer<typeof ImageSearchResultSchema>;
 export type ImageSearchResultEnvelope = z.infer<
   typeof ImageSearchResultEnvelopeSchema
@@ -292,6 +334,15 @@ export interface DockApi {
     open: (request: { query: string }) => Promise<ResearchOpenResultEnvelope>;
     close: () => Promise<ResearchCloseResultEnvelope>;
     currentLink: () => Promise<ResearchCurrentLinkResultEnvelope>;
+    info: () => Promise<ResearchInfoResultEnvelope>;
+    selectTab: (request: {
+      tabId: string;
+    }) => Promise<ResearchActionResultEnvelope>;
+    reload: () => Promise<ResearchActionResultEnvelope>;
+    stop: () => Promise<ResearchActionResultEnvelope>;
+    closeTab: (request: {
+      tabId: string;
+    }) => Promise<ResearchActionResultEnvelope>;
   };
   image: {
     search: (request: { query: string }) => Promise<ImageSearchResultEnvelope>;

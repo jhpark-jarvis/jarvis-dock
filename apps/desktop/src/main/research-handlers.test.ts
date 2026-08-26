@@ -20,6 +20,21 @@ const createController = (): ResearchController => ({
     title: 'Electron Security',
     url: 'https://www.electronjs.org/docs/latest/tutorial/security',
   }),
+  info: () => ({
+    activeTabId: 'research-1',
+    tabs: [
+      {
+        id: 'research-1',
+        title: 'Electron Security',
+        url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+        loading: false,
+      },
+    ],
+  }),
+  selectTab: () => true,
+  reload: () => true,
+  stop: () => true,
+  closeTab: () => true,
 });
 
 const createHarness = (controller: ResearchController | undefined) => {

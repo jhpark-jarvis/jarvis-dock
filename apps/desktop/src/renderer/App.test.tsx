@@ -194,6 +194,36 @@ describe('App', () => {
               url: 'https://www.electronjs.org/docs/latest/tutorial/security',
             },
           }),
+          info: async () => ({
+            ok: true as const,
+            value: {
+              activeTabId: 'research-1',
+              tabs: [
+                {
+                  id: 'research-1',
+                  title: 'Google Search',
+                  url: 'https://www.google.com/search?q=electron',
+                  loading: false,
+                },
+              ],
+            },
+          }),
+          selectTab: async () => ({
+            ok: true as const,
+            value: { updated: true },
+          }),
+          reload: async () => ({
+            ok: true as const,
+            value: { updated: true },
+          }),
+          stop: async () => ({
+            ok: true as const,
+            value: { updated: true },
+          }),
+          closeTab: async () => ({
+            ok: true as const,
+            value: { updated: true },
+          }),
         },
       },
     });
@@ -237,9 +267,9 @@ describe('App', () => {
     await user.click(
       screen.getByRole('button', { name: 'Research View 열기' }),
     );
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      'Research View가 오른쪽 영역에서 열려 있습니다.',
-    );
+    expect(
+      await screen.findByRole('tab', { name: 'Google Search' }),
+    ).toHaveAttribute('aria-selected', 'true');
     await user.click(
       screen.getByRole('button', { name: /^Electron Security/ }),
     );
@@ -299,6 +329,36 @@ describe('App', () => {
               code: 'RESEARCH_INVALID_PAGE' as const,
               message: 'The current research page cannot be inserted.',
             },
+          }),
+          info: async () => ({
+            ok: true as const,
+            value: {
+              activeTabId: 'research-1',
+              tabs: [
+                {
+                  id: 'research-1',
+                  title: 'Google Search',
+                  url: 'https://www.google.com/search?q=electron',
+                  loading: false,
+                },
+              ],
+            },
+          }),
+          selectTab: async () => ({
+            ok: true as const,
+            value: { updated: true },
+          }),
+          reload: async () => ({
+            ok: true as const,
+            value: { updated: true },
+          }),
+          stop: async () => ({
+            ok: true as const,
+            value: { updated: true },
+          }),
+          closeTab: async () => ({
+            ok: true as const,
+            value: { updated: true },
           }),
         },
       },

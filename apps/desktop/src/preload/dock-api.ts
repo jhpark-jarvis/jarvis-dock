@@ -13,8 +13,12 @@ import {
   ResearchCloseResultEnvelopeSchema,
   ResearchCurrentLinkRequestSchema,
   ResearchCurrentLinkResultEnvelopeSchema,
+  ResearchInfoResultEnvelopeSchema,
+  ResearchActionRequestSchema,
+  ResearchActionResultEnvelopeSchema,
   ResearchOpenRequestSchema,
   ResearchOpenResultEnvelopeSchema,
+  ResearchTabRequestSchema,
   ImageDownloadRequestSchema,
   ImageDownloadResultEnvelopeSchema,
   ImageSearchRequestSchema,
@@ -29,6 +33,8 @@ import {
   type WriteResultEnvelope,
   type ResearchCloseResultEnvelope,
   type ResearchCurrentLinkResultEnvelope,
+  type ResearchInfoResultEnvelope,
+  type ResearchActionResultEnvelope,
   type ResearchOpenResultEnvelope,
   type ImageDownloadResultEnvelope,
   type ImageSearchResultEnvelope,
@@ -166,6 +172,41 @@ const invokeResearchCurrentLink = async (
   return result.success ? result.data : { ok: false, error: internalError() };
 };
 
+const invokeResearchInfo = async (
+  ipcRenderer: IpcInvoker,
+): Promise<ResearchInfoResultEnvelope> => {
+  const result = ResearchInfoResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(
+      IPC.RESEARCH_INFO,
+      ResearchActionRequestSchema.parse({}),
+    ),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
+const invokeResearchTabAction = async (
+  ipcRenderer: IpcInvoker,
+  channel: string,
+  request: unknown,
+): Promise<ResearchActionResultEnvelope> => {
+  const parsed =
+    channel === IPC.RESEARCH_SELECT_TAB || channel === IPC.RESEARCH_CLOSE_TAB
+      ? ResearchTabRequestSchema.safeParse(request)
+      : ResearchActionRequestSchema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = ResearchActionResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(channel, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
 const invokeImageDownload = async (
   ipcRenderer: IpcInvoker,
   request: unknown,
@@ -239,6 +280,13 @@ export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
     open: (request) => invokeResearchOpen(ipcRenderer, request),
     close: () => invokeResearchClose(ipcRenderer),
     currentLink: () => invokeResearchCurrentLink(ipcRenderer),
+    info: () => invokeResearchInfo(ipcRenderer),
+    selectTab: (request) =>
+      invokeResearchTabAction(ipcRenderer, IPC.RESEARCH_SELECT_TAB, request),
+    reload: () => invokeResearchTabAction(ipcRenderer, IPC.RESEARCH_RELOAD, {}),
+    stop: () => invokeResearchTabAction(ipcRenderer, IPC.RESEARCH_STOP, {}),
+    closeTab: (request) =>
+      invokeResearchTabAction(ipcRenderer, IPC.RESEARCH_CLOSE_TAB, request),
   },
   image: {
     search: (request) => invokeImageSearch(ipcRenderer, request),

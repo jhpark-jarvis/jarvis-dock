@@ -46,6 +46,11 @@ const E2E_RESEARCH_FALLBACK_HTML = `<!doctype html>
   <head><meta charset="utf-8"><title>Research fallback page</title></head>
   <body><h1>Research fallback page</h1></body>
 </html>`;
+const E2E_RESEARCH_POPUP_HTML = `<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><title>Research popup tab</title></head>
+  <body><h1>Research popup tab</h1></body>
+</html>`;
 
 let cleanupE2eWorkspace: (() => void) | undefined;
 let researchController: ResearchController | undefined;
@@ -136,6 +141,11 @@ const registerE2eResearchSecurityFixture = (): void => {
         headers: { 'content-type': 'text/html; charset=utf-8' },
       });
     }
+    if (url.origin === 'https://popup.e2e.test' && url.pathname === '/') {
+      return new Response(E2E_RESEARCH_POPUP_HTML, {
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      });
+    }
     return new Response('Research security fixture blocks test network.', {
       status: 404,
     });
@@ -144,6 +154,12 @@ const registerE2eResearchSecurityFixture = (): void => {
 
 const createE2eResearchController = (): ResearchController => {
   let open = false;
+  const tab = {
+    id: 'research-e2e',
+    title: 'Google Search',
+    url: 'https://www.google.com/search?q=electron',
+    loading: false,
+  };
   return {
     open: async () => {
       open = true;
@@ -168,6 +184,18 @@ const createE2eResearchController = (): ResearchController => {
             url: 'https://www.electronjs.org/docs/latest/tutorial/security',
           }
         : undefined,
+    info: () => ({
+      activeTabId: open ? tab.id : null,
+      tabs: open ? [tab] : [],
+    }),
+    selectTab: (tabId) => open && tabId === tab.id,
+    reload: () => open,
+    stop: () => open,
+    closeTab: (tabId) => {
+      if (!open || tabId !== tab.id) return false;
+      open = false;
+      return true;
+    },
   };
 };
 

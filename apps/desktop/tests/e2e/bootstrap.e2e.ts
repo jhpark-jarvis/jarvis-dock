@@ -46,7 +46,9 @@ test('Dock opens a large Markdown document without truncating the editor value',
     await page.getByRole('button', { name: '폴더 선택' }).click();
     await page.getByRole('button', { name: 'large.md' }).click();
 
-    await expect(page.getByRole('heading', { name: 'Large document' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Large document' }),
+    ).toBeVisible();
     expect(
       await editor.evaluate(
         (element) => (element as HTMLTextAreaElement).value.length,
@@ -81,10 +83,9 @@ test('Dock preserves unsaved Markdown when the document write fails', async () =
     path.join(os.tmpdir(), 'dock-e2e-document-write-failure-'),
   );
   writeFileSync(path.join(workspaceRoot, 'guide.md'), '# Before', 'utf8');
-  const app = await launchDock(
-    ['--dock-e2e-document-write-failure'],
-    { DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot },
-  );
+  const app = await launchDock(['--dock-e2e-document-write-failure'], {
+    DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot,
+  });
 
   try {
     const page = await app.firstWindow();
@@ -131,10 +132,14 @@ test('Dock selects, creates, saves, and reopens a document workspace after relau
 
     await firstPage.getByLabel('새 문서 경로').fill('relaunch.md');
     await firstPage.getByRole('button', { name: '새 문서 생성' }).click();
-    await expect(firstPage.getByRole('heading', { name: 'relaunch.md' })).toBeVisible();
+    await expect(
+      firstPage.getByRole('heading', { name: 'relaunch.md' }),
+    ).toBeVisible();
     await editor.fill('# Relaunch\n\n저장된 Markdown 문서');
     await firstPage.getByRole('button', { name: '저장' }).click();
-    await expect(firstPage.getByRole('button', { name: '저장됨' })).toBeDisabled();
+    await expect(
+      firstPage.getByRole('button', { name: '저장됨' }),
+    ).toBeDisabled();
 
     await firstApp.close();
     firstApp = undefined;
@@ -236,9 +241,9 @@ test('Dock opens Research View and inserts a selected experimental link card', a
     await page.getByRole('button', { name: /\/link/ }).click();
     await page.getByRole('textbox', { name: '링크 검색어' }).fill('electron');
     await page.getByRole('button', { name: 'Research View 열기' }).click();
-    await expect(page.getByRole('status')).toContainText(
-      'Research View가 오른쪽 영역에서 열려 있습니다.',
-    );
+    await expect(
+      page.getByRole('tab', { name: 'Google Search' }),
+    ).toHaveAttribute('aria-selected', 'true');
     await page.getByRole('button', { name: /^Electron Security/ }).click();
 
     await expect(editor).toHaveValue(
@@ -259,7 +264,9 @@ test('Dock keeps an actual Research View isolated and blocks privileged actions'
     await page.getByRole('textbox', { name: '링크 검색어' }).fill('electron');
     await page.getByRole('button', { name: 'Research View 열기' }).click();
     await expect(
-      page.getByRole('button', { name: /^Research security fixture/ }),
+      page.getByRole('button', {
+        name: /^Research security fixture https:/,
+      }),
     ).toBeVisible();
     const editorBounds = await page
       .getByRole('textbox', { name: 'Markdown 편집기' })
@@ -274,7 +281,14 @@ test('Dock keeps an actual Research View isolated and blocks privileged actions'
           ?.getURL()
           .startsWith('https://www.google.com/search');
       }) as unknown as
-        | { getBounds: () => { x: number; y: number; width: number; height: number } }
+        | {
+            getBounds: () => {
+              x: number;
+              y: number;
+              width: number;
+              height: number;
+            };
+          }
         | undefined;
       return researchView?.getBounds();
     });
@@ -335,6 +349,19 @@ test('Dock keeps an actual Research View isolated and blocks privileged actions'
         `window.open('https://popup.e2e.test/') === null`,
         true,
       );
+      const popupTabOpened = await new Promise<boolean>((resolve) => {
+        setTimeout(() => {
+          const popupTab = mainWindow?.contentView.children.find((child) => {
+            const candidate = child as unknown as {
+              webContents?: { getURL: () => string };
+            };
+            return (
+              candidate.webContents?.getURL() === 'https://popup.e2e.test/'
+            );
+          });
+          resolve(Boolean(popupTab));
+        }, 100);
+      });
       const permissionDenied = await webContents.executeJavaScript(
         `new Promise((resolve) => {
           navigator.geolocation.getCurrentPosition(
@@ -368,6 +395,7 @@ test('Dock keeps an actual Research View isolated and blocks privileged actions'
         found: true,
         remoteCapabilities,
         popupDenied,
+        popupTabOpened,
         permissionDenied,
         navigationBlocked,
         downloadPrevented,
@@ -382,12 +410,13 @@ test('Dock keeps an actual Research View isolated and blocks privileged actions'
         require: 'undefined',
       },
       popupDenied: true,
+      popupTabOpened: true,
       permissionDenied: true,
       navigationBlocked: true,
       downloadPrevented: true,
     });
     expect(await app.windows()).toHaveLength(
-      windowCountBeforePrivilegedActions,
+      windowCountBeforePrivilegedActions + 1,
     );
   } finally {
     await app.close();
@@ -411,7 +440,9 @@ test('Dock inserts the current allowed Research View page as a fallback link', a
     await page.getByRole('textbox', { name: '링크 검색어' }).fill('electron');
     await page.getByRole('button', { name: 'Research View 열기' }).click();
     await expect(
-      page.getByRole('button', { name: /^Research security fixture/ }),
+      page.getByRole('button', {
+        name: /^Research security fixture https:/,
+      }),
     ).toBeVisible();
 
     await app.evaluate(async ({ BrowserWindow }) => {

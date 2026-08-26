@@ -5,12 +5,16 @@ import {
   ResearchCloseResultEnvelopeSchema,
   ResearchCurrentLinkRequestSchema,
   ResearchCurrentLinkResultEnvelopeSchema,
+  ResearchInfoResultEnvelopeSchema,
+  ResearchActionRequestSchema,
+  ResearchActionResultEnvelopeSchema,
   ResearchOpenRequestSchema,
   ResearchOpenResultEnvelopeSchema,
+  ResearchTabRequestSchema,
   type DockError,
   type ResearchSearchResult,
 } from '../shared/ipc';
-import type { ResearchCurrentLink } from './research-view';
+import type { ResearchCurrentLink, ResearchInfo } from './research-view';
 
 type IpcMainHandlerRegistrar = Pick<IpcMain, 'handle'>;
 
@@ -18,6 +22,11 @@ export interface ResearchController {
   open: (query: string) => Promise<ResearchSearchResult[]>;
   close: () => void;
   currentLink: () => ResearchCurrentLink | undefined;
+  info: () => ResearchInfo;
+  selectTab: (tabId: string) => boolean;
+  reload: () => boolean;
+  stop: () => boolean;
+  closeTab: (tabId: string) => boolean;
 }
 
 export interface ResearchHandlerDependencies {
@@ -136,6 +145,156 @@ export const registerResearchHandlers = ({
     return ResearchCurrentLinkResultEnvelopeSchema.parse({
       ok: true,
       value: link,
+    });
+  });
+
+  ipcMain.handle(IPC.RESEARCH_INFO, (event, request) => {
+    if (!isTrustedSender(event.senderFrame.url)) {
+      return ResearchInfoResultEnvelopeSchema.parse({
+        ok: false,
+        error: senderError(),
+      });
+    }
+    if (!ResearchActionRequestSchema.safeParse(request).success) {
+      return ResearchInfoResultEnvelopeSchema.parse({
+        ok: false,
+        error: requestError(),
+      });
+    }
+    const controller = getResearchController();
+    if (!controller) {
+      return ResearchInfoResultEnvelopeSchema.parse({
+        ok: false,
+        error: error('RESEARCH_NOT_OPEN', 'The research view is not open.'),
+      });
+    }
+    return ResearchInfoResultEnvelopeSchema.parse({
+      ok: true,
+      value: controller.info(),
+    });
+  });
+
+  ipcMain.handle(IPC.RESEARCH_SELECT_TAB, (event, request) => {
+    if (!isTrustedSender(event.senderFrame.url)) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: senderError(),
+      });
+    }
+    const parsed = ResearchTabRequestSchema.safeParse(request);
+    if (!parsed.success) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: requestError(),
+      });
+    }
+    const controller = getResearchController();
+    if (!controller) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: error('RESEARCH_NOT_OPEN', 'The research view is not open.'),
+      });
+    }
+    if (!controller.selectTab(parsed.data.tabId)) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: error(
+          'RESEARCH_TAB_NOT_FOUND',
+          'The research tab was not found.',
+        ),
+      });
+    }
+    return ResearchActionResultEnvelopeSchema.parse({
+      ok: true,
+      value: { updated: true },
+    });
+  });
+
+  ipcMain.handle(IPC.RESEARCH_RELOAD, (event, request) => {
+    if (!isTrustedSender(event.senderFrame.url)) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: senderError(),
+      });
+    }
+    if (!ResearchActionRequestSchema.safeParse(request).success) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: requestError(),
+      });
+    }
+    const controller = getResearchController();
+    if (!controller) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: error('RESEARCH_NOT_OPEN', 'The research view is not open.'),
+      });
+    }
+    if (!controller.reload()) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: error('RESEARCH_NOT_OPEN', 'The research view is not open.'),
+      });
+    }
+    return ResearchActionResultEnvelopeSchema.parse({
+      ok: true,
+      value: { updated: true },
+    });
+  });
+
+  ipcMain.handle(IPC.RESEARCH_STOP, (event, request) => {
+    if (!isTrustedSender(event.senderFrame.url)) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: senderError(),
+      });
+    }
+    if (!ResearchActionRequestSchema.safeParse(request).success) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: requestError(),
+      });
+    }
+    const controller = getResearchController();
+    if (!controller || !controller.stop()) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: error('RESEARCH_NOT_OPEN', 'The research view is not open.'),
+      });
+    }
+    return ResearchActionResultEnvelopeSchema.parse({
+      ok: true,
+      value: { updated: true },
+    });
+  });
+
+  ipcMain.handle(IPC.RESEARCH_CLOSE_TAB, (event, request) => {
+    if (!isTrustedSender(event.senderFrame.url)) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: senderError(),
+      });
+    }
+    const parsed = ResearchTabRequestSchema.safeParse(request);
+    if (!parsed.success) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: requestError(),
+      });
+    }
+    const controller = getResearchController();
+    if (!controller || !controller.closeTab(parsed.data.tabId)) {
+      return ResearchActionResultEnvelopeSchema.parse({
+        ok: false,
+        error: error(
+          'RESEARCH_TAB_NOT_FOUND',
+          'The research tab was not found.',
+        ),
+      });
+    }
+    return ResearchActionResultEnvelopeSchema.parse({
+      ok: true,
+      value: { updated: true },
     });
   });
 };
