@@ -83,6 +83,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [state, setState] = useState<ShellState>(initialState);
   const [workspaceId, setWorkspaceId] = useState<string>();
   const [workspaceName, setWorkspaceName] = useState<string>();
+  const [workspaceFolderError, setWorkspaceFolderError] = useState('');
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
   const [selectedPath, setSelectedPath] = useState<string>();
   const [content, setContent] = useState('');
@@ -117,6 +118,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [imageErrorCode, setImageErrorCode] = useState('');
   const [selectedImage, setSelectedImage] = useState<ImageSearchResult>();
   const [imageAltText, setImageAltText] = useState('');
+  const [imageThumbnailErrors, setImageThumbnailErrors] = useState<
+    Record<string, boolean>
+  >({});
   const [previewImageSources, setPreviewImageSources] = useState<
     Record<string, string>
   >({});
@@ -229,8 +233,27 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setContent('');
     setSavedContent('');
     setSaveError('');
+    setWorkspaceFolderError('');
     if (!(await refreshFiles(chosen.value.workspaceId))) return;
     setState('empty');
+  };
+
+  const openWorkspaceFolder = async (folder: 'document' | 'assets') => {
+    if (!workspaceId) {
+      setWorkspaceFolderError('먼저 문서 폴더를 선택해 주세요.');
+      return;
+    }
+    try {
+      const response = await window.dock.workspace.openFolder({
+        workspaceId,
+        folder,
+      });
+      setWorkspaceFolderError(
+        response.ok ? '' : '폴더를 파일 탐색기로 열지 못했습니다.',
+      );
+    } catch {
+      setWorkspaceFolderError('폴더를 파일 탐색기로 열지 못했습니다.');
+    }
   };
 
   const openDocument = async (relativePath: string) => {
@@ -354,6 +377,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setImageStatus('idle');
     setSelectedImage(undefined);
     setImageAltText('');
+    setImageThumbnailErrors({});
     setCommandPaletteOpen(true);
   };
 
@@ -370,6 +394,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setImageStatus('idle');
     setSelectedImage(undefined);
     setImageAltText('');
+    setImageThumbnailErrors({});
     commandTriggerRef.current?.focus();
   };
 
@@ -506,6 +531,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setImageStatus('loading');
     setImageError('');
     setSelectedImage(undefined);
+    setImageThumbnailErrors({});
     try {
       const e2eMode = new URLSearchParams(window.location.search).get('e2e');
       let results: ImageSearchResult[];
@@ -955,6 +981,14 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                 <button
                   className="button button--quiet"
                   type="button"
+                  onClick={() => void openWorkspaceFolder('assets')}
+                  disabled={!workspaceId}
+                >
+                  이미지 폴더 열기
+                </button>
+                <button
+                  className="button button--quiet"
+                  type="button"
                   onClick={closeCommandPalette}
                 >
                   취소
@@ -1023,10 +1057,35 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                       type="button"
                       onClick={() => selectImageResult(result)}
                     >
-                      <strong>{result.title}</strong>
-                      <span>{result.source}</span>
-                      <small>{result.sourcePageUrl}</small>
-                      <small>{result.license}</small>
+                      {imageThumbnailErrors[result.id] ? (
+                        <span
+                          className="image-result__thumbnail image-result__thumbnail--empty"
+                          aria-hidden="true"
+                        >
+                          미리보기 없음
+                        </span>
+                      ) : (
+                        <img
+                          className="image-result__thumbnail"
+                          src={result.thumbnailUrl}
+                          alt={`${result.title} 썸네일`}
+                          loading="lazy"
+                          decoding="async"
+                          referrerPolicy="no-referrer"
+                          onError={() =>
+                            setImageThumbnailErrors((current) => ({
+                              ...current,
+                              [result.id]: true,
+                            }))
+                          }
+                        />
+                      )}
+                      <span className="image-result__details">
+                        <strong>{result.title}</strong>
+                        <span>{result.source}</span>
+                        <small>{result.sourcePageUrl}</small>
+                        <small>{result.license}</small>
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -1043,14 +1102,30 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               <p className="panel-heading__eyebrow">DOCUMENT WORKSPACE</p>
               <h2 id="workspace-title">문서</h2>
             </div>
-            <button
-              className="button button--primary"
-              type="button"
-              onClick={chooseWorkspace}
-            >
-              폴더 선택
-            </button>
+            <div className="panel-heading__actions">
+              <button
+                className="button button--primary"
+                type="button"
+                onClick={chooseWorkspace}
+              >
+                폴더 선택
+              </button>
+              {workspaceName && (
+                <button
+                  className="button button--quiet"
+                  type="button"
+                  onClick={() => void openWorkspaceFolder('document')}
+                >
+                  선택된 폴더 열기
+                </button>
+              )}
+            </div>
           </div>
+          {workspaceFolderError && (
+            <p className="workspace-folder-error" role="alert">
+              {workspaceFolderError}
+            </p>
+          )}
           <div className="workspace-sidebar__body">
             {workspaceName && (
               <>

@@ -4,6 +4,7 @@ import {
   dialog,
   ipcMain,
   session,
+  shell,
   type WebContents,
 } from 'electron';
 import {
@@ -310,6 +311,7 @@ const registerIpcHandlers = () => {
     store: workspaceStore,
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
+    openPath: (folderPath) => shell.openPath(folderPath),
   });
   registerResearchHandlers({
     ipcMain,

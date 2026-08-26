@@ -351,6 +351,13 @@ input:focus-visible {
   font-size: 0.78rem;
 }
 
+.panel-heading__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.4rem;
+}
+
 .button {
   min-height: 2.25rem;
   border: 1px solid transparent;
@@ -410,6 +417,36 @@ input:focus-visible {
   text-align: left;
 }
 
+.image-result {
+  grid-template-columns: 5rem minmax(0, 1fr);
+  align-items: center;
+}
+
+.image-result__thumbnail {
+  display: block;
+  width: 5rem;
+  height: 4rem;
+  border: 1px solid #3a4b66;
+  border-radius: 0.35rem;
+  object-fit: cover;
+  background: #0b1220;
+}
+
+.image-result__thumbnail--empty {
+  display: grid;
+  place-items: center;
+  padding: 0.25rem;
+  color: #8da2bd;
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.image-result__details {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
 .command-item:hover,
 .command-item:focus-visible,
 .image-result:hover,
@@ -458,11 +495,17 @@ input:focus-visible {
   padding: 0;
 }
 
-.image-result span,
-.image-result small {
+.image-result__details span,
+.image-result__details small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.workspace-folder-error {
+  margin: -0.35rem 0 0.7rem;
+  color: #fecaca;
+  font-size: 0.8rem;
 }
 
 .workspace-state,

@@ -663,6 +663,10 @@ describe('App', () => {
 
   it('downloads a selected mock image before inserting its relative Markdown path', async () => {
     const user = userEvent.setup();
+    const openFolder = vi.fn(async () => ({
+      ok: true as const,
+      value: { opened: true as const },
+    }));
     Object.defineProperty(window, 'dock', {
       configurable: true,
       value: {
@@ -680,6 +684,7 @@ describe('App', () => {
               files: [{ relativePath: 'today.md', displayName: 'today.md' }],
             },
           }),
+          openFolder,
         },
         document: {
           read: async () => ({
@@ -720,13 +725,26 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: '폴더 선택' }));
     await user.click(await screen.findByRole('button', { name: 'today.md' }));
+    await user.click(screen.getByRole('button', { name: '선택된 폴더 열기' }));
+    expect(openFolder).toHaveBeenCalledWith({
+      workspaceId: '11111111-1111-4111-8111-111111111111',
+      folder: 'document',
+    });
     await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
     await user.click(screen.getByRole('button', { name: /\/image/ }));
+    await user.click(screen.getByRole('button', { name: '이미지 폴더 열기' }));
+    expect(openFolder).toHaveBeenLastCalledWith({
+      workspaceId: '11111111-1111-4111-8111-111111111111',
+      folder: 'assets',
+    });
     await user.type(
       screen.getByRole('textbox', { name: '이미지 검색어' }),
       'electron',
     );
     await user.click(screen.getByRole('button', { name: '검색' }));
+    await expect(
+      screen.findByRole('img', { name: 'Electron process model 썸네일' }),
+    ).resolves.toBeInTheDocument();
     await user.click(
       await screen.findByRole('button', { name: /Electron process model/ }),
     );

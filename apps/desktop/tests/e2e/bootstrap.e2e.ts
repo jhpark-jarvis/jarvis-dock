@@ -550,6 +550,16 @@ test('Dock downloads the selected image before inserting Markdown', async () => 
 
   try {
     const page = await app.firstWindow();
+    await page.route('https://images.example.test/*.png', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'image/png',
+        body: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+          'base64',
+        ),
+      }),
+    );
     const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
     await expect(editor).toHaveValue('# Start');
 
@@ -557,6 +567,9 @@ test('Dock downloads the selected image before inserting Markdown', async () => 
     await page.getByRole('button', { name: /\/image/ }).click();
     await page.getByRole('textbox', { name: '이미지 검색어' }).fill('electron');
     await page.getByRole('button', { name: '검색' }).click();
+    await expect(
+      page.getByRole('img', { name: 'Electron process model 썸네일' }),
+    ).toBeVisible();
     await page.getByRole('button', { name: /Electron process model/ }).click();
     await page.getByRole('button', { name: '다운로드 및 삽입' }).click();
 

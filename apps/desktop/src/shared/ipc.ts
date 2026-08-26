@@ -4,6 +4,7 @@ export const IPC = {
   SYSTEM_HEALTH: 'system:health',
   SYSTEM_VERSION: 'system:version',
   WORKSPACE_CHOOSE: 'workspace:choose',
+  WORKSPACE_OPEN_FOLDER: 'workspace:open-folder',
   WORKSPACE_LIST_MARKDOWN_FILES: 'workspace:list-markdown-files',
   DOCUMENT_READ: 'document:read',
   DOCUMENT_CREATE: 'document:create',
@@ -32,6 +33,7 @@ export const DockErrorSchema = z
       'INVALID_REQUEST',
       'UNAUTHORIZED_SENDER',
       'WORKSPACE_NOT_SELECTED',
+      'FOLDER_OPEN_FAILED',
       'PATH_OUTSIDE_WORKSPACE',
       'UNSUPPORTED_FILE',
       'NOT_FOUND',
@@ -77,6 +79,12 @@ export const VersionResultSchema = z.discriminatedUnion('ok', [
 
 export const WorkspaceChooseRequestSchema = EmptyRequestSchema;
 export const WorkspaceIdSchema = z.string().uuid();
+export const WorkspaceOpenFolderRequestSchema = z
+  .object({
+    workspaceId: WorkspaceIdSchema,
+    folder: z.enum(['document', 'assets']),
+  })
+  .strict();
 export const RelativeMarkdownPathSchema = z
   .string()
   .min(1)
@@ -117,6 +125,18 @@ export const WorkspaceChooseResultSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), value: WorkspaceSummarySchema }).strict(),
   z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
 ]);
+export const WorkspaceOpenFolderResultSchema = z
+  .object({ opened: z.literal(true) })
+  .strict();
+export const WorkspaceOpenFolderResultEnvelopeSchema = z.discriminatedUnion(
+  'ok',
+  [
+    z
+      .object({ ok: z.literal(true), value: WorkspaceOpenFolderResultSchema })
+      .strict(),
+    z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+  ],
+);
 export const WorkspaceFilesResultSchema = z.discriminatedUnion('ok', [
   z
     .object({
@@ -317,6 +337,9 @@ export type WorkspaceFile = z.infer<typeof WorkspaceFileSchema>;
 export type DocumentData = z.infer<typeof DocumentDataSchema>;
 export type WriteResult = z.infer<typeof WriteResultSchema>;
 export type WorkspaceChooseResult = z.infer<typeof WorkspaceChooseResultSchema>;
+export type WorkspaceOpenFolderResultEnvelope = z.infer<
+  typeof WorkspaceOpenFolderResultEnvelopeSchema
+>;
 export type WorkspaceFilesResult = z.infer<typeof WorkspaceFilesResultSchema>;
 export type DocumentResult = z.infer<typeof DocumentResultSchema>;
 export type WriteResultEnvelope = z.infer<typeof WriteResultEnvelopeSchema>;
@@ -373,6 +396,10 @@ export interface DockApi {
     listMarkdownFiles: (request: {
       workspaceId: string;
     }) => Promise<WorkspaceFilesResult>;
+    openFolder: (request: {
+      workspaceId: string;
+      folder: 'document' | 'assets';
+    }) => Promise<WorkspaceOpenFolderResultEnvelope>;
   };
   document: {
     read: (request: {

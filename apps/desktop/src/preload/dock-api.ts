@@ -28,11 +28,14 @@ import {
   ImageSearchRequestSchema,
   ImageSearchResultEnvelopeSchema,
   WorkspaceChooseResultSchema,
+  WorkspaceOpenFolderRequestSchema,
+  WorkspaceOpenFolderResultEnvelopeSchema,
   WorkspaceFilesResultSchema,
   WorkspaceRequestSchema,
   WriteResultEnvelopeSchema,
   type DocumentResult,
   type WorkspaceChooseResult,
+  type WorkspaceOpenFolderResultEnvelope,
   type WorkspaceFilesResult,
   type WriteResultEnvelope,
   type ResearchCloseResultEnvelope,
@@ -92,6 +95,25 @@ const invokeWorkspaceFiles = async (
     };
   const result = WorkspaceFilesResultSchema.safeParse(
     await ipcRenderer.invoke(IPC.WORKSPACE_LIST_MARKDOWN_FILES, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
+const invokeWorkspaceOpenFolder = async (
+  ipcRenderer: IpcInvoker,
+  request: unknown,
+): Promise<WorkspaceOpenFolderResultEnvelope> => {
+  const parsed = WorkspaceOpenFolderRequestSchema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = WorkspaceOpenFolderResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(IPC.WORKSPACE_OPEN_FOLDER, parsed.data),
   );
   return result.success ? result.data : { ok: false, error: internalError() };
 };
@@ -316,6 +338,7 @@ export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
   workspace: {
     choose: () => invokeWorkspaceChoose(ipcRenderer),
     listMarkdownFiles: (request) => invokeWorkspaceFiles(ipcRenderer, request),
+    openFolder: (request) => invokeWorkspaceOpenFolder(ipcRenderer, request),
   },
   document: {
     read: (request) => invokeDocumentRead(ipcRenderer, request),

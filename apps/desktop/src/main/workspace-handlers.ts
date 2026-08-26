@@ -1,4 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
+import { mkdir, realpath } from 'node:fs/promises';
+import path from 'node:path';
 import {
   DocumentRequestSchema,
   DocumentResultSchema,
@@ -6,6 +8,8 @@ import {
   IPC,
   WorkspaceChooseRequestSchema,
   WorkspaceChooseResultSchema,
+  WorkspaceOpenFolderRequestSchema,
+  WorkspaceOpenFolderResultEnvelopeSchema,
   WorkspaceRequestSchema,
   WorkspaceFilesResultSchema,
   WriteResultEnvelopeSchema,
@@ -35,6 +39,7 @@ export interface WorkspaceHandlerDependencies {
   isTrustedSender: (senderUrl: string) => boolean;
   store?: WorkspaceStore;
   documentWriter?: typeof writeDocument;
+  openPath?: (path: string) => Promise<string>;
 }
 
 const error = (code: DockError['code'], message: string): DockError => ({
@@ -73,6 +78,7 @@ export const registerWorkspaceHandlers = ({
   isTrustedSender,
   store = createWorkspaceStore(),
   documentWriter = writeDocument,
+  openPath = async () => '',
 }: WorkspaceHandlerDependencies): void => {
   ipcMain.handle(IPC.WORKSPACE_CHOOSE, async (event, request) => {
     const guardError = guard(
@@ -102,6 +108,51 @@ export const registerWorkspaceHandlers = ({
       });
     } catch (cause) {
       return WorkspaceChooseResultSchema.parse({
+        ok: false,
+        error: mapFsError(cause),
+      });
+    }
+  });
+
+  ipcMain.handle(IPC.WORKSPACE_OPEN_FOLDER, async (event, request) => {
+    const guardError = guard(
+      event,
+      isTrustedSender,
+      request,
+      WorkspaceOpenFolderRequestSchema,
+    );
+    if (guardError)
+      return WorkspaceOpenFolderResultEnvelopeSchema.parse({
+        ok: false,
+        error: guardError,
+      });
+    const parsed = WorkspaceOpenFolderRequestSchema.parse(request);
+    const storedRoot = store.get(parsed.workspaceId);
+    if (!storedRoot)
+      return WorkspaceOpenFolderResultEnvelopeSchema.parse({
+        ok: false,
+        error: error(
+          'WORKSPACE_NOT_SELECTED',
+          'No document workspace is selected.',
+        ),
+      });
+    try {
+      const root = await realpath(storedRoot);
+      const target =
+        parsed.folder === 'assets' ? path.join(root, 'assets') : root;
+      if (parsed.folder === 'assets') await mkdir(target, { recursive: true });
+      const openError = await openPath(target);
+      if (openError)
+        return WorkspaceOpenFolderResultEnvelopeSchema.parse({
+          ok: false,
+          error: error('FOLDER_OPEN_FAILED', 'The folder could not be opened.'),
+        });
+      return WorkspaceOpenFolderResultEnvelopeSchema.parse({
+        ok: true,
+        value: { opened: true },
+      });
+    } catch (cause) {
+      return WorkspaceOpenFolderResultEnvelopeSchema.parse({
         ok: false,
         error: mapFsError(cause),
       });

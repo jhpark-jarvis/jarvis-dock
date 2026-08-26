@@ -181,4 +181,22 @@ describe('createDockApi', () => {
       bytes: expect.any(Uint8Array),
     });
   });
+
+  it('validates and invokes the selected workspace folder channel', async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { opened: true },
+    });
+    const dock = createDockApi({ invoke });
+    const request = {
+      workspaceId: '11111111-1111-4111-8111-111111111111',
+      folder: 'assets' as const,
+    };
+
+    await expect(dock.workspace.openFolder(request)).resolves.toEqual({
+      ok: true,
+      value: { opened: true },
+    });
+    expect(invoke).toHaveBeenCalledWith(IPC.WORKSPACE_OPEN_FOLDER, request);
+  });
 });

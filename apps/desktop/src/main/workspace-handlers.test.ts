@@ -14,7 +14,10 @@ type InvokeHandler = (event: IpcMainInvokeEvent, request: unknown) => unknown;
 
 const createHarness = (
   folder: string | undefined,
-  overrides: Pick<WorkspaceHandlerDependencies, 'documentWriter'> = {},
+  overrides: Pick<
+    WorkspaceHandlerDependencies,
+    'documentWriter' | 'openPath'
+  > = {},
 ) => {
   const handlers = new Map<string, InvokeHandler>();
   const handle = vi.fn((channel: string, handler: InvokeHandler) =>
@@ -47,14 +50,49 @@ const createHarness = (
 describe('registerWorkspaceHandlers', () => {
   it('registers the workspace and document channels', () => {
     const { handle } = createHarness(undefined);
-    expect(handle).toHaveBeenCalledTimes(5);
+    expect(handle).toHaveBeenCalledTimes(6);
     expect(handle.mock.calls.map(([channel]) => channel)).toEqual([
       IPC.WORKSPACE_CHOOSE,
+      IPC.WORKSPACE_OPEN_FOLDER,
       IPC.WORKSPACE_LIST_MARKDOWN_FILES,
       IPC.DOCUMENT_READ,
       IPC.DOCUMENT_CREATE,
       IPC.DOCUMENT_WRITE,
     ]);
+  });
+
+  it('opens the selected document or assets folder without exposing a path', async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'jarvis-dock-handler-open-folder-'),
+    );
+    const openPath = vi.fn(async () => '');
+    const { invoke } = createHarness(root, { openPath });
+
+    try {
+      const chosen = (await invoke(IPC.WORKSPACE_CHOOSE, {})) as {
+        value: { workspaceId: string };
+      };
+      await expect(
+        invoke(IPC.WORKSPACE_OPEN_FOLDER, {
+          workspaceId: chosen.value.workspaceId,
+          folder: 'document',
+        }),
+      ).resolves.toEqual({ ok: true, value: { opened: true } });
+      await expect(
+        invoke(IPC.WORKSPACE_OPEN_FOLDER, {
+          workspaceId: chosen.value.workspaceId,
+          folder: 'assets',
+        }),
+      ).resolves.toEqual({ ok: true, value: { opened: true } });
+      expect(openPath).toHaveBeenNthCalledWith(1, await fs.realpath(root));
+      expect(openPath).toHaveBeenNthCalledWith(
+        2,
+        path.join(await fs.realpath(root), 'assets'),
+      );
+      await expect(fs.stat(path.join(root, 'assets'))).resolves.toBeTruthy();
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
   });
 
   it('returns CANCELLED when the user closes the folder dialog', async () => {
