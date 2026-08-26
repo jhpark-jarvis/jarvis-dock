@@ -453,6 +453,63 @@ describe('App', () => {
     );
   });
 
+  it('mounts the Research workbench while the search request is still loading', async () => {
+    const user = userEvent.setup();
+    const response = {
+      ok: true as const,
+      value: {
+        opened: true as const,
+        results: [] as Array<{ title: string; url: string }>,
+      },
+    };
+    let resolveOpen: (() => void) | undefined;
+    const open = () =>
+      new Promise<typeof response>((resolve) => {
+        resolveOpen = () => resolve(response);
+      });
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        research: {
+          open,
+          info: async () => ({
+            ok: true as const,
+            value: {
+              activeTabId: null as string | null,
+              tabs: [] as Array<{
+                id: string;
+                title: string;
+                url: string;
+                loading: boolean;
+              }>,
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
+    await user.click(screen.getByRole('button', { name: /\/link/ }));
+    await user.type(
+      screen.getByRole('textbox', { name: '링크 검색어' }),
+      'electron',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Research View 열기' }),
+    );
+
+    expect(
+      screen.getByRole('region', { name: '실험적 링크 검색 결과' }),
+    ).toBeInTheDocument();
+    resolveOpen?.();
+    await expect(
+      screen.findByText(
+        '카드 추출 결과가 없습니다. Research View에서 직접 탐색한 뒤 현재 페이지 링크를 삽입할 수 있습니다.',
+      ),
+    ).resolves.toBeInTheDocument();
+  });
+
   it('downloads a selected mock image before inserting its relative Markdown path', async () => {
     const user = userEvent.setup();
     Object.defineProperty(window, 'dock', {

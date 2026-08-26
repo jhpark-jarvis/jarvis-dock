@@ -292,18 +292,20 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   };
 
   const openLinkSearch = async () => {
+    const wasResearchOpen = researchOpen;
     setLinkStatus('opening');
     setLinkError('');
+    setResearchOpen(true);
     try {
       const response = await window.dock.research.open({
         query: linkQuery,
       });
       if (response.ok === false) {
+        if (!wasResearchOpen) setResearchOpen(false);
         setLinkError('Research View를 열지 못했습니다. 다시 시도해 주세요.');
         setLinkStatus('error');
         return;
       }
-      setResearchOpen(true);
       setResearchError('');
       setResearchResults(response.value.results);
       const info = await window.dock.research.info();
@@ -317,6 +319,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       }
       closeCommandPalette();
     } catch {
+      if (!wasResearchOpen) setResearchOpen(false);
       setLinkError('Research View를 열지 못했습니다. 다시 시도해 주세요.');
       setLinkStatus('error');
     }

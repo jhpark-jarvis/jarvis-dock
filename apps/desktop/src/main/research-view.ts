@@ -126,7 +126,6 @@ export class ResearchViewManager {
 
   async open(query: string): Promise<ResearchSearchResult[]> {
     const tab = this.createTab();
-    this.layout();
     try {
       await tab.view.webContents.loadURL(createGoogleSearchUrl(query));
     } catch (error) {
@@ -134,15 +133,23 @@ export class ResearchViewManager {
       // Chromium reports the intermediate navigation as aborted. Keep that
       // page available for explicit user navigation and current-page insert.
       try {
-        if (isAllowedResearchUrl(tab.view.webContents.getURL())) return [];
+        if (isAllowedResearchUrl(tab.view.webContents.getURL())) {
+          this.layout();
+          return [];
+        }
       } catch {
         // Fall through to the real load failure path.
       }
       this.closeTab(tab.id);
       throw error;
     }
-    if (!this.isGoogleSearchPage(tab.view)) return [];
-    return this.extractSearchResults(tab.view);
+    if (!this.isGoogleSearchPage(tab.view)) {
+      this.layout();
+      return [];
+    }
+    const results = await this.extractSearchResults(tab.view);
+    this.layout();
+    return results;
   }
 
   close(): void {
@@ -219,6 +226,7 @@ export class ResearchViewManager {
     this.tabs.set(id, view);
     this.activeTabId = id;
     this.mainWindow.contentView.addChildView(view);
+    view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
     return { id, view };
   }
 
@@ -229,12 +237,15 @@ export class ResearchViewManager {
   private async openTabUrl(url: string): Promise<void> {
     if (!isAllowedResearchUrl(url)) return;
     const tab = this.createTab();
-    this.layout();
     try {
       await tab.view.webContents.loadURL(url);
+      this.layout();
     } catch {
       try {
-        if (isAllowedResearchUrl(tab.view.webContents.getURL())) return;
+        if (isAllowedResearchUrl(tab.view.webContents.getURL())) {
+          this.layout();
+          return;
+        }
       } catch {
         // Close the tab when no safe page reached the view.
       }
