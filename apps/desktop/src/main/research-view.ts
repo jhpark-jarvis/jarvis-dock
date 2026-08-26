@@ -23,13 +23,15 @@ const MAX_RESEARCH_RESULTS = 10;
 const MAX_RESEARCH_TABS = 6;
 
 const GOOGLE_RESULT_EXTRACTOR = `
-(() => Array.from(document.querySelectorAll('a')).flatMap((anchor) => {
-  const heading = anchor.querySelector('h3');
+(() => Array.from(document.querySelectorAll('h3')).flatMap((heading) => {
+  const anchor = heading.closest('a');
   const title = heading?.textContent?.replace(/\\s+/g, ' ').trim();
-  const href = anchor.href;
+  const href = anchor?.href;
   return title && href ? [{ title, href }] : [];
 }))()
 `;
+const GOOGLE_RESULT_EXTRACTION_ATTEMPTS = 8;
+const GOOGLE_RESULT_EXTRACTION_INTERVAL_MS = 250;
 
 export interface ResearchCurrentLink {
   title: string;
@@ -140,15 +142,7 @@ export class ResearchViewManager {
       throw error;
     }
     if (!this.isGoogleSearchPage(tab.view)) return [];
-    try {
-      const candidates = await tab.view.webContents.executeJavaScript(
-        GOOGLE_RESULT_EXTRACTOR,
-        true,
-      );
-      return normalizeResearchSearchResults(candidates);
-    } catch {
-      return [];
-    }
+    return this.extractSearchResults(tab.view);
   }
 
   close(): void {
@@ -246,6 +240,35 @@ export class ResearchViewManager {
       }
       this.closeTab(tab.id);
     }
+  }
+
+  private async extractSearchResults(
+    view: WebContentsView,
+  ): Promise<ResearchSearchResult[]> {
+    for (
+      let attempt = 0;
+      attempt < GOOGLE_RESULT_EXTRACTION_ATTEMPTS;
+      attempt += 1
+    ) {
+      try {
+        const candidates = await view.webContents.executeJavaScript(
+          GOOGLE_RESULT_EXTRACTOR,
+          true,
+        );
+        const results = normalizeResearchSearchResults(candidates);
+        if (
+          results.length > 0 ||
+          attempt === GOOGLE_RESULT_EXTRACTION_ATTEMPTS - 1
+        )
+          return results;
+      } catch {
+        if (attempt === GOOGLE_RESULT_EXTRACTION_ATTEMPTS - 1) return [];
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, GOOGLE_RESULT_EXTRACTION_INTERVAL_MS),
+      );
+    }
+    return [];
   }
 
   private toTabInfo(id: string, view: WebContentsView): ResearchTabInfo {
