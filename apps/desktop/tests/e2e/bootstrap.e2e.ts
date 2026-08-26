@@ -91,6 +91,7 @@ test('Dock preserves unsaved Markdown when the document write fails', async () =
     const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
     await page.getByRole('button', { name: '폴더 선택' }).click();
     await page.getByRole('button', { name: 'guide.md' }).click();
+    await expect(editor).toHaveValue('# Before');
     await editor.fill('# After');
     await page.getByRole('button', { name: '저장' }).click();
 
@@ -356,6 +357,94 @@ test('Dock keeps an actual Research View isolated and blocks privileged actions'
     });
     expect(await app.windows()).toHaveLength(
       windowCountBeforePrivilegedActions,
+    );
+  } finally {
+    await app.close();
+  }
+});
+
+test('Dock inserts the current allowed Research View page as a fallback link', async () => {
+  const app = await launchDock(['--dock-e2e-research-security']);
+
+  try {
+    const page = await app.firstWindow();
+    const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
+    await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
+    await page.getByRole('button', { name: /\/link/ }).click();
+    await page.getByRole('textbox', { name: '링크 검색어' }).fill('electron');
+    await page.getByRole('button', { name: 'Research View 열기' }).click();
+    await expect(
+      page.getByRole('button', { name: /^Research security fixture/ }),
+    ).toBeVisible();
+
+    await app.evaluate(async ({ BrowserWindow }) => {
+      const mainWindow = BrowserWindow.getAllWindows()[0];
+      const researchView = mainWindow?.contentView.children.find((child) => {
+        const candidate = child as unknown as {
+          webContents?: { getURL: () => string };
+        };
+        return candidate.webContents
+          ?.getURL()
+          .startsWith('https://www.google.com/search');
+      }) as unknown as
+        | {
+            webContents: {
+              executeJavaScript: (
+                code: string,
+                userGesture?: boolean,
+              ) => Promise<unknown>;
+            };
+          }
+        | undefined;
+      if (!researchView) throw new Error('Research View was not found.');
+      await researchView.webContents.executeJavaScript(
+        "window.location.assign('https://example.com/research-fallback')",
+        true,
+      );
+    });
+
+    await expect
+      .poll(
+        () =>
+          app.evaluate(({ BrowserWindow }) => {
+            const mainWindow = BrowserWindow.getAllWindows()[0];
+            const researchView = mainWindow?.contentView.children.find(
+              (child) => {
+                const candidate = child as unknown as {
+                  webContents?: {
+                    getURL: () => string;
+                    getTitle: () => string;
+                  };
+                };
+                return candidate.webContents
+                  ?.getURL()
+                  .startsWith('https://example.com/research-fallback');
+              },
+            ) as unknown as
+              | {
+                  webContents: {
+                    getURL: () => string;
+                    getTitle: () => string;
+                  };
+                }
+              | undefined;
+            return researchView
+              ? {
+                  url: researchView.webContents.getURL(),
+                  title: researchView.webContents.getTitle(),
+                }
+              : undefined;
+          }),
+        { timeout: 10_000 },
+      )
+      .toEqual({
+        url: 'https://example.com/research-fallback',
+        title: 'Research fallback page',
+      });
+
+    await page.getByRole('button', { name: '현재 페이지 링크 삽입' }).click();
+    await expect(editor).toHaveValue(
+      '# Start[Research fallback page](https://example.com/research-fallback)',
     );
   } finally {
     await app.close();

@@ -41,6 +41,11 @@ const E2E_RESEARCH_SECURITY_HTML = `<!doctype html>
     </a>
   </body>
 </html>`;
+const E2E_RESEARCH_FALLBACK_HTML = `<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><title>Research fallback page</title></head>
+  <body><h1>Research fallback page</h1></body>
+</html>`;
 
 let cleanupE2eWorkspace: (() => void) | undefined;
 let researchController: ResearchController | undefined;
@@ -120,6 +125,14 @@ const registerE2eResearchSecurityFixture = (): void => {
     const url = new URL(request.url);
     if (url.origin === 'https://www.google.com' && url.pathname === '/search') {
       return new Response(E2E_RESEARCH_SECURITY_HTML, {
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      });
+    }
+    if (
+      url.origin === 'https://example.com' &&
+      url.pathname === '/research-fallback'
+    ) {
+      return new Response(E2E_RESEARCH_FALLBACK_HTML, {
         headers: { 'content-type': 'text/html; charset=utf-8' },
       });
     }
