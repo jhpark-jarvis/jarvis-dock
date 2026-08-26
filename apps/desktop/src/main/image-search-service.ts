@@ -13,7 +13,7 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const SUPPORTED_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 const WikimediaMetadataSchema = z
-  .record(z.string(), z.object({ value: z.string().optional() }).passthrough())
+  .record(z.string(), z.object({ value: z.unknown().optional() }).passthrough())
   .optional();
 
 const WikimediaImageInfoSchema = z
@@ -81,16 +81,20 @@ const readResponseText = async (response: Response): Promise<string> => {
 };
 
 const plainMetadata = (
-  metadata: Record<string, { value?: string }> | undefined,
+  metadata: Record<string, { value?: unknown }> | undefined,
   key: string,
-): string =>
-  (metadata?.[key]?.value ?? '')
+): string => {
+  const value = metadata?.[key]?.value;
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+
+  return String(value)
     .replace(/<[^>]*>/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/\s+/g, ' ')
     .trim();
+};
 
 const isAllowedProviderUrl = (value: string): boolean => {
   try {

@@ -47,6 +47,7 @@ describe('Wikimedia image search service', () => {
                     Artist: {
                       value: '<a href="https://example.com">Author</a>',
                     },
+                    CommonsMetadataExtension: { value: 1.2 },
                   },
                 },
               ],
