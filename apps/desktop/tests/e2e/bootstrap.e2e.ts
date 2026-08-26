@@ -268,6 +268,39 @@ test('Dock keeps an actual Research View isolated and blocks privileged actions'
         name: /^Research security fixture https:/,
       }),
     ).toBeVisible();
+    await app.evaluate(async ({ BrowserWindow }) => {
+      const mainWindow = BrowserWindow.getAllWindows()[0];
+      const researchView = mainWindow?.contentView.children.find((child) => {
+        const candidate = child as unknown as {
+          webContents?: { getURL: () => string };
+        };
+        return candidate.webContents
+          ?.getURL()
+          .startsWith('https://www.google.com/search');
+      }) as unknown as
+        | {
+            webContents: {
+              executeJavaScript: (
+                code: string,
+                userGesture?: boolean,
+              ) => Promise<unknown>;
+            };
+          }
+        | undefined;
+      if (!researchView) throw new Error('Research View was not found.');
+      await researchView.webContents.executeJavaScript(
+        "window.location.assign('https://www.google.com/search?q=second')",
+        true,
+      );
+    });
+    await expect(
+      page.getByRole('button', { name: /^Second search result https:/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', {
+        name: /^Research security fixture https:/,
+      }),
+    ).not.toBeVisible();
     const editorBounds = await page
       .getByRole('textbox', { name: 'Markdown 편집기' })
       .boundingBox();

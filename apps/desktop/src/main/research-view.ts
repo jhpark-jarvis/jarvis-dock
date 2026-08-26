@@ -14,6 +14,7 @@ const GOOGLE_SEARCH_URL = 'https://www.google.com/search';
 const RESEARCH_PARTITION = 'dock-research';
 const MAIN_HEADER_HEIGHT = 72;
 const RESEARCH_TOOLBAR_HEIGHT = 96;
+const RESEARCH_VIEW_GAP = 8;
 const RESEARCH_WORKBENCH_HEIGHT_RATIO = 0.4;
 const MIN_RESEARCH_WORKBENCH_HEIGHT = 352;
 const MAX_RESEARCH_WORKBENCH_HEIGHT = 512;
@@ -41,6 +42,7 @@ export interface ResearchCurrentLink {
 export interface ResearchInfo {
   activeTabId: string | null;
   tabs: ResearchTabInfo[];
+  results: ResearchSearchResult[];
 }
 
 type ResearchResultCandidate = {
@@ -113,6 +115,7 @@ const createResearchView = (
 
 export class ResearchViewManager {
   private readonly tabs = new Map<string, WebContentsView>();
+  private readonly resultsByTab = new Map<string, ResearchSearchResult[]>();
   private activeTabId: string | undefined;
   private nextTabId = 1;
 
@@ -144,10 +147,12 @@ export class ResearchViewManager {
       throw error;
     }
     if (!this.isGoogleSearchPage(tab.view)) {
+      this.resultsByTab.set(tab.id, []);
       this.layout();
       return [];
     }
     const results = await this.extractSearchResults(tab.view);
+    this.resultsByTab.set(tab.id, results);
     this.layout();
     return results;
   }
@@ -162,6 +167,9 @@ export class ResearchViewManager {
       tabs: [...this.tabs.entries()].map(([id, view]) =>
         this.toTabInfo(id, view),
       ),
+      results: this.activeTabId
+        ? (this.resultsByTab.get(this.activeTabId) ?? [])
+        : [],
     };
   }
 
@@ -190,6 +198,7 @@ export class ResearchViewManager {
     const view = this.tabs.get(tabId);
     if (!view) return false;
     this.tabs.delete(tabId);
+    this.resultsByTab.delete(tabId);
     this.mainWindow.contentView.removeChildView(view);
     if (!view.webContents.isDestroyed()) view.webContents.close();
     if (this.activeTabId === tabId) {
@@ -222,8 +231,9 @@ export class ResearchViewManager {
     const view = this.createView({
       webPreferences: createResearchWebPreferences(),
     });
-    this.configure(view);
+    this.configure(id, view);
     this.tabs.set(id, view);
+    this.resultsByTab.set(id, []);
     this.activeTabId = id;
     this.mainWindow.contentView.addChildView(view);
     view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
@@ -300,7 +310,7 @@ export class ResearchViewManager {
     };
   }
 
-  private configure(view: WebContentsView): void {
+  private configure(id: string, view: WebContentsView): void {
     const { webContents } = view;
     webContents.session.setPermissionCheckHandler(() => false);
     webContents.session.setPermissionRequestHandler(
@@ -317,6 +327,29 @@ export class ResearchViewManager {
     webContents.on('will-redirect', (event, url) => {
       if (!isAllowedResearchUrl(url)) event.preventDefault();
     });
+    webContents.on('did-finish-load', () => {
+      void this.extractResultsAfterLoad(id, view);
+    });
+  }
+
+  private async extractResultsAfterLoad(
+    id: string,
+    view: WebContentsView,
+  ): Promise<void> {
+    if (!this.tabs.has(id) || view.webContents.isDestroyed()) return;
+    if (!this.isGoogleSearchPage(view)) {
+      this.resultsByTab.set(id, []);
+      return;
+    }
+    const loadedUrl = view.webContents.getURL();
+    const results = await this.extractSearchResults(view);
+    if (
+      !this.tabs.has(id) ||
+      view.webContents.isDestroyed() ||
+      view.webContents.getURL() !== loadedUrl
+    )
+      return;
+    this.resultsByTab.set(id, results);
   }
 
   private isGoogleSearchPage(view: WebContentsView): boolean {
@@ -349,9 +382,12 @@ export class ResearchViewManager {
     if (!view) return;
     view.setBounds({
       x: 0,
-      y: MAIN_HEADER_HEIGHT + RESEARCH_TOOLBAR_HEIGHT,
+      y: MAIN_HEADER_HEIGHT + RESEARCH_TOOLBAR_HEIGHT + RESEARCH_VIEW_GAP,
       width: Math.floor(width * 0.52),
-      height: Math.max(0, workbenchHeight - RESEARCH_TOOLBAR_HEIGHT),
+      height: Math.max(
+        0,
+        workbenchHeight - RESEARCH_TOOLBAR_HEIGHT - RESEARCH_VIEW_GAP,
+      ),
     });
   }
 }

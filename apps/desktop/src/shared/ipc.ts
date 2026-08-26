@@ -228,6 +228,7 @@ export const ResearchInfoSchema = z
   .object({
     activeTabId: z.string().min(1).max(50).nullable(),
     tabs: z.array(ResearchTabInfoSchema).max(6),
+    results: z.array(ResearchSearchResultSchema).max(10),
   })
   .strict();
 export const ResearchInfoResultEnvelopeSchema = z.discriminatedUnion('ok', [

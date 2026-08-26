@@ -49,6 +49,15 @@ const E2E_RESEARCH_SECURITY_HTML = `<!doctype html>
     </a>
   </body>
 </html>`;
+const E2E_RESEARCH_SECOND_SEARCH_HTML = `<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><title>Second search fixture</title></head>
+  <body>
+    <a href="https://www.electronjs.org/docs/latest/tutorial/process-model">
+      <h3>Second search result</h3>
+    </a>
+  </body>
+</html>`;
 const E2E_RESEARCH_FALLBACK_HTML = `<!doctype html>
 <html lang="en">
   <head><meta charset="utf-8"><title>Research fallback page</title></head>
@@ -150,7 +159,11 @@ const registerE2eResearchSecurityFixture = (): void => {
   session.fromPartition('dock-research').protocol.handle('https', (request) => {
     const url = new URL(request.url);
     if (url.origin === 'https://www.google.com' && url.pathname === '/search') {
-      return new Response(E2E_RESEARCH_SECURITY_HTML, {
+      const html =
+        url.searchParams.get('q') === 'second'
+          ? E2E_RESEARCH_SECOND_SEARCH_HTML
+          : E2E_RESEARCH_SECURITY_HTML;
+      return new Response(html, {
         headers: { 'content-type': 'text/html; charset=utf-8' },
       });
     }
@@ -208,6 +221,18 @@ const createE2eResearchController = (): ResearchController => {
     info: () => ({
       activeTabId: open ? tab.id : null,
       tabs: open ? [tab] : [],
+      results: open
+        ? [
+            {
+              title: 'Electron Security',
+              url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+            },
+            {
+              title: 'Electron Process Model',
+              url: 'https://www.electronjs.org/docs/latest/tutorial/process-model',
+            },
+          ]
+        : [],
     }),
     selectTab: (tabId) => open && tabId === tab.id,
     reload: () => open,

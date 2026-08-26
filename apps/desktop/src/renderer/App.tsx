@@ -156,6 +156,15 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     );
     setResearchUrl(activeTab?.url ?? '');
     setResearchLoading(activeTab?.loading ?? false);
+    if (Array.isArray(response.value.results)) {
+      setResearchResults(response.value.results);
+      if (response.value.activeTabId) {
+        setResearchResultsByTab((current) => ({
+          ...current,
+          [response.value.activeTabId as string]: response.value.results,
+        }));
+      }
+    }
   }, []);
 
   useEffect(() => {

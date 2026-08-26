@@ -30,6 +30,12 @@ const createController = (): ResearchController => ({
         loading: false,
       },
     ],
+    results: [
+      {
+        title: 'Electron Security',
+        url: 'https://www.electronjs.org/docs/latest/tutorial/security',
+      },
+    ],
   }),
   selectTab: () => true,
   reload: () => true,
