@@ -66,6 +66,18 @@ const WorkspaceState = ({ state }: Required<AppProps>) => {
   );
 };
 
+const ExplorerIcon = () => (
+  <svg
+    aria-hidden="true"
+    className="activity-bar__icon"
+    viewBox="0 0 24 24"
+    focusable="false"
+  >
+    <path d="M3.75 5.25h6l1.5 2h9v11.5h-16.5z" />
+    <path d="M3.75 7.25h16.5" />
+  </svg>
+);
+
 const trapDialogFocus = (event: KeyboardEvent<HTMLElement>): void => {
   if (event.key !== 'Tab') return;
   const focusable = Array.from(
@@ -135,6 +147,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [previewImageSources, setPreviewImageSources] = useState<
     Record<string, string>
   >({});
+  const [explorerOpen, setExplorerOpen] = useState(true);
 
   useEffect(() => {
     setState(initialState);
@@ -1137,144 +1150,179 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         </div>
       )}
 
-      <div className="workspace-layout">
-        <aside className="workspace-sidebar" aria-labelledby="workspace-title">
-          <div className="panel-heading">
-            <div>
-              <p className="panel-heading__eyebrow">DOCUMENT WORKSPACE</p>
-              <h2 id="workspace-title">문서</h2>
-            </div>
-            <div className="panel-heading__actions">
-              <button
-                className="button button--primary"
-                type="button"
-                onClick={chooseWorkspace}
-              >
-                폴더 선택
-              </button>
-              {workspaceName && (
-                <button
-                  className="button button--quiet"
-                  type="button"
-                  onClick={() => void openWorkspaceFolder('document')}
-                >
-                  선택된 폴더 열기
-                </button>
-              )}
-            </div>
-          </div>
-          {workspaceFolderError && (
-            <p className="workspace-folder-error" role="alert">
-              {workspaceFolderError}
-            </p>
-          )}
-          <div className="workspace-sidebar__body">
-            {workspaceName && (
-              <>
-                <p className="workspace-name">현재 폴더: {workspaceName}</p>
-                <form
-                  className="workspace-create"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void createDocument();
-                  }}
-                >
-                  <label htmlFor="new-document-path">새 문서 경로</label>
-                  <input
-                    id="new-document-path"
-                    className="workspace-create__input"
-                    value={newDocumentPath}
-                    onChange={(event) => setNewDocumentPath(event.target.value)}
-                    placeholder="notes/today.md"
-                  />
-                  <button className="button button--quiet" type="submit">
-                    새 문서 생성
-                  </button>
-                </form>
-              </>
-            )}
-            {files.length > 0 ? (
-              <ul className="file-list" aria-label="Markdown 파일 목록">
-                {files.map((file) => (
-                  <li key={file.relativePath}>
-                    <button
-                      className="file-list__item"
-                      type="button"
-                      onClick={() => openDocument(file.relativePath)}
-                    >
-                      {file.relativePath}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <WorkspaceState state={state} />
-            )}
-          </div>
-        </aside>
+      <div className="workspace-shell">
+        <nav className="activity-bar" aria-label="작업 영역">
+          <button
+            className="activity-bar__button"
+            type="button"
+            aria-controls={explorerOpen ? 'workspace-sidebar' : undefined}
+            aria-expanded={explorerOpen}
+            aria-label={explorerOpen ? '탐색기' : '탐색기 열기'}
+            title={explorerOpen ? '탐색기 접기' : '탐색기 열기'}
+            onClick={() => setExplorerOpen((open) => !open)}
+          >
+            <ExplorerIcon />
+            <span className="visually-hidden">
+              {explorerOpen ? '탐색기 접기' : '탐색기 열기'}
+            </span>
+          </button>
+        </nav>
 
-        <section className="editor-panel" aria-labelledby="editor-title">
-          <div className="panel-heading">
-            <div>
-              <p className="panel-heading__eyebrow">EDITOR</p>
-              <h2 id="editor-title">{selectedPath ?? '새 문서'}</h2>
-            </div>
-            <button
-              className="button button--quiet"
-              type="button"
-              onClick={saveDocument}
-              disabled={!selectedPath || !dirty}
+        <div className="workspace-layout">
+          {explorerOpen && (
+            <aside
+              id="workspace-sidebar"
+              className="workspace-sidebar"
+              aria-labelledby="workspace-title"
             >
-              {dirty ? '저장' : '저장됨'}
-            </button>
-          </div>
-          {saveError && (
-            <p className="editor-save-error" role="alert">
-              {saveError}
-            </p>
+              <div className="panel-heading">
+                <div>
+                  <p className="panel-heading__eyebrow">DOCUMENT WORKSPACE</p>
+                  <h2 id="workspace-title">문서</h2>
+                </div>
+                <div className="panel-heading__actions">
+                  <button
+                    className="button button--primary"
+                    type="button"
+                    onClick={chooseWorkspace}
+                  >
+                    폴더 선택
+                  </button>
+                  {workspaceName && (
+                    <button
+                      className="button button--quiet"
+                      type="button"
+                      onClick={() => void openWorkspaceFolder('document')}
+                    >
+                      선택된 폴더 열기
+                    </button>
+                  )}
+                  <button
+                    className="button button--quiet workspace-sidebar__collapse"
+                    type="button"
+                    aria-label="탐색기 패널 접기"
+                    onClick={() => setExplorerOpen(false)}
+                  >
+                    접기
+                  </button>
+                </div>
+              </div>
+              {workspaceFolderError && (
+                <p className="workspace-folder-error" role="alert">
+                  {workspaceFolderError}
+                </p>
+              )}
+              <div className="workspace-sidebar__body">
+                {workspaceName && (
+                  <>
+                    <p className="workspace-name">현재 폴더: {workspaceName}</p>
+                    <form
+                      className="workspace-create"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void createDocument();
+                      }}
+                    >
+                      <label htmlFor="new-document-path">새 문서 경로</label>
+                      <input
+                        id="new-document-path"
+                        className="workspace-create__input"
+                        value={newDocumentPath}
+                        onChange={(event) =>
+                          setNewDocumentPath(event.target.value)
+                        }
+                        placeholder="notes/today.md"
+                      />
+                      <button className="button button--quiet" type="submit">
+                        새 문서 생성
+                      </button>
+                    </form>
+                  </>
+                )}
+                {files.length > 0 ? (
+                  <ul className="file-list" aria-label="Markdown 파일 목록">
+                    {files.map((file) => (
+                      <li key={file.relativePath}>
+                        <button
+                          className="file-list__item"
+                          type="button"
+                          onClick={() => openDocument(file.relativePath)}
+                        >
+                          {file.relativePath}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <WorkspaceState state={state} />
+                )}
+              </div>
+            </aside>
           )}
-          <textarea
-            ref={editorRef}
-            aria-label="Markdown 편집기"
-            className="markdown-editor"
-            placeholder="문서를 선택하거나 새 Markdown을 작성하세요."
-            value={content}
-            onClick={rememberEditorSelection}
-            onFocus={rememberEditorSelection}
-            onKeyUp={rememberEditorSelection}
-            onSelect={rememberEditorSelection}
-            onPaste={handleEditorPaste}
-            onChange={(event) => {
-              setContent(event.target.value);
-              editorSelectionRef.current = {
-                start: event.target.selectionStart,
-                end: event.target.selectionEnd,
-              };
-              setSaveError('');
-            }}
-          />
-        </section>
 
-        <section className="preview-panel" aria-labelledby="preview-title">
-          <div className="panel-heading">
-            <div>
-              <p className="panel-heading__eyebrow">PREVIEW</p>
-              <h2 id="preview-title">미리보기</h2>
+          <section className="editor-panel" aria-labelledby="editor-title">
+            <div className="panel-heading">
+              <div>
+                <p className="panel-heading__eyebrow">EDITOR</p>
+                <h2 id="editor-title">{selectedPath ?? '새 문서'}</h2>
+              </div>
+              <button
+                className="button button--quiet"
+                type="button"
+                onClick={saveDocument}
+                disabled={!selectedPath || !dirty}
+              >
+                {dirty ? '저장' : '저장됨'}
+              </button>
             </div>
-          </div>
-          {selectedPath ? (
-            <div
-              className="preview-content"
-              onClick={handlePreviewClick}
-              dangerouslySetInnerHTML={{ __html: previewHtml }}
+            {saveError && (
+              <p className="editor-save-error" role="alert">
+                {saveError}
+              </p>
+            )}
+            <textarea
+              ref={editorRef}
+              aria-label="Markdown 편집기"
+              className="markdown-editor"
+              placeholder="문서를 선택하거나 새 Markdown을 작성하세요."
+              value={content}
+              onClick={rememberEditorSelection}
+              onFocus={rememberEditorSelection}
+              onKeyUp={rememberEditorSelection}
+              onSelect={rememberEditorSelection}
+              onPaste={handleEditorPaste}
+              onChange={(event) => {
+                setContent(event.target.value);
+                editorSelectionRef.current = {
+                  start: event.target.selectionStart,
+                  end: event.target.selectionEnd,
+                };
+                setSaveError('');
+              }}
             />
-          ) : (
-            <EmptyStateChip
-              title="미리볼 문서가 없습니다."
-              description="문서를 열면 안전한 Markdown 미리보기가 이 영역에 표시됩니다."
-            />
-          )}
-        </section>
+          </section>
+
+          <section className="preview-panel" aria-labelledby="preview-title">
+            <div className="panel-heading">
+              <div>
+                <p className="panel-heading__eyebrow">PREVIEW</p>
+                <h2 id="preview-title">미리보기</h2>
+              </div>
+            </div>
+            {selectedPath ? (
+              <div
+                className="preview-content"
+                onClick={handlePreviewClick}
+                dangerouslySetInnerHTML={{ __html: previewHtml }}
+              />
+            ) : (
+              <EmptyStateChip
+                title="미리볼 문서가 없습니다."
+                description="문서를 열면 안전한 Markdown 미리보기가 이 영역에 표시됩니다."
+              />
+            )}
+          </section>
+        </div>
       </div>
 
       <footer className="app-status" aria-label="문서 상태">

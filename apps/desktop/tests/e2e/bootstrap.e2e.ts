@@ -60,6 +60,42 @@ test('Dock opens a large Markdown document without truncating the editor value',
   }
 });
 
+test('Dock collapses and reopens the Explorer without hiding the editor or preview', async () => {
+  const app = await launchDock();
+
+  try {
+    const page = await app.firstWindow();
+    const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
+    const preview = page.getByRole('region', { name: '미리보기' });
+
+    await expect(
+      page.getByRole('complementary', { name: '문서' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: '탐색기 패널 접기' }).click();
+
+    await expect(
+      page.getByRole('complementary', { name: '문서' }),
+    ).not.toBeVisible();
+    await expect(
+      page.getByRole('button', { name: '탐색기 열기', exact: true }),
+    ).toHaveAttribute('aria-expanded', 'false');
+    await expect(editor).toBeVisible();
+    await expect(preview).toBeVisible();
+
+    await page
+      .getByRole('button', { name: '탐색기 열기', exact: true })
+      .click();
+    await expect(
+      page.getByRole('complementary', { name: '문서' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: '탐색기', exact: true }),
+    ).toHaveAttribute('aria-expanded', 'true');
+  } finally {
+    await app.close();
+  }
+});
+
 test('Dock returns to the empty state when document workspace selection is cancelled', async () => {
   const app = await launchDock(['--dock-e2e-document-cancel']);
 

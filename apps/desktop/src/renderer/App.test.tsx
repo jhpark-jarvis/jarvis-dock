@@ -34,12 +34,47 @@ describe('App', () => {
     ).toHaveFocus();
 
     await user.tab();
+    expect(screen.getByRole('button', { name: '탐색기' })).toHaveFocus();
+
+    await user.tab();
     expect(screen.getByRole('button', { name: '폴더 선택' })).toHaveFocus();
+
+    await user.tab();
+    expect(
+      screen.getByRole('button', { name: '탐색기 패널 접기' }),
+    ).toHaveFocus();
 
     await user.tab();
     expect(
       screen.getByRole('textbox', { name: 'Markdown 편집기' }),
     ).toHaveFocus();
+  });
+
+  it('collapses and reopens the Explorer without removing the editor or preview', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '탐색기 패널 접기' }));
+
+    expect(
+      screen.queryByRole('complementary', { name: '문서' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '탐색기 열기' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(
+      screen.getByRole('textbox', { name: 'Markdown 편집기' }),
+    ).toBeVisible();
+    expect(screen.getByRole('region', { name: '미리보기' })).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: '탐색기 열기' }));
+
+    expect(screen.getByRole('complementary', { name: '문서' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '탐색기' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
   });
 
   it('opens the command palette as a dialog and closes it with Escape', async () => {
