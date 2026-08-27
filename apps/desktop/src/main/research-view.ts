@@ -11,7 +11,7 @@ import {
 } from '../shared/ipc';
 
 const GOOGLE_SEARCH_URL = 'https://www.google.com/search';
-const RESEARCH_PARTITION = 'dock-research';
+const RESEARCH_PARTITION = 'persist:dock-research';
 const MAIN_HEADER_HEIGHT = 72;
 const RESEARCH_TOOLBAR_HEIGHT = 96;
 const RESEARCH_VIEW_GAP = 8;

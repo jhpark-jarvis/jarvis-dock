@@ -156,34 +156,39 @@ const downloadE2eImage = ({
 
 const registerE2eResearchSecurityFixture = (): void => {
   if (!process.argv.includes('--dock-e2e-research-security')) return;
-  session.fromPartition('dock-research').protocol.handle('https', (request) => {
-    const url = new URL(request.url);
-    if (url.origin === 'https://www.google.com' && url.pathname === '/search') {
-      const html =
-        url.searchParams.get('q') === 'second'
-          ? E2E_RESEARCH_SECOND_SEARCH_HTML
-          : E2E_RESEARCH_SECURITY_HTML;
-      return new Response(html, {
-        headers: { 'content-type': 'text/html; charset=utf-8' },
+  session
+    .fromPartition('persist:dock-research')
+    .protocol.handle('https', (request) => {
+      const url = new URL(request.url);
+      if (
+        url.origin === 'https://www.google.com' &&
+        url.pathname === '/search'
+      ) {
+        const html =
+          url.searchParams.get('q') === 'second'
+            ? E2E_RESEARCH_SECOND_SEARCH_HTML
+            : E2E_RESEARCH_SECURITY_HTML;
+        return new Response(html, {
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        });
+      }
+      if (
+        url.origin === 'https://example.com' &&
+        url.pathname === '/research-fallback'
+      ) {
+        return new Response(E2E_RESEARCH_FALLBACK_HTML, {
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        });
+      }
+      if (url.origin === 'https://popup.e2e.test' && url.pathname === '/') {
+        return new Response(E2E_RESEARCH_POPUP_HTML, {
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        });
+      }
+      return new Response('Research security fixture blocks test network.', {
+        status: 404,
       });
-    }
-    if (
-      url.origin === 'https://example.com' &&
-      url.pathname === '/research-fallback'
-    ) {
-      return new Response(E2E_RESEARCH_FALLBACK_HTML, {
-        headers: { 'content-type': 'text/html; charset=utf-8' },
-      });
-    }
-    if (url.origin === 'https://popup.e2e.test' && url.pathname === '/') {
-      return new Response(E2E_RESEARCH_POPUP_HTML, {
-        headers: { 'content-type': 'text/html; charset=utf-8' },
-      });
-    }
-    return new Response('Research security fixture blocks test network.', {
-      status: 404,
     });
-  });
 };
 
 const createE2eResearchController = (): ResearchController => {

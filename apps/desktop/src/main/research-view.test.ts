@@ -22,9 +22,9 @@ describe('research view URL boundary', () => {
     expect(isAllowedResearchUrl('javascript:alert(1)')).toBe(false);
   });
 
-  it('creates an isolated, sandboxed, non-persistent web preference set', () => {
+  it('creates an isolated, sandboxed, persistent web preference set', () => {
     expect(createResearchWebPreferences()).toEqual({
-      partition: 'dock-research',
+      partition: 'persist:dock-research',
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
