@@ -384,13 +384,26 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     return editorSelectionRef.current;
   };
 
-  const setResearchViewVisibility = (visible: boolean) => {
-    if (!researchOpen) return;
-    const setVisible = window.dock?.research?.setVisible;
-    if (!setVisible) return;
-    void setVisible({ visible });
-  };
+  const setResearchViewVisibility = useCallback(
+    (visible: boolean) => {
+      if (!researchOpen) return;
+      const setVisible = window.dock?.research?.setVisible;
+      if (!setVisible) return;
+      void setVisible({ visible });
+    },
+    [researchOpen],
+  );
 
+  useEffect(() => {
+    if (!researchOpen) return;
+    setResearchViewVisibility(!commandPaletteOpen);
+  }, [commandPaletteOpen, researchOpen, setResearchViewVisibility]);
+
+  /*
+   * The Research View is a native child view, so the Renderer dialog cannot
+   * cover it with z-index alone. Keep its native visibility aligned with the
+   * dialog state and restore it after an async Research open completes.
+   */
   const openCommandPalette = () => {
     rememberEditorSelection();
     setResearchViewVisibility(false);
