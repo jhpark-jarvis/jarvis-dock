@@ -68,7 +68,7 @@ export const renderMarkdownPreview = (
   renderer.code = ({ text, lang }) => {
     const normalizedLanguage = lang?.trim().toLowerCase();
     if (normalizedLanguage === 'mermaid') {
-      return `<div class="mermaid-block"><div class="mermaid-diagram">Mermaid 미리보기를 준비하고 있습니다.</div><details><summary>Mermaid 원문</summary><pre><code>${escapeHtml(text)}</code></pre></details></div>`;
+      return `<div class="mermaid-block"><div class="mermaid-diagram">Mermaid 미리보기를 준비하고 있습니다.</div><details><summary>Mermaid 원문</summary><pre><code class="mermaid-source">${escapeHtml(text)}</code></pre></details></div>`;
     }
     const languageClass = normalizedLanguage
       ? ` class="language-${escapeHtml(normalizedLanguage)}"`

@@ -68,6 +68,7 @@ describe('renderMarkdownPreview', () => {
 
     expect(html).toContain('class="mermaid-block"');
     expect(html).toContain('Mermaid 미리보기를 준비하고 있습니다.');
+    expect(html).toContain('class="mermaid-source"');
     expect(html).toContain('flowchart LR');
     expect(html).toContain('A[Start]');
   });

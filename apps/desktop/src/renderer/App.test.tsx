@@ -310,6 +310,51 @@ describe('App', () => {
     );
   });
 
+  it('renders a Mermaid diagram after opening a Markdown document', async () => {
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [{ relativePath: 'guide.md', displayName: 'guide.md' }],
+            },
+          }),
+        },
+        document: {
+          read: async () => ({
+            ok: true as const,
+            value: {
+              relativePath: 'guide.md',
+              content:
+                '```mermaid\nflowchart LR\n  A[Start] --> B[Finish]\n```',
+            },
+          }),
+        },
+      },
+    });
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    await user.click(await screen.findByRole('button', { name: 'guide.md' }));
+
+    await waitFor(() => {
+      expect(container.querySelector('.mermaid-diagram svg')).toBeTruthy();
+    });
+    expect(
+      screen.queryByText('Mermaid 미리보기를 준비하고 있습니다.'),
+    ).not.toBeInTheDocument();
+  });
+
   it('opens the Architecture Workspace initializer from the command palette', async () => {
     const user = userEvent.setup();
     render(<App />);

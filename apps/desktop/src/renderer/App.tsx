@@ -583,7 +583,13 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             block.querySelector('details pre code')?.textContent ??
             '';
           const diagram = block.querySelector<HTMLElement>('.mermaid-diagram');
-          if (!diagram || !source.trim()) return;
+          if (!diagram) return;
+          if (!source.trim()) {
+            diagram.textContent =
+              'Mermaid 미리보기를 생성하지 못했습니다. 원문이 비어 있습니다.';
+            diagram.classList.add('mermaid-diagram--error');
+            return;
+          }
           try {
             diagram.textContent = 'Mermaid 미리보기를 생성하는 중...';
             const svg = await renderMermaidDiagram(source);
