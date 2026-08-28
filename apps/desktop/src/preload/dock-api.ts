@@ -23,6 +23,7 @@ import {
   ImageDownloadRequestSchema,
   ImageDownloadResultEnvelopeSchema,
   ImageAssetRequestSchema,
+  ImageAssetListResultEnvelopeSchema,
   ImageAssetReadResultEnvelopeSchema,
   ImageAssetDeleteResultEnvelopeSchema,
   ImageClipboardSaveRequestSchema,
@@ -46,6 +47,7 @@ import {
   type ResearchOpenResultEnvelope,
   type ImageDownloadResultEnvelope,
   type ImageAssetReadResultEnvelope,
+  type ImageAssetListResultEnvelope,
   type ImageAssetDeleteResultEnvelope,
   type ImageSearchResultEnvelope,
 } from '../shared/ipc';
@@ -295,6 +297,25 @@ const invokeImageAssetRead = async (
   return result.success ? result.data : { ok: false, error: internalError() };
 };
 
+const invokeImageAssetList = async (
+  ipcRenderer: IpcInvoker,
+  request: unknown,
+): Promise<ImageAssetListResultEnvelope> => {
+  const parsed = WorkspaceRequestSchema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = ImageAssetListResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(IPC.IMAGE_LIST_ASSETS, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
 const invokeImageAssetDelete = async (
   ipcRenderer: IpcInvoker,
   request: unknown,
@@ -382,6 +403,7 @@ export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
   image: {
     search: (request) => invokeImageSearch(ipcRenderer, request),
     download: (request) => invokeImageDownload(ipcRenderer, request),
+    list: (request) => invokeImageAssetList(ipcRenderer, request),
     read: (request) => invokeImageAssetRead(ipcRenderer, request),
     delete: (request) => invokeImageAssetDelete(ipcRenderer, request),
     saveClipboard: (request) => invokeImageClipboardSave(ipcRenderer, request),

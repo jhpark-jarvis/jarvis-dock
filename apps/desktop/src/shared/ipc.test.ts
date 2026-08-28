@@ -6,6 +6,7 @@ import {
   ImageSearchResultEnvelopeSchema,
   ImageDownloadRequestSchema,
   ImageDownloadResultEnvelopeSchema,
+  ImageAssetListResultEnvelopeSchema,
   ResearchOpenResultEnvelopeSchema,
   VersionResultSchema,
 } from './ipc';
@@ -99,6 +100,27 @@ describe('IPC contract schemas', () => {
         },
       }).success,
     ).toBe(true);
+  });
+
+  it('accepts only bounded workspace image asset listings', () => {
+    expect(
+      ImageAssetListResultEnvelopeSchema.safeParse({
+        ok: true,
+        value: {
+          assets: [
+            { assetPath: 'assets/diagram.png', displayName: 'diagram.png' },
+          ],
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      ImageAssetListResultEnvelopeSchema.safeParse({
+        ok: true,
+        value: {
+          assets: [{ assetPath: '../diagram.png', displayName: 'diagram.png' }],
+        },
+      }).success,
+    ).toBe(false);
   });
 
   it('allows only bounded HTTPS link cards in a Research View response', () => {

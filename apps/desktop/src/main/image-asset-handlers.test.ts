@@ -71,6 +71,31 @@ describe('registerImageAssetHandlers', () => {
     });
   });
 
+  it('lists image assets only for a trusted selected workspace', async () => {
+    const { handle, invoke } = await createHarness();
+
+    expect(handle).toHaveBeenCalledWith(
+      IPC.IMAGE_LIST_ASSETS,
+      expect.any(Function),
+    );
+    await expect(
+      invoke(IPC.IMAGE_LIST_ASSETS, { workspaceId: WORKSPACE_ID }),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        assets: [
+          { assetPath: 'assets/diagram.png', displayName: 'diagram.png' },
+        ],
+      },
+    });
+    await expect(
+      invoke(IPC.IMAGE_LIST_ASSETS, { workspaceId: WORKSPACE_ID }, false),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'UNAUTHORIZED_SENDER' },
+    });
+  });
+
   it('reads an asset as a validated data URL', async () => {
     const { invoke } = await createHarness();
 

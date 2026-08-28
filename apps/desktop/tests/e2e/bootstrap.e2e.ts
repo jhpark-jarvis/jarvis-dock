@@ -1,6 +1,12 @@
 import { _electron as electron, expect, test } from '@playwright/test';
 import electronExecutablePathModule from 'electron';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -11,6 +17,11 @@ const LARGE_MARKDOWN_CONTENT = `# Large document\n\n${Array.from(
   { length: 6_000 },
   (_, index) => `## Section ${index + 1}\n\nLarge Markdown regression content.`,
 ).join('\n\n')}`;
+const PNG_IMAGE_BYTES = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
+const DOCK_SAMPLE_MARKDOWN = '![dock-sample](./assets/dock-sample.png)';
 
 const launchDock = (
   extraArgs: string[] = [],
@@ -28,6 +39,7 @@ const launchDock = (
 };
 
 test('Dock opens a large Markdown document without truncating the editor value', async () => {
+  test.setTimeout(45_000);
   const workspaceRoot = mkdtempSync(
     path.join(os.tmpdir(), 'dock-e2e-large-document-'),
   );
@@ -35,6 +47,11 @@ test('Dock opens a large Markdown document without truncating the editor value',
     path.join(workspaceRoot, 'large.md'),
     LARGE_MARKDOWN_CONTENT,
     'utf8',
+  );
+  mkdirSync(path.join(workspaceRoot, 'assets'));
+  writeFileSync(
+    path.join(workspaceRoot, 'assets', 'dock-sample.png'),
+    PNG_IMAGE_BYTES,
   );
   const app = await launchDock(['--dock-e2e-document'], {
     DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot,
@@ -49,11 +66,36 @@ test('Dock opens a large Markdown document without truncating the editor value',
     await expect(
       page.getByRole('heading', { name: 'Large document' }),
     ).toBeVisible();
+    await page.getByRole('button', { name: '문서 개요 열기' }).click();
+    await expect(
+      page.getByRole('complementary', { name: '문서 개요' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /^Large document #1$/ }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: '이미지 자산 열기' }).click();
+    await expect(
+      page.getByRole('complementary', { name: '이미지 자산' }),
+    ).toBeVisible();
+    const assetButton = page.getByRole('button', {
+      name: /dock-sample\.png assets\/dock-sample\.png/,
+    });
+    await expect(assetButton).toBeVisible();
+    await assetButton.click();
+    await expect
+      .poll(async () =>
+        editor.evaluate(
+          (element, suffix) =>
+            (element as HTMLTextAreaElement).value.includes(suffix),
+          DOCK_SAMPLE_MARKDOWN,
+        ),
+      )
+      .toBe(true);
     expect(
       await editor.evaluate(
         (element) => (element as HTMLTextAreaElement).value.length,
       ),
-    ).toBe(LARGE_MARKDOWN_CONTENT.length);
+    ).toBe(LARGE_MARKDOWN_CONTENT.length + DOCK_SAMPLE_MARKDOWN.length);
   } finally {
     await app.close();
     rmSync(workspaceRoot, { recursive: true, force: true });
@@ -67,6 +109,8 @@ test('Dock collapses and reopens the Explorer without hiding the editor or previ
     const page = await app.firstWindow();
     const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
     const preview = page.getByRole('region', { name: '미리보기' });
+    const expandedEditorBox = await editor.boundingBox();
+    expect(expandedEditorBox).not.toBeNull();
 
     await expect(
       page.getByRole('complementary', { name: '문서' }),
@@ -76,11 +120,20 @@ test('Dock collapses and reopens the Explorer without hiding the editor or previ
     await expect(
       page.getByRole('complementary', { name: '문서' }),
     ).not.toBeVisible();
+    await expect(page.locator('.workspace-layout')).toHaveClass(
+      /workspace-layout--explorer-collapsed/,
+    );
     await expect(
       page.getByRole('button', { name: '탐색기 열기', exact: true }),
     ).toHaveAttribute('aria-expanded', 'false');
     await expect(editor).toBeVisible();
     await expect(preview).toBeVisible();
+    const collapsedEditorBox = await editor.boundingBox();
+    expect(collapsedEditorBox).not.toBeNull();
+    if (!expandedEditorBox || !collapsedEditorBox) {
+      throw new Error('Editor bounds are required.');
+    }
+    expect(collapsedEditorBox.width).toBeGreaterThan(expandedEditorBox.width);
 
     await page
       .getByRole('button', { name: '탐색기 열기', exact: true })
@@ -88,6 +141,9 @@ test('Dock collapses and reopens the Explorer without hiding the editor or previ
     await expect(
       page.getByRole('complementary', { name: '문서' }),
     ).toBeVisible();
+    await expect(page.locator('.workspace-layout')).not.toHaveClass(
+      /workspace-layout--explorer-collapsed/,
+    );
     await expect(
       page.getByRole('button', { name: '탐색기', exact: true }),
     ).toHaveAttribute('aria-expanded', 'true');

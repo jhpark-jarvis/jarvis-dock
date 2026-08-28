@@ -37,6 +37,9 @@ export class ImageAssetServiceError extends Error {
 
 type SupportedMimeType = ImageAssetReadResult['mimeType'];
 
+const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const MAX_LISTED_IMAGE_ASSETS = 200;
+
 const matchesMagicBytes = (
   bytes: Buffer,
   mimeType: SupportedMimeType,
@@ -66,6 +69,51 @@ const mimeFromBytes = (bytes: Buffer): SupportedMimeType | undefined => {
   if (matchesMagicBytes(bytes, 'image/jpeg')) return 'image/jpeg';
   if (matchesMagicBytes(bytes, 'image/webp')) return 'image/webp';
   return undefined;
+};
+
+const collectImageAssets = async (
+  root: string,
+  current: string,
+): Promise<{ assetPath: string; displayName: string }[]> => {
+  const entries = await fs.readdir(current, { withFileTypes: true });
+  const assets: { assetPath: string; displayName: string }[] = [];
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue;
+    const absolutePath = path.join(current, entry.name);
+    if (entry.isDirectory()) {
+      assets.push(...(await collectImageAssets(root, absolutePath)));
+      continue;
+    }
+    if (
+      !entry.isFile() ||
+      !SUPPORTED_IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())
+    ) {
+      continue;
+    }
+    assets.push({
+      assetPath: path.relative(root, absolutePath).split(path.sep).join('/'),
+      displayName: entry.name,
+    });
+  }
+  return assets;
+};
+
+export const listImageAssetsFromWorkspace = async (
+  rootPath: string,
+): Promise<{ assetPath: string; displayName: string }[]> => {
+  const root = await fs.realpath(rootPath);
+  const assetRoot = path.join(root, 'assets');
+  try {
+    const stat = await fs.stat(assetRoot);
+    if (!stat.isDirectory()) return [];
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException)?.code === 'ENOENT') return [];
+    throw cause;
+  }
+  const assets = await collectImageAssets(root, assetRoot);
+  return assets
+    .sort((a, b) => a.assetPath.localeCompare(b.assetPath))
+    .slice(0, MAX_LISTED_IMAGE_ASSETS);
 };
 
 const resolveAsset = async (

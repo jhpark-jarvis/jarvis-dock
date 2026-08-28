@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClipboardEvent, KeyboardEvent, MouseEvent } from 'react';
 import type {
+  ImageAssetItem,
   ResearchSearchResult,
   ResearchTabInfo,
   WorkspaceFile,
@@ -21,6 +22,10 @@ import {
   type ImageSearchResult,
 } from './image-search';
 import { renderMarkdownPreview } from './markdown-preview';
+import {
+  extractDocumentOutline,
+  type DocumentOutlineItem,
+} from './document-outline';
 
 export type ShellState = 'empty' | 'error' | 'loading';
 
@@ -75,6 +80,31 @@ const ExplorerIcon = () => (
   >
     <path d="M3.75 5.25h6l1.5 2h9v11.5h-16.5z" />
     <path d="M3.75 7.25h16.5" />
+  </svg>
+);
+
+const OutlineIcon = () => (
+  <svg
+    aria-hidden="true"
+    className="activity-bar__icon"
+    viewBox="0 0 24 24"
+    focusable="false"
+  >
+    <path d="M5 6h14M5 12h14M5 18h14" />
+    <path d="M2.5 6h.01M2.5 12h.01M2.5 18h.01" strokeWidth="2.5" />
+  </svg>
+);
+
+const AssetsIcon = () => (
+  <svg
+    aria-hidden="true"
+    className="activity-bar__icon"
+    viewBox="0 0 24 24"
+    focusable="false"
+  >
+    <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />
+    <circle cx="8.5" cy="9" r="1.25" />
+    <path d="m5 17 4.5-4.5 3.25 3.25 2.25-2.25L19 17" />
   </svg>
 );
 
@@ -147,7 +177,15 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [previewImageSources, setPreviewImageSources] = useState<
     Record<string, string>
   >({});
-  const [explorerOpen, setExplorerOpen] = useState(true);
+  const [assets, setAssets] = useState<ImageAssetItem[]>([]);
+  const [assetSources, setAssetSources] = useState<Record<string, string>>({});
+  const [assetStatus, setAssetStatus] = useState<'idle' | 'loading' | 'error'>(
+    'idle',
+  );
+  const [assetRefreshKey, setAssetRefreshKey] = useState(0);
+  const [workspacePanel, setWorkspacePanel] = useState<
+    'explorer' | 'outline' | 'assets' | undefined
+  >('explorer');
 
   useEffect(() => {
     setState(initialState);
@@ -241,6 +279,60 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     };
   }, [content, selectedPath, workspaceId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!workspaceId || workspacePanel !== 'assets') {
+      setAssets([]);
+      setAssetSources({});
+      setAssetStatus('idle');
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setAssetStatus('loading');
+    void window.dock.image
+      .list({ workspaceId })
+      .then(async (response) => {
+        if (cancelled) return;
+        if (response.ok === false) {
+          setAssets([]);
+          setAssetSources({});
+          setAssetStatus('error');
+          return;
+        }
+        setAssets(response.value.assets);
+        const sources = await Promise.all(
+          response.value.assets.map(async (asset) => {
+            try {
+              const image = await window.dock.image.read({
+                workspaceId,
+                assetPath: asset.assetPath,
+              });
+              return image.ok
+                ? ([asset.assetPath, image.value.dataUrl] as const)
+                : null;
+            } catch {
+              return null;
+            }
+          }),
+        );
+        if (cancelled) return;
+        setAssetSources(Object.fromEntries(sources.filter(Boolean)));
+        setAssetStatus('idle');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAssets([]);
+        setAssetSources({});
+        setAssetStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assetRefreshKey, workspaceId, workspacePanel]);
+
   const refreshFiles = async (nextWorkspaceId: string) => {
     const listed = await window.dock.workspace.listMarkdownFiles({
       workspaceId: nextWorkspaceId,
@@ -266,6 +358,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setContent('');
     setSavedContent('');
     setSaveError('');
+    setAssets([]);
+    setAssetSources({});
+    setAssetStatus('idle');
     setWorkspaceFolderError('');
     if (!(await refreshFiles(chosen.value.workspaceId))) return;
     setState('empty');
@@ -386,6 +481,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         imageSources: previewImageSources,
       })
     : '';
+  const outlineItems = extractDocumentOutline(content);
 
   const rememberEditorSelection = () => {
     const editor = editorRef.current;
@@ -396,6 +492,25 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     };
     return editorSelectionRef.current;
   };
+
+  const moveEditorToOutlineItem = (item: DocumentOutlineItem) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    let lineStart = 0;
+    for (let line = 0; line < item.line; line += 1) {
+      const newlineIndex = content.indexOf('\n', lineStart);
+      if (newlineIndex < 0) {
+        lineStart = content.length;
+        break;
+      }
+      lineStart = newlineIndex + 1;
+    }
+    editor.focus();
+    editor.setSelectionRange(lineStart, lineStart);
+    editorSelectionRef.current = { start: lineStart, end: lineStart };
+  };
+
+  const explorerOpen = workspacePanel === 'explorer';
 
   const setResearchViewVisibility = useCallback(
     (visible: boolean) => {
@@ -669,6 +784,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         selectedPath,
       );
       setContent(nextContent);
+      setAssetRefreshKey((current) => current + 1);
       closeCommandPalette();
       const cursor = selection.start + markdown.length;
       editorSelectionRef.current = { start: cursor, end: cursor };
@@ -727,6 +843,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         ),
       );
       setSaveError('');
+      setAssetRefreshKey((current) => current + 1);
       const cursor = selection.start + markdown.length;
       editorSelectionRef.current = { start: cursor, end: cursor };
       requestAnimationFrame(() => {
@@ -736,6 +853,31 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     } catch {
       setSaveError('클립보드 이미지를 저장하지 못했습니다.');
     }
+  };
+
+  const insertExistingAsset = (asset: ImageAssetItem) => {
+    const altText = asset.displayName.replace(/\.[^.]+$/, '');
+    const selection = editorSelectionRef.current;
+    const nextContent = insertMarkdownImage(
+      content,
+      altText,
+      asset.assetPath,
+      selection.start,
+      selection.end,
+      selectedPath,
+    );
+    const markdown = formatMarkdownImage(
+      altText,
+      asset.assetPath,
+      selectedPath,
+    );
+    setContent(nextContent);
+    const cursor = selection.start + markdown.length;
+    editorSelectionRef.current = { start: cursor, end: cursor };
+    requestAnimationFrame(() => {
+      editorRef.current?.focus();
+      editorRef.current?.setSelectionRange(cursor, cursor);
+    });
   };
 
   const handleEditorPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
@@ -1159,104 +1301,305 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             aria-expanded={explorerOpen}
             aria-label={explorerOpen ? '탐색기' : '탐색기 열기'}
             title={explorerOpen ? '탐색기 접기' : '탐색기 열기'}
-            onClick={() => setExplorerOpen((open) => !open)}
+            onClick={() =>
+              setWorkspacePanel((panel) =>
+                panel === 'explorer' ? undefined : 'explorer',
+              )
+            }
           >
             <ExplorerIcon />
             <span className="visually-hidden">
               {explorerOpen ? '탐색기 접기' : '탐색기 열기'}
             </span>
           </button>
+          <button
+            className="activity-bar__button"
+            type="button"
+            aria-controls={workspacePanel ? 'workspace-sidebar' : undefined}
+            aria-expanded={workspacePanel === 'outline'}
+            aria-label={
+              workspacePanel === 'outline' ? '문서 개요 닫기' : '문서 개요 열기'
+            }
+            title={
+              workspacePanel === 'outline' ? '문서 개요 닫기' : '문서 개요 열기'
+            }
+            onClick={() =>
+              setWorkspacePanel((panel) =>
+                panel === 'outline' ? undefined : 'outline',
+              )
+            }
+          >
+            <OutlineIcon />
+            <span className="visually-hidden">
+              {workspacePanel === 'outline'
+                ? '문서 개요 닫기'
+                : '문서 개요 열기'}
+            </span>
+          </button>
+          <button
+            className="activity-bar__button"
+            type="button"
+            aria-controls={workspacePanel ? 'workspace-sidebar' : undefined}
+            aria-expanded={workspacePanel === 'assets'}
+            aria-label={
+              workspacePanel === 'assets'
+                ? '이미지 자산 닫기'
+                : '이미지 자산 열기'
+            }
+            title={
+              workspacePanel === 'assets'
+                ? '이미지 자산 닫기'
+                : '이미지 자산 열기'
+            }
+            onClick={() =>
+              setWorkspacePanel((panel) =>
+                panel === 'assets' ? undefined : 'assets',
+              )
+            }
+          >
+            <AssetsIcon />
+            <span className="visually-hidden">
+              {workspacePanel === 'assets'
+                ? '이미지 자산 닫기'
+                : '이미지 자산 열기'}
+            </span>
+          </button>
         </nav>
 
-        <div className="workspace-layout">
-          {explorerOpen && (
+        <div
+          className={`workspace-layout${
+            workspacePanel ? '' : ' workspace-layout--explorer-collapsed'
+          }`}
+        >
+          {workspacePanel && (
             <aside
               id="workspace-sidebar"
-              className="workspace-sidebar"
+              className={`workspace-sidebar workspace-sidebar--${workspacePanel}`}
               aria-labelledby="workspace-title"
             >
-              <div className="panel-heading">
-                <div>
-                  <p className="panel-heading__eyebrow">DOCUMENT WORKSPACE</p>
-                  <h2 id="workspace-title">문서</h2>
-                </div>
-                <div className="panel-heading__actions">
-                  <button
-                    className="button button--primary"
-                    type="button"
-                    onClick={chooseWorkspace}
-                  >
-                    폴더 선택
-                  </button>
-                  {workspaceName && (
+              {workspacePanel === 'explorer' ? (
+                <>
+                  <div className="panel-heading">
+                    <div>
+                      <p className="panel-heading__eyebrow">
+                        DOCUMENT WORKSPACE
+                      </p>
+                      <h2 id="workspace-title">문서</h2>
+                    </div>
+                    <div className="panel-heading__actions">
+                      <button
+                        className="button button--quiet"
+                        type="button"
+                        onClick={() =>
+                          setAssetRefreshKey((current) => current + 1)
+                        }
+                        disabled={!workspaceId || assetStatus === 'loading'}
+                      >
+                        새로고침
+                      </button>
+                      <button
+                        className="button button--primary"
+                        type="button"
+                        onClick={chooseWorkspace}
+                      >
+                        폴더 선택
+                      </button>
+                      {workspaceName && (
+                        <button
+                          className="button button--quiet"
+                          type="button"
+                          onClick={() => void openWorkspaceFolder('document')}
+                        >
+                          선택된 폴더 열기
+                        </button>
+                      )}
+                      <button
+                        className="button button--quiet workspace-sidebar__collapse"
+                        type="button"
+                        aria-label="탐색기 패널 접기"
+                        onClick={() => setWorkspacePanel(undefined)}
+                      >
+                        접기
+                      </button>
+                    </div>
+                  </div>
+                  {workspaceFolderError && (
+                    <p className="workspace-folder-error" role="alert">
+                      {workspaceFolderError}
+                    </p>
+                  )}
+                  <div className="workspace-sidebar__body">
+                    {workspaceName && (
+                      <>
+                        <p className="workspace-name">
+                          현재 폴더: {workspaceName}
+                        </p>
+                        <form
+                          className="workspace-create"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            void createDocument();
+                          }}
+                        >
+                          <label htmlFor="new-document-path">
+                            새 문서 경로
+                          </label>
+                          <input
+                            id="new-document-path"
+                            className="workspace-create__input"
+                            value={newDocumentPath}
+                            onChange={(event) =>
+                              setNewDocumentPath(event.target.value)
+                            }
+                            placeholder="notes/today.md"
+                          />
+                          <button
+                            className="button button--quiet"
+                            type="submit"
+                          >
+                            새 문서 생성
+                          </button>
+                        </form>
+                      </>
+                    )}
+                    {files.length > 0 ? (
+                      <ul className="file-list" aria-label="Markdown 파일 목록">
+                        {files.map((file) => (
+                          <li key={file.relativePath}>
+                            <button
+                              className="file-list__item"
+                              type="button"
+                              onClick={() => openDocument(file.relativePath)}
+                            >
+                              {file.relativePath}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <WorkspaceState state={state} />
+                    )}
+                  </div>
+                </>
+              ) : workspacePanel === 'outline' ? (
+                <>
+                  <div className="panel-heading">
+                    <div>
+                      <p className="panel-heading__eyebrow">DOCUMENT OUTLINE</p>
+                      <h2 id="workspace-title">문서 개요</h2>
+                    </div>
                     <button
                       className="button button--quiet"
                       type="button"
-                      onClick={() => void openWorkspaceFolder('document')}
+                      aria-label="문서 개요 닫기"
+                      onClick={() => setWorkspacePanel(undefined)}
                     >
-                      선택된 폴더 열기
+                      닫기
                     </button>
-                  )}
-                  <button
-                    className="button button--quiet workspace-sidebar__collapse"
-                    type="button"
-                    aria-label="탐색기 패널 접기"
-                    onClick={() => setExplorerOpen(false)}
-                  >
-                    접기
-                  </button>
-                </div>
-              </div>
-              {workspaceFolderError && (
-                <p className="workspace-folder-error" role="alert">
-                  {workspaceFolderError}
-                </p>
-              )}
-              <div className="workspace-sidebar__body">
-                {workspaceName && (
-                  <>
-                    <p className="workspace-name">현재 폴더: {workspaceName}</p>
-                    <form
-                      className="workspace-create"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        void createDocument();
-                      }}
-                    >
-                      <label htmlFor="new-document-path">새 문서 경로</label>
-                      <input
-                        id="new-document-path"
-                        className="workspace-create__input"
-                        value={newDocumentPath}
-                        onChange={(event) =>
-                          setNewDocumentPath(event.target.value)
-                        }
-                        placeholder="notes/today.md"
+                  </div>
+                  <div className="workspace-sidebar__body">
+                    {outlineItems.length > 0 ? (
+                      <ul className="outline-list" aria-label="문서 제목 목록">
+                        {outlineItems.map((item) => (
+                          <li key={`${item.line}-${item.text}`}>
+                            <button
+                              className="outline-list__item"
+                              type="button"
+                              style={{
+                                paddingInlineStart: `${0.65 + (item.level - 1) * 0.75}rem`,
+                              }}
+                              onClick={() => moveEditorToOutlineItem(item)}
+                            >
+                              <span>{item.text}</span>
+                              <small>#{item.line + 1}</small>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <EmptyStateChip
+                        title="문서 개요가 없습니다."
+                        description="Markdown 제목을 작성하면 이곳에 표시됩니다."
                       />
-                      <button className="button button--quiet" type="submit">
-                        새 문서 생성
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="panel-heading">
+                    <div>
+                      <p className="panel-heading__eyebrow">IMAGE ASSETS</p>
+                      <h2 id="workspace-title">이미지 자산</h2>
+                    </div>
+                    <div className="panel-heading__actions">
+                      <button
+                        className="button button--quiet"
+                        type="button"
+                        onClick={() => void openWorkspaceFolder('assets')}
+                        disabled={!workspaceId}
+                      >
+                        폴더 열기
                       </button>
-                    </form>
-                  </>
-                )}
-                {files.length > 0 ? (
-                  <ul className="file-list" aria-label="Markdown 파일 목록">
-                    {files.map((file) => (
-                      <li key={file.relativePath}>
-                        <button
-                          className="file-list__item"
-                          type="button"
-                          onClick={() => openDocument(file.relativePath)}
-                        >
-                          {file.relativePath}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <WorkspaceState state={state} />
-                )}
-              </div>
+                      <button
+                        className="button button--quiet"
+                        type="button"
+                        aria-label="이미지 자산 닫기"
+                        onClick={() => setWorkspacePanel(undefined)}
+                      >
+                        닫기
+                      </button>
+                    </div>
+                  </div>
+                  <div className="workspace-sidebar__body">
+                    {assetStatus === 'loading' ? (
+                      <p className="workspace-state" role="status">
+                        이미지 자산을 불러오고 있습니다.
+                      </p>
+                    ) : assetStatus === 'error' ? (
+                      <p
+                        className="workspace-state workspace-state--error"
+                        role="alert"
+                      >
+                        이미지 자산을 불러오지 못했습니다.
+                      </p>
+                    ) : assets.length > 0 ? (
+                      <ul className="asset-list" aria-label="이미지 자산 목록">
+                        {assets.map((asset) => (
+                          <li key={asset.assetPath}>
+                            <button
+                              className="asset-list__item"
+                              type="button"
+                              onClick={() => insertExistingAsset(asset)}
+                              title={`${asset.assetPath} 삽입`}
+                            >
+                              {assetSources[asset.assetPath] ? (
+                                <img
+                                  src={assetSources[asset.assetPath]}
+                                  alt=""
+                                  className="asset-list__thumbnail"
+                                />
+                              ) : (
+                                <span className="asset-list__placeholder">
+                                  이미지
+                                </span>
+                              )}
+                              <span className="asset-list__details">
+                                <strong>{asset.displayName}</strong>
+                                <small>{asset.assetPath}</small>
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <EmptyStateChip
+                        title="이미지 자산이 없습니다."
+                        description="assets 폴더에 PNG, JPEG, WebP 파일을 추가하면 여기에 표시됩니다."
+                      />
+                    )}
+                  </div>
+                </>
+              )}
             </aside>
           )}
 

@@ -20,6 +20,7 @@ export const IPC = {
   RESEARCH_SET_VISIBLE: 'research:set-visible',
   SEARCH_IMAGES: 'search:images',
   IMAGE_DOWNLOAD: 'image:download',
+  IMAGE_LIST_ASSETS: 'image:list-assets',
   IMAGE_READ_ASSET: 'image:read-asset',
   IMAGE_DELETE_ASSET: 'image:delete-asset',
   IMAGE_SAVE_CLIPBOARD: 'image:save-clipboard',
@@ -298,6 +299,19 @@ export const ImageAssetRequestSchema = z
     assetPath: RelativeMarkdownPathSchema,
   })
   .strict();
+export const ImageAssetItemSchema = z
+  .object({
+    assetPath: RelativeMarkdownPathSchema,
+    displayName: z.string().min(1),
+  })
+  .strict();
+export const ImageAssetListResultSchema = z
+  .object({ assets: z.array(ImageAssetItemSchema).max(200) })
+  .strict();
+export const ImageAssetListResultEnvelopeSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), value: ImageAssetListResultSchema }).strict(),
+  z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+]);
 export const ImageAssetReadResultSchema = z
   .object({
     assetPath: RelativeMarkdownPathSchema,
@@ -377,6 +391,10 @@ export type ImageDownloadResultEnvelope = z.infer<
   typeof ImageDownloadResultEnvelopeSchema
 >;
 export type ImageAssetRequest = z.infer<typeof ImageAssetRequestSchema>;
+export type ImageAssetItem = z.infer<typeof ImageAssetItemSchema>;
+export type ImageAssetListResultEnvelope = z.infer<
+  typeof ImageAssetListResultEnvelopeSchema
+>;
 export type ImageAssetReadResult = z.infer<typeof ImageAssetReadResultSchema>;
 export type ImageAssetReadResultEnvelope = z.infer<
   typeof ImageAssetReadResultEnvelopeSchema
@@ -443,6 +461,9 @@ export interface DockApi {
     download: (
       request: ImageDownloadRequest,
     ) => Promise<ImageDownloadResultEnvelope>;
+    list: (request: {
+      workspaceId: string;
+    }) => Promise<ImageAssetListResultEnvelope>;
     read: (request: ImageAssetRequest) => Promise<ImageAssetReadResultEnvelope>;
     delete: (
       request: ImageAssetRequest,

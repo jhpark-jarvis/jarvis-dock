@@ -373,6 +373,10 @@ input:focus-visible {
     );
 }
 
+.workspace-layout--explorer-collapsed {
+  grid-template-columns: minmax(18rem, 1.45fr) minmax(16rem, 1fr);
+}
+
 .workspace-sidebar,
 .editor-panel,
 .preview-panel {
@@ -432,6 +436,112 @@ input:focus-visible {
 
 .workspace-sidebar__collapse {
   flex: 0 0 auto;
+}
+
+.outline-list {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.outline-list__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 0;
+  border-radius: 0.45rem;
+  padding-block: 0.55rem;
+  padding-inline-end: 0.55rem;
+  background: transparent;
+  color: #e7edf5;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.outline-list__item:hover,
+.outline-list__item:focus-visible {
+  background: #17263b;
+}
+
+.outline-list__item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-list__item small {
+  flex: 0 0 auto;
+  color: #7890ad;
+  font-size: 0.7rem;
+}
+
+.asset-list {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.asset-list__item {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid #2e4260;
+  border-radius: 0.55rem;
+  padding: 0.45rem;
+  background: #17263b;
+  color: #e7edf5;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.asset-list__item:hover,
+.asset-list__item:focus-visible {
+  border-color: #7dd3fc;
+  background: #1b304a;
+}
+
+.asset-list__thumbnail,
+.asset-list__placeholder {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  place-items: center;
+  border-radius: 0.35rem;
+  background: #0b1220;
+  color: #7890ad;
+  font-size: 0.7rem;
+  object-fit: cover;
+}
+
+.asset-list__details {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.asset-list__details strong,
+.asset-list__details small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-list__details small {
+  color: #7890ad;
+  font-size: 0.7rem;
 }
 
 .button {
@@ -738,6 +848,10 @@ input:focus-visible {
 
   .workspace-layout {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  }
+
+  .workspace-layout--explorer-collapsed {
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
   }
 
   .preview-panel {

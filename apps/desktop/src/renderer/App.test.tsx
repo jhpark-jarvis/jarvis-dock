@@ -37,6 +37,16 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '탐색기' })).toHaveFocus();
 
     await user.tab();
+    expect(
+      screen.getByRole('button', { name: '문서 개요 열기' }),
+    ).toHaveFocus();
+
+    await user.tab();
+    expect(
+      screen.getByRole('button', { name: '이미지 자산 열기' }),
+    ).toHaveFocus();
+
+    await user.tab();
     expect(screen.getByRole('button', { name: '폴더 선택' })).toHaveFocus();
 
     await user.tab();
@@ -75,6 +85,123 @@ describe('App', () => {
       'aria-expanded',
       'true',
     );
+  });
+
+  it('opens the document outline and moves the editor to a selected heading', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [{ relativePath: 'guide.md', displayName: 'guide.md' }],
+            },
+          }),
+        },
+        document: {
+          read: async () => ({
+            ok: true as const,
+            value: {
+              relativePath: 'guide.md',
+              content: '# Start\n\n## Install\n\n## Usage',
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    await user.click(await screen.findByRole('button', { name: 'guide.md' }));
+    await user.click(screen.getByRole('button', { name: '문서 개요 열기' }));
+
+    expect(
+      screen.getByRole('complementary', { name: '문서 개요' }),
+    ).toBeVisible();
+    await user.click(screen.getByRole('button', { name: /^Usage #5$/ }));
+
+    const editor = screen.getByRole('textbox', { name: 'Markdown 편집기' });
+    expect(editor).toHaveFocus();
+    expect(editor).toHaveProperty('selectionStart', 21);
+    expect(editor).toHaveProperty('selectionEnd', 21);
+  });
+
+  it('opens image assets and inserts an existing asset at the editor selection', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [{ relativePath: 'guide.md', displayName: 'guide.md' }],
+            },
+          }),
+        },
+        document: {
+          read: async () => ({
+            ok: true as const,
+            value: {
+              relativePath: 'guide.md',
+              content: '# Guide',
+            },
+          }),
+        },
+        image: {
+          list: async () => ({
+            ok: true as const,
+            value: {
+              assets: [
+                { assetPath: 'assets/diagram.png', displayName: 'diagram.png' },
+              ],
+            },
+          }),
+          read: async () => ({
+            ok: true as const,
+            value: {
+              assetPath: 'assets/diagram.png',
+              dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+              mimeType: 'image/png' as const,
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    await user.click(await screen.findByRole('button', { name: 'guide.md' }));
+    await user.click(screen.getByRole('button', { name: '이미지 자산 열기' }));
+
+    expect(
+      screen.getByRole('complementary', { name: '이미지 자산' }),
+    ).toBeVisible();
+    const assetButton = await screen.findByRole('button', {
+      name: /diagram\.png assets\/diagram\.png/,
+    });
+    expect(assetButton).toBeVisible();
+    await user.click(assetButton);
+
+    expect(
+      screen.getByRole('textbox', { name: 'Markdown 편집기' }),
+    ).toHaveValue('# Guide![diagram](./assets/diagram.png)');
   });
 
   it('opens the command palette as a dialog and closes it with Escape', async () => {

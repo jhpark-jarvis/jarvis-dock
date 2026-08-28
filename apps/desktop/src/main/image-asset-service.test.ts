@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   deleteUnusedImageAsset,
+  listImageAssetsFromWorkspace,
   readImageAssetFromWorkspace,
 } from './image-asset-service';
 
@@ -59,5 +60,20 @@ describe('workspace image asset service', () => {
     ).rejects.toMatchObject({
       code: 'ENOENT',
     });
+  });
+
+  it('lists supported image assets recursively and skips unrelated files', async () => {
+    const root = await createAssetWorkspace('# Guide');
+    await fs.mkdir(path.join(root, 'assets', 'nested'));
+    await fs.writeFile(
+      path.join(root, 'assets', 'nested', 'diagram.webp'),
+      PNG,
+    );
+    await fs.writeFile(path.join(root, 'assets', 'notes.txt'), 'not an image');
+
+    await expect(listImageAssetsFromWorkspace(root)).resolves.toEqual([
+      { assetPath: 'assets/image.png', displayName: 'image.png' },
+      { assetPath: 'assets/nested/diagram.webp', displayName: 'diagram.webp' },
+    ]);
   });
 });

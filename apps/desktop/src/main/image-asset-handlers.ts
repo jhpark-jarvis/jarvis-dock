@@ -1,16 +1,19 @@
 import type { IpcMain } from 'electron';
 import {
   ImageAssetDeleteResultEnvelopeSchema,
+  ImageAssetListResultEnvelopeSchema,
   ImageAssetReadResultEnvelopeSchema,
   ImageAssetRequestSchema,
   ImageClipboardSaveRequestSchema,
   ImageDownloadResultEnvelopeSchema,
   IPC,
+  WorkspaceRequestSchema,
   type DockError,
 } from '../shared/ipc';
 import {
   deleteUnusedImageAsset,
   ImageAssetServiceError,
+  listImageAssetsFromWorkspace,
   readImageAssetFromWorkspace,
 } from './image-asset-service';
 import {
@@ -67,6 +70,41 @@ export const registerImageAssetHandlers = ({
   isTrustedSender,
   store = createWorkspaceStore(),
 }: ImageAssetHandlerDependencies): void => {
+  ipcMain.handle(IPC.IMAGE_LIST_ASSETS, async (event, request) => {
+    const senderError = isTrusted(event, isTrustedSender);
+    if (senderError)
+      return ImageAssetListResultEnvelopeSchema.parse({
+        ok: false,
+        error: senderError,
+      });
+    const parsed = WorkspaceRequestSchema.safeParse(request);
+    if (!parsed.success)
+      return ImageAssetListResultEnvelopeSchema.parse({
+        ok: false,
+        error: error('INVALID_REQUEST', 'The Dock request is invalid.'),
+      });
+    const root = store.get(parsed.data.workspaceId);
+    if (!root)
+      return ImageAssetListResultEnvelopeSchema.parse({
+        ok: false,
+        error: error(
+          'WORKSPACE_NOT_SELECTED',
+          'No document workspace is selected.',
+        ),
+      });
+    try {
+      return ImageAssetListResultEnvelopeSchema.parse({
+        ok: true,
+        value: { assets: await listImageAssetsFromWorkspace(root) },
+      });
+    } catch (cause) {
+      return ImageAssetListResultEnvelopeSchema.parse({
+        ok: false,
+        error: mapAssetError(cause),
+      });
+    }
+  });
+
   ipcMain.handle(IPC.IMAGE_READ_ASSET, async (event, request) => {
     const senderError = isTrusted(event, isTrustedSender);
     if (senderError)
