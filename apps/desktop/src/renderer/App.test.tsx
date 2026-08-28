@@ -809,6 +809,10 @@ describe('App', () => {
     expect(
       await screen.findByRole('button', { name: 'new-note.md' }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'new-note.md' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
     expect(
       (
         screen.getByRole('textbox', {
@@ -818,6 +822,10 @@ describe('App', () => {
     ).toContain('# 기술 노트 제목');
     await user.click(screen.getByRole('button', { name: 'today.md' }));
     expect(await screen.findByDisplayValue('# Today')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'today.md' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
     await user.type(
       screen.getByRole('textbox', { name: 'Markdown 편집기' }),
       '\nEdited',

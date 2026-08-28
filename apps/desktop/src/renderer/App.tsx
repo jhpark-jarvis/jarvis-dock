@@ -225,6 +225,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [workspaceName, setWorkspaceName] = useState<string>();
   const [workspaceFolderError, setWorkspaceFolderError] = useState('');
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
+  const [openDocumentPaths, setOpenDocumentPaths] = useState<string[]>([]);
   const [selectedPath, setSelectedPath] = useState<string>();
   const [content, setContent] = useState('');
   const [documentRevision, setDocumentRevision] = useState<string>();
@@ -348,6 +349,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setWorkspaceId('11111111-1111-4111-8111-111111111111');
     setWorkspaceName('fixture');
     setFiles([{ relativePath: 'guide.md', displayName: 'guide.md' }]);
+    setOpenDocumentPaths(['guide.md']);
     setSelectedPath('guide.md');
     setContent('# Start');
     setSavedContent('# Start');
@@ -580,6 +582,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     }
     setWorkspaceId(chosen.value.workspaceId);
     setWorkspaceName(chosen.value.displayName);
+    setOpenDocumentPaths([]);
     setSelectedPath(undefined);
     setContent('');
     setDocumentRevision(undefined);
@@ -616,6 +619,14 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
 
   const openDocument = async (relativePath: string) => {
     if (!workspaceId) return;
+    if (
+      selectedPath &&
+      selectedPath !== relativePath &&
+      content !== savedContent &&
+      !window.confirm('저장하지 않은 변경 사항이 있습니다. 다른 문서를 열까요?')
+    ) {
+      return;
+    }
     const result = await window.dock.document.read({
       workspaceId,
       relativePath,
@@ -624,6 +635,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       setState('error');
       return;
     }
+    setOpenDocumentPaths((current) =>
+      current.includes(relativePath) ? current : [...current, relativePath],
+    );
     setSelectedPath(relativePath);
     setContent(result.value.content);
     setSavedContent(result.value.content);
@@ -632,6 +646,32 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       start: result.value.content.length,
       end: result.value.content.length,
     };
+    setSaveError('');
+  };
+
+  const closeDocumentTab = async (relativePath: string) => {
+    if (
+      relativePath === selectedPath &&
+      content !== savedContent &&
+      !window.confirm('저장하지 않은 변경 사항을 버리고 문서를 닫을까요?')
+    ) {
+      return;
+    }
+    const remainingPaths = openDocumentPaths.filter(
+      (path) => path !== relativePath,
+    );
+    setOpenDocumentPaths(remainingPaths);
+    if (relativePath !== selectedPath) return;
+    const nextPath = remainingPaths.at(-1);
+    if (nextPath) {
+      await openDocument(nextPath);
+      return;
+    }
+    setSelectedPath(undefined);
+    setContent('');
+    setSavedContent('');
+    setDocumentRevision(undefined);
+    editorSelectionRef.current = { start: 0, end: 0 };
     setSaveError('');
   };
 
@@ -716,6 +756,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       createdRevision = written.value.revision;
     }
     if (!(await refreshFiles(workspaceId))) return;
+    setOpenDocumentPaths((current) => [...current, relativePath]);
     setSelectedPath(relativePath);
     setContent(templateContent);
     setSavedContent(templateContent);
@@ -2855,6 +2896,40 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
           )}
 
           <section className="editor-panel" aria-labelledby="editor-title">
+            {openDocumentPaths.length > 0 && (
+              <div
+                className="document-tabs"
+                role="tablist"
+                aria-label="열린 문서"
+              >
+                {openDocumentPaths.map((path) => (
+                  <div
+                    className={`document-tab${
+                      path === selectedPath ? ' document-tab--active' : ''
+                    }`}
+                    key={path}
+                  >
+                    <button
+                      className="document-tab__select"
+                      type="button"
+                      role="tab"
+                      aria-selected={path === selectedPath}
+                      onClick={() => void openDocument(path)}
+                    >
+                      {path}
+                    </button>
+                    <button
+                      className="document-tab__close"
+                      type="button"
+                      aria-label={`${path} 닫기`}
+                      onClick={() => void closeDocumentTab(path)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="panel-heading">
               <div>
                 <p className="panel-heading__eyebrow">EDITOR</p>
