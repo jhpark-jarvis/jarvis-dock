@@ -1145,6 +1145,58 @@ input:focus-visible {
   font-size: 0.75rem;
 }
 
+.backlinks-panel {
+  gap: 0.65rem;
+}
+
+.backlinks-panel__description {
+  margin: 0;
+  color: #aebed1;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.backlinks-list {
+  display: grid;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.backlink-item {
+  display: grid;
+  width: 100%;
+  gap: 0.25rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #e7edf5;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.backlink-item:hover,
+.backlink-item:focus-visible {
+  border-color: #2e4260;
+  background: #17263b;
+}
+
+.backlink-item strong,
+.backlink-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backlink-item span {
+  color: #8fa4bd;
+  font-size: 0.75rem;
+}
+
 .preview-content {
   min-height: 0;
   margin: 0;

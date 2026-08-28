@@ -202,6 +202,36 @@ test('Dock preserves unsaved Markdown when the document write fails', async () =
   }
 });
 
+test('Dock shows backlinks for the selected Markdown document', async () => {
+  test.setTimeout(60_000);
+  const workspaceRoot = mkdtempSync(
+    path.join(os.tmpdir(), 'dock-e2e-backlinks-'),
+  );
+  writeFileSync(
+    path.join(workspaceRoot, 'guide.md'),
+    '[Target](./target.md)',
+    'utf8',
+  );
+  writeFileSync(path.join(workspaceRoot, 'target.md'), '# Target', 'utf8');
+  const app = await launchDock(['--dock-e2e-document'], {
+    DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot,
+  });
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: '폴더 선택' }).click();
+    await page.getByRole('button', { name: 'target.md' }).click();
+    await page.getByRole('button', { name: '연결 문서 열기' }).click();
+
+    await expect(
+      page.getByRole('button', { name: /guide\.md.*1행.*Target/ }),
+    ).toBeVisible();
+  } finally {
+    await app.close();
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test('Dock selects, creates, saves, and reopens a document workspace after relaunch', async () => {
   const workspaceRoot = mkdtempSync(
     path.join(os.tmpdir(), 'dock-e2e-document-'),

@@ -47,6 +47,11 @@ describe('App', () => {
 
     await user.tab();
     expect(
+      screen.getByRole('button', { name: '연결 문서 열기' }),
+    ).toHaveFocus();
+
+    await user.tab();
+    expect(
       screen.getByRole('button', { name: '문서 개요 열기' }),
     ).toHaveFocus();
 
@@ -325,6 +330,56 @@ describe('App', () => {
     expect(
       screen.getByRole('textbox', { name: 'Markdown 편집기' }),
     ).toHaveValue('# Notes\n\nDock search target');
+  });
+
+  it('shows documents that link to the selected Markdown document', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [
+                { relativePath: 'guide.md', displayName: 'guide.md' },
+                { relativePath: 'design.md', displayName: 'design.md' },
+              ],
+            },
+          }),
+        },
+        document: {
+          read: async ({ relativePath }: { relativePath: string }) => ({
+            ok: true as const,
+            value: {
+              relativePath,
+              content:
+                relativePath === 'guide.md'
+                  ? '[Design](./design.md)'
+                  : '# Design',
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    await user.click(screen.getByRole('button', { name: 'design.md' }));
+    await user.click(screen.getByRole('button', { name: '연결 문서 열기' }));
+
+    expect(
+      await screen.findByRole('button', {
+        name: /guide\.md.*1행.*Design/,
+      }),
+    ).toBeVisible();
   });
 
   it('opens image assets and inserts an existing asset at the editor selection', async () => {

@@ -46,6 +46,7 @@ import {
   getDocumentTemplate,
   type DocumentTemplateId,
 } from './document-templates';
+import { findBacklinks, type BacklinkResult } from './backlinks';
 
 export type ShellState = 'empty' | 'error' | 'loading';
 
@@ -163,6 +164,19 @@ const SearchIcon = () => (
   >
     <circle cx="10.75" cy="10.75" r="6.25" />
     <path d="m15.5 15.5 4.75 4.75" />
+  </svg>
+);
+
+const BacklinksIcon = () => (
+  <svg
+    aria-hidden="true"
+    className="activity-bar__icon"
+    viewBox="0 0 24 24"
+    focusable="false"
+  >
+    <path d="M9 7.5 7.25 5.75a3.2 3.2 0 0 0-4.5 4.5l2.5 2.5a3.2 3.2 0 0 0 4.5 0L11 11" />
+    <path d="m15 16.5 1.75 1.75a3.2 3.2 0 0 0 4.5-4.5l-2.5-2.5a3.2 3.2 0 0 0-4.5 0L13 13" />
+    <path d="m8.5 15.5 7-7" />
   </svg>
 );
 
@@ -326,9 +340,14 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [workspaceSearchResults, setWorkspaceSearchResults] = useState<
     WorkspaceSearchResult[]
   >([]);
+  const [backlinkStatus, setBacklinkStatus] = useState<'idle' | 'loading'>(
+    'idle',
+  );
+  const [backlinkResults, setBacklinkResults] = useState<BacklinkResult[]>([]);
   const [workspacePanel, setWorkspacePanel] = useState<
     | 'explorer'
     | 'search'
+    | 'backlinks'
     | 'outline'
     | 'assets'
     | 'architecture'
@@ -524,6 +543,47 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       cancelled = true;
     };
   }, [files, workspaceId, workspacePanel, workspaceSearchQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!workspaceId || workspacePanel !== 'backlinks' || !selectedPath) {
+      setBacklinkResults([]);
+      setBacklinkStatus('idle');
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setBacklinkStatus('loading');
+    void Promise.all(
+      files.map(async (file) => {
+        try {
+          const response = await window.dock.document.read({
+            workspaceId,
+            relativePath: file.relativePath,
+          });
+          return response.ok
+            ? {
+                relativePath: file.relativePath,
+                content: response.value.content,
+              }
+            : null;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((documents) => {
+      if (cancelled) return;
+      setBacklinkResults(
+        findBacklinks(documents.filter(Boolean), selectedPath),
+      );
+      setBacklinkStatus('idle');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [files, selectedPath, workspaceId, workspacePanel]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2222,6 +2282,34 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             className="activity-bar__button"
             type="button"
             aria-controls={workspacePanel ? 'workspace-sidebar' : undefined}
+            aria-expanded={workspacePanel === 'backlinks'}
+            aria-label={
+              workspacePanel === 'backlinks'
+                ? '연결 문서 닫기'
+                : '연결 문서 열기'
+            }
+            title={
+              workspacePanel === 'backlinks'
+                ? '연결 문서 닫기'
+                : '연결 문서 열기'
+            }
+            onClick={() =>
+              setWorkspacePanel((panel) =>
+                panel === 'backlinks' ? undefined : 'backlinks',
+              )
+            }
+          >
+            <BacklinksIcon />
+            <span className="visually-hidden">
+              {workspacePanel === 'backlinks'
+                ? '연결 문서 닫기'
+                : '연결 문서 열기'}
+            </span>
+          </button>
+          <button
+            className="activity-bar__button"
+            type="button"
+            aria-controls={workspacePanel ? 'workspace-sidebar' : undefined}
             aria-expanded={workspacePanel === 'outline'}
             aria-label={
               workspacePanel === 'outline' ? '문서 개요 닫기' : '문서 개요 열기'
@@ -2556,6 +2644,71 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                     ) : (
                       <p className="workspace-state" role="status">
                         일치하는 문서가 없습니다.
+                      </p>
+                    )}
+                  </div>
+                </>
+              ) : workspacePanel === 'backlinks' ? (
+                <>
+                  <div className="panel-heading">
+                    <div>
+                      <p className="panel-heading__eyebrow">BACKLINKS</p>
+                      <h2 id="workspace-title">연결 문서</h2>
+                    </div>
+                    <button
+                      className="button button--quiet"
+                      type="button"
+                      aria-label="연결 문서 닫기"
+                      onClick={() => setWorkspacePanel(undefined)}
+                    >
+                      닫기
+                    </button>
+                  </div>
+                  <div className="workspace-sidebar__body backlinks-panel">
+                    <p className="backlinks-panel__description">
+                      현재 문서를 가리키는 로컬 Markdown 링크를 보여줍니다.
+                    </p>
+                    {!workspaceId || !selectedPath ? (
+                      <EmptyStateChip
+                        title="문서가 선택되지 않았습니다."
+                        description="문서를 열면 해당 문서를 참조하는 연결 문서가 표시됩니다."
+                      />
+                    ) : backlinkStatus === 'loading' ? (
+                      <p className="workspace-state" role="status">
+                        연결 문서를 찾고 있습니다.
+                      </p>
+                    ) : backlinkResults.length > 0 ? (
+                      <ul
+                        className="backlinks-list"
+                        aria-label="연결 문서 목록"
+                      >
+                        {backlinkResults.map((result) => (
+                          <li key={`${result.relativePath}:${result.line}`}>
+                            <button
+                              className="backlink-item"
+                              type="button"
+                              onClick={() => {
+                                void openDocument(result.relativePath).then(
+                                  () => {
+                                    window.setTimeout(
+                                      () => moveEditorToLine(result.line),
+                                      0,
+                                    );
+                                  },
+                                );
+                              }}
+                            >
+                              <strong>{result.relativePath}</strong>
+                              <span>
+                                {result.line}행 · {result.snippet}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="workspace-state" role="status">
+                        이 문서를 참조하는 문서가 없습니다.
                       </p>
                     )}
                   </div>
