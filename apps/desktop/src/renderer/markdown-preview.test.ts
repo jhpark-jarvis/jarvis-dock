@@ -41,4 +41,34 @@ describe('renderMarkdownPreview', () => {
     expect(html).toContain('<img src="data:image/png;base64,AA==" alt="safe">');
     expect(html).not.toContain('remote');
   });
+
+  it('highlights supported fenced code without rendering code as HTML', () => {
+    const html = renderMarkdownPreview(
+      '```ts\nconst answer = "safe"; // note\n```',
+    );
+
+    expect(html).toContain('language-ts');
+    expect(html).toContain('code-token--keyword');
+    expect(html).toContain('code-token--string');
+    expect(html).toContain('code-token--comment');
+    expect(html).toContain('"safe"');
+  });
+
+  it('escapes unsupported fenced code languages', () => {
+    const html = renderMarkdownPreview('```unknown\n<div>safe</div>\n```');
+
+    expect(html).toContain('&lt;div&gt;safe&lt;/div&gt;');
+    expect(html).not.toContain('<div>safe</div>');
+  });
+
+  it('keeps Mermaid source in a local preview block for the renderer', () => {
+    const html = renderMarkdownPreview(
+      '```mermaid\nflowchart LR\n  A[Start] --> B[Finish]\n```',
+    );
+
+    expect(html).toContain('class="mermaid-block"');
+    expect(html).toContain('Mermaid 미리보기를 준비하고 있습니다.');
+    expect(html).toContain('flowchart LR');
+    expect(html).toContain('A[Start]');
+  });
 });

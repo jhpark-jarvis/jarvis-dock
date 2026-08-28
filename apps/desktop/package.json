@@ -59,6 +59,7 @@
     "dompurify": "^3.4.13",
     "electron-squirrel-startup": "^1.0.1",
     "marked": "^18.0.9",
+    "mermaid": "^11.17.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "zod": "^4.1.10"

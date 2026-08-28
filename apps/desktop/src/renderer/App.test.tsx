@@ -98,6 +98,46 @@ describe('App', () => {
     );
   });
 
+  it('offers editor commands and opens the matching command flow with Tab', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const editor = screen.getByRole('textbox', { name: 'Markdown 편집기' });
+
+    await user.click(editor);
+    await user.type(editor, '!link');
+    expect(
+      screen.getByRole('toolbar', { name: '문서 명령 제안' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /링크 검색/ }),
+    ).toBeInTheDocument();
+
+    await user.keyboard('{Tab}');
+
+    expect(
+      screen.getByRole('dialog', { name: '명령 팔레트' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('textbox', { name: '링크 검색어' }),
+    ).toBeInTheDocument();
+    expect(editor).toHaveValue('');
+  });
+
+  it('opens image search when the editor image command suggestion is clicked', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const editor = screen.getByRole('textbox', { name: 'Markdown 편집기' });
+
+    await user.click(editor);
+    await user.type(editor, '!image');
+    await user.click(screen.getByRole('button', { name: /이미지 검색/ }));
+
+    expect(
+      screen.getByRole('textbox', { name: '이미지 검색어' }),
+    ).toBeInTheDocument();
+    expect(editor).toHaveValue('');
+  });
+
   it('opens the document outline and moves the editor to a selected heading', async () => {
     const user = userEvent.setup();
     Object.defineProperty(window, 'dock', {

@@ -982,6 +982,118 @@ input:focus-visible {
   white-space: pre-wrap;
 }
 
+.preview-content pre {
+  overflow: auto;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #263954;
+  border-radius: 0.55rem;
+  background: #0b1220;
+  white-space: pre;
+}
+
+.preview-content pre code {
+  color: #dbeafe;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.86rem;
+  line-height: 1.65;
+}
+
+.mermaid-block {
+  margin: 1rem 0;
+  padding: 0.8rem;
+  border: 1px solid #263954;
+  border-radius: 0.55rem;
+  background: #0b1220;
+}
+
+.mermaid-diagram {
+  display: flex;
+  min-height: 4rem;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 0.45rem;
+  color: #a9c2dc;
+}
+
+.mermaid-diagram svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-diagram svg .node rect,
+.mermaid-diagram svg .node circle,
+.mermaid-diagram svg .node ellipse,
+.mermaid-diagram svg .node polygon,
+.mermaid-diagram svg .node path,
+.mermaid-diagram svg .cluster rect {
+  fill: #1f2937;
+  stroke: #93c5fd;
+  stroke-width: 1px;
+}
+
+.mermaid-diagram svg .label text,
+.mermaid-diagram svg .node text,
+.mermaid-diagram svg .cluster text,
+.mermaid-diagram svg .edgeLabel text {
+  fill: #e5e7eb;
+}
+
+.mermaid-diagram svg .flowchart-link,
+.mermaid-diagram svg .edgePaths .path {
+  fill: none;
+  stroke: #93c5fd;
+  stroke-width: 1.5px;
+}
+
+.mermaid-diagram svg .marker path,
+.mermaid-diagram svg .arrowMarkerPath {
+  fill: #93c5fd;
+  stroke: #93c5fd;
+}
+
+.mermaid-diagram--error {
+  min-height: 3rem;
+  border: 1px dashed #a64b56;
+  border-radius: 0.4rem;
+  color: #fecaca;
+  font-size: 0.85rem;
+}
+
+.mermaid-block details {
+  margin-top: 0.65rem;
+  border-top: 1px solid #243248;
+  padding-top: 0.55rem;
+}
+
+.mermaid-block summary {
+  color: #8da2bd;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.mermaid-block details pre {
+  margin-bottom: 0;
+}
+
+.code-token--keyword {
+  color: #c4b5fd;
+}
+
+.code-token--string {
+  color: #86efac;
+}
+
+.code-token--comment {
+  color: #7890ad;
+}
+
+.code-token--number {
+  color: #f9a8d4;
+}
+
 .preview-content img {
   display: block;
   max-width: 100%;
@@ -1008,6 +1120,54 @@ input:focus-visible {
 
 .markdown-editor::placeholder {
   color: #7890ad;
+}
+
+.editor-command-suggestions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 0.65rem;
+  margin-top: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #2f6f9f;
+  border-radius: 0.5rem;
+  background: #13253b;
+  color: #a9c2dc;
+  font-size: 0.8rem;
+}
+
+.editor-command-suggestions__hint {
+  flex: 0 0 auto;
+}
+
+.editor-command-suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid #3e83b5;
+  border-radius: 0.4rem;
+  background: #0e7490;
+  color: #f0f9ff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.editor-command-suggestion:hover,
+.editor-command-suggestion:focus-visible {
+  background: #0891b2;
+}
+
+.editor-command-suggestion kbd {
+  padding: 0.1rem 0.3rem;
+  border: 1px solid #70a8c9;
+  border-radius: 0.25rem;
+  background: #164e63;
+  color: #dff6ff;
+  font-size: 0.68rem;
+  font-weight: 600;
 }
 
 .app-status {

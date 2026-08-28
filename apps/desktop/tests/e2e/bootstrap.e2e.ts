@@ -474,6 +474,31 @@ test('Dock opens Research View and inserts a selected experimental link card', a
   }
 });
 
+test('Dock offers editor command shortcuts and renders Mermaid previews', async () => {
+  const app = await launchDock(['--dock-e2e-link']);
+
+  try {
+    const page = await app.firstWindow();
+    const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
+    await editor.fill('!link');
+    await expect(
+      page.getByRole('toolbar', { name: '문서 명령 제안' }),
+    ).toBeVisible();
+    await editor.press('Tab');
+    await expect(
+      page.getByRole('textbox', { name: '링크 검색어' }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: '취소' }).click();
+    await editor.fill(
+      '```mermaid\nflowchart LR\n  A[Start] --> B[Finish]\n```',
+    );
+    await expect(page.locator('.mermaid-diagram svg')).toBeVisible();
+  } finally {
+    await app.close();
+  }
+});
+
 test('Dock keeps an actual Research View isolated and blocks privileged actions', async () => {
   const app = await launchDock(['--dock-e2e-research-security']);
 

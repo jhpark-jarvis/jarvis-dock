@@ -22,6 +22,12 @@ import {
   type ImageSearchResult,
 } from './image-search';
 import { renderMarkdownPreview } from './markdown-preview';
+import { renderMermaidDiagram } from './mermaid-preview';
+import {
+  findEditorCommandSuggestion,
+  type EditorCommand,
+  type EditorCommandSuggestion,
+} from './editor-commands';
 import {
   extractDocumentOutline,
   type DocumentOutlineItem,
@@ -173,6 +179,7 @@ const trapDialogFocus = (event: KeyboardEvent<HTMLElement>): void => {
 
 const App = ({ state: initialState = 'empty' }: AppProps) => {
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
   const commandTriggerRef = useRef<HTMLButtonElement>(null);
   const editorSelectionRef = useRef({ start: 0, end: 0 });
   const [state, setState] = useState<ShellState>(initialState);
@@ -182,6 +189,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
   const [selectedPath, setSelectedPath] = useState<string>();
   const [content, setContent] = useState('');
+  const [editorCommandSuggestion, setEditorCommandSuggestion] = useState<
+    EditorCommandSuggestion | undefined
+  >();
   const [savedContent, setSavedContent] = useState('');
   const [saveError, setSaveError] = useState('');
   const [newDocumentPath, setNewDocumentPath] = useState('untitled.md');
@@ -556,6 +566,44 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         imageSources: previewImageSources,
       })
     : '';
+
+  useEffect(() => {
+    if (!selectedPath) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      const root = previewRef.current;
+      if (!root) return;
+      const blocks = Array.from(
+        root.querySelectorAll<HTMLElement>('.mermaid-block'),
+      );
+      void Promise.all(
+        blocks.map(async (block) => {
+          const source =
+            block.querySelector('.mermaid-source')?.textContent ??
+            block.querySelector('details pre code')?.textContent ??
+            '';
+          const diagram = block.querySelector<HTMLElement>('.mermaid-diagram');
+          if (!diagram || !source.trim()) return;
+          try {
+            diagram.textContent = 'Mermaid 미리보기를 생성하는 중...';
+            const svg = await renderMermaidDiagram(source);
+            if (cancelled) return;
+            diagram.innerHTML = svg;
+            diagram.setAttribute('aria-label', 'Mermaid 다이어그램 미리보기');
+          } catch {
+            if (cancelled) return;
+            diagram.textContent =
+              'Mermaid 미리보기를 생성하지 못했습니다. 원문을 확인해 주세요.';
+            diagram.classList.add('mermaid-diagram--error');
+          }
+        }),
+      );
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [previewHtml, selectedPath]);
   const outlineItems = extractDocumentOutline(content);
 
   const rememberEditorSelection = () => {
@@ -565,6 +613,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       start: editor.selectionStart,
       end: editor.selectionEnd,
     };
+    setEditorCommandSuggestion(
+      editor.selectionStart === editor.selectionEnd
+        ? findEditorCommandSuggestion(content, editor.selectionStart)
+        : undefined,
+    );
     return editorSelectionRef.current;
   };
 
@@ -621,8 +674,13 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
    * cover it with z-index alone. Keep its native visibility aligned with the
    * dialog state and restore it after an async Research open completes.
    */
-  const openCommandPalette = () => {
-    rememberEditorSelection();
+  const openCommandPalette = (selection?: { start: number; end: number }) => {
+    if (selection) {
+      editorSelectionRef.current = selection;
+    } else {
+      rememberEditorSelection();
+    }
+    setEditorCommandSuggestion(undefined);
     setResearchViewVisibility(false);
     setLinkQuery('');
     setImageQuery('');
@@ -652,6 +710,24 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setAdrCreateStatus('idle');
     setAdrError('');
     setCommandPaletteOpen(true);
+  };
+
+  const activateEditorCommand = (command: EditorCommand) => {
+    const suggestion = editorCommandSuggestion;
+    if (!suggestion || suggestion.command !== command) return;
+    const nextContent =
+      content.slice(0, suggestion.start) + content.slice(suggestion.end);
+    const selection = { start: suggestion.start, end: suggestion.start };
+    setContent(nextContent);
+    editorSelectionRef.current = selection;
+    setEditorCommandSuggestion(undefined);
+    openCommandPalette(selection);
+    setActiveCommand(command);
+    if (command === 'link') {
+      setLinkStatus('search');
+    } else {
+      setImageStatus('search');
+    }
   };
 
   const openArchitectureInitializer = () => {
@@ -1165,7 +1241,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             aria-haspopup="dialog"
             className="button button--quiet"
             type="button"
-            onClick={openCommandPalette}
+            onClick={() => openCommandPalette()}
           >
             명령 팔레트 열기
           </button>
@@ -2305,16 +2381,61 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               onFocus={rememberEditorSelection}
               onKeyUp={rememberEditorSelection}
               onSelect={rememberEditorSelection}
+              onKeyDown={(event) => {
+                const command = editorCommandSuggestion?.command;
+                if (command && (event.key === 'Tab' || event.key === 'Enter')) {
+                  event.preventDefault();
+                  activateEditorCommand(command);
+                  return;
+                }
+                if (event.key === 'Escape') {
+                  setEditorCommandSuggestion(undefined);
+                }
+              }}
               onPaste={handleEditorPaste}
               onChange={(event) => {
-                setContent(event.target.value);
+                const nextContent = event.target.value;
+                setContent(nextContent);
                 editorSelectionRef.current = {
                   start: event.target.selectionStart,
                   end: event.target.selectionEnd,
                 };
+                setEditorCommandSuggestion(
+                  event.target.selectionStart === event.target.selectionEnd
+                    ? findEditorCommandSuggestion(
+                        nextContent,
+                        event.target.selectionStart,
+                      )
+                    : undefined,
+                );
                 setSaveError('');
               }}
             />
+            {editorCommandSuggestion && (
+              <div
+                className="editor-command-suggestions"
+                role="toolbar"
+                aria-label="문서 명령 제안"
+              >
+                <span className="editor-command-suggestions__hint">
+                  입력한 명령 실행
+                </span>
+                <button
+                  className="editor-command-suggestion"
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() =>
+                    activateEditorCommand(editorCommandSuggestion.command)
+                  }
+                >
+                  {editorCommandSuggestion.command === 'link'
+                    ? '링크 검색'
+                    : '이미지 검색'}
+                  <kbd>Tab</kbd>
+                  <kbd>Enter</kbd>
+                </button>
+              </div>
+            )}
           </section>
 
           <section className="preview-panel" aria-labelledby="preview-title">
@@ -2326,6 +2447,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             </div>
             {selectedPath ? (
               <div
+                ref={previewRef}
                 className="preview-content"
                 onClick={handlePreviewClick}
                 dangerouslySetInnerHTML={{ __html: previewHtml }}
