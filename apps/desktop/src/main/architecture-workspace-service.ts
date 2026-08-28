@@ -1,6 +1,9 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { ArchitectureCreateProjectRequest } from '../shared/ipc';
+import type {
+  ArchitectureCheckProjectResultEnvelope,
+  ArchitectureCreateProjectRequest,
+} from '../shared/ipc';
 import { createDocumentWithContent } from './workspace-service';
 
 export const ARCHITECTURE_DOCUMENTS = [
@@ -66,7 +69,7 @@ ${purpose}
 
 ## 4. 솔루션 전략
 
-서비스 경계, 런타임 흐름, 데이터 흐름을 C4 Container 문서와 함께 구체화합니다.
+서비스 경계, 런타임 흐름, 데이터 흐름을 [C4 Container](./c4-container.md) 문서와 함께 구체화합니다.
 
 ## 5. 빌딩 블록 뷰
 
@@ -307,6 +310,86 @@ export const createArchitectureDocuments = async (
         relativePath: document.relativePath,
         bytesWritten: Buffer.byteLength(document.content, 'utf8'),
       })),
+    },
+  };
+};
+
+const requiredContent = new Map<string, string[]>([
+  [
+    ARCHITECTURE_DOCUMENTS[0],
+    [
+      '## 1. 소개와 목표',
+      './c4-context.md',
+      './c4-container.md',
+      '../adr/README.md',
+    ],
+  ],
+  [ARCHITECTURE_DOCUMENTS[1], ['```mermaid', 'C4Context']],
+  [ARCHITECTURE_DOCUMENTS[2], ['```mermaid', 'C4Container']],
+  [ARCHITECTURE_DOCUMENTS[3], ['./0001-initial-architecture.md', '## Index']],
+  [ARCHITECTURE_DOCUMENTS[4], ['## 상태', '## 결정']],
+]);
+
+export const checkArchitectureDocuments = async (
+  rootPath: string,
+): Promise<ArchitectureCheckProjectResultEnvelope> => {
+  const root = await fs.realpath(rootPath);
+  const files = [];
+  for (const relativePath of ARCHITECTURE_DOCUMENTS) {
+    const absolutePath = path.resolve(root, relativePath);
+    const issues: string[] = [];
+    if (!isInside(root, absolutePath)) {
+      files.push({
+        relativePath,
+        status: 'invalid' as const,
+        issues: ['경로가 document workspace 밖을 가리킵니다.'],
+      });
+      continue;
+    }
+    let content = '';
+    try {
+      const stat = await fs.lstat(absolutePath);
+      if (!stat.isFile()) {
+        files.push({
+          relativePath,
+          status: 'invalid' as const,
+          issues: ['파일이 아닌 항목입니다.'],
+        });
+        continue;
+      }
+      content = await fs.readFile(absolutePath, 'utf8');
+    } catch (cause) {
+      if ((cause as NodeJS.ErrnoException).code === 'ENOENT') {
+        files.push({
+          relativePath,
+          status: 'missing' as const,
+          issues: ['필수 문서가 없습니다.'],
+        });
+        continue;
+      }
+      files.push({
+        relativePath,
+        status: 'invalid' as const,
+        issues: ['문서를 읽지 못했습니다.'],
+      });
+      continue;
+    }
+    for (const marker of requiredContent.get(relativePath) ?? []) {
+      if (!content.includes(marker)) {
+        issues.push(`필수 항목이 없습니다: ${marker}`);
+      }
+    }
+    files.push({
+      relativePath,
+      status: issues.length === 0 ? ('present' as const) : ('invalid' as const),
+      issues,
+    });
+  }
+  return {
+    ok: true,
+    value: {
+      passed: files.every((file) => file.status === 'present'),
+      files,
     },
   };
 };

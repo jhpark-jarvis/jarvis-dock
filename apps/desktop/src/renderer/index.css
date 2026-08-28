@@ -801,6 +801,45 @@ input:focus-visible {
   white-space: nowrap;
 }
 
+.architecture-check {
+  display: grid;
+  gap: 0.55rem;
+  color: #aebed1;
+}
+
+.architecture-check strong {
+  color: #e7edf5;
+}
+
+.architecture-check ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.architecture-check li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.2rem 0.5rem;
+  align-items: center;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #2b3b54;
+  border-radius: 0.35rem;
+  background: #0b1220;
+  font-size: 0.75rem;
+}
+
+.architecture-check li span {
+  color: #86efac;
+}
+
+.architecture-check li small {
+  grid-column: 1 / -1;
+  color: #fca5a5;
+}
+
 .file-list {
   display: grid;
   gap: 0.3rem;

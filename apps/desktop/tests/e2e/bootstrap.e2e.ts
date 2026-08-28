@@ -286,6 +286,12 @@ test('Dock initializes an Architecture Workspace without overwriting existing do
         'utf8',
       ),
     ).toContain('Dock 초기 아키텍처 문서 세트');
+    await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
+    await page.getByRole('button', { name: /Architecture Workspace/ }).click();
+    await page.getByRole('button', { name: '문서 정합성 점검' }).click();
+    await expect(page.getByRole('status')).toContainText(
+      '문서 세트가 정상입니다.',
+    );
   } finally {
     await app.close();
     rmSync(workspaceRoot, { recursive: true, force: true });

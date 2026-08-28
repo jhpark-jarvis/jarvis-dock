@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ARCHITECTURE_DOCUMENTS,
   ArchitectureWorkspaceConflictError,
+  checkArchitectureDocuments,
   createArchitectureDocuments,
 } from './architecture-workspace-service';
 
@@ -36,6 +37,23 @@ describe('architecture workspace service', () => {
       await expect(
         fs.readFile(path.join(root, 'docs/architecture/arc42.md'), 'utf8'),
       ).resolves.toContain('로컬 Markdown 기술 문서를 작성하고 관리합니다.');
+      await expect(checkArchitectureDocuments(root)).resolves.toMatchObject({
+        ok: true,
+        value: { passed: true },
+      });
+      await fs.rm(path.join(root, 'docs/architecture/c4-container.md'));
+      await expect(checkArchitectureDocuments(root)).resolves.toMatchObject({
+        ok: true,
+        value: {
+          passed: false,
+          files: expect.arrayContaining([
+            expect.objectContaining({
+              relativePath: 'docs/architecture/c4-container.md',
+              status: 'missing',
+            }),
+          ]),
+        },
+      });
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }

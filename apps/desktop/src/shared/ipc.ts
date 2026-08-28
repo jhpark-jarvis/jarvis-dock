@@ -25,6 +25,7 @@ export const IPC = {
   IMAGE_DELETE_ASSET: 'image:delete-asset',
   IMAGE_SAVE_CLIPBOARD: 'image:save-clipboard',
   ARCHITECTURE_CREATE_PROJECT: 'architecture:create-project',
+  ARCHITECTURE_CHECK_PROJECT: 'architecture:check-project',
 } as const;
 
 export const EmptyRequestSchema = z.object({}).strict();
@@ -222,6 +223,32 @@ export const ArchitectureCreateProjectResultEnvelopeSchema =
       .object({
         ok: z.literal(true),
         value: ArchitectureCreateProjectResultSchema,
+      })
+      .strict(),
+    z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+  ]);
+export const ArchitectureCheckProjectRequestSchema = z
+  .object({ workspaceId: WorkspaceIdSchema })
+  .strict();
+export const ArchitectureCheckFileSchema = z
+  .object({
+    relativePath: RelativeMarkdownPathSchema,
+    status: z.enum(['present', 'missing', 'invalid']),
+    issues: z.array(z.string().min(1).max(300)).max(10),
+  })
+  .strict();
+export const ArchitectureCheckProjectResultSchema = z
+  .object({
+    passed: z.boolean(),
+    files: z.array(ArchitectureCheckFileSchema).length(5),
+  })
+  .strict();
+export const ArchitectureCheckProjectResultEnvelopeSchema =
+  z.discriminatedUnion('ok', [
+    z
+      .object({
+        ok: z.literal(true),
+        value: ArchitectureCheckProjectResultSchema,
       })
       .strict(),
     z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
@@ -425,6 +452,9 @@ export type ArchitectureCreateProjectRequest = z.infer<
 export type ArchitectureCreateProjectResultEnvelope = z.infer<
   typeof ArchitectureCreateProjectResultEnvelopeSchema
 >;
+export type ArchitectureCheckProjectResultEnvelope = z.infer<
+  typeof ArchitectureCheckProjectResultEnvelopeSchema
+>;
 export type ResearchOpenResult = z.infer<typeof ResearchOpenResultSchema>;
 export type ResearchSearchResult = z.infer<typeof ResearchSearchResultSchema>;
 export type ResearchOpenResultEnvelope = z.infer<
@@ -506,6 +536,9 @@ export interface DockApi {
     createProject: (
       request: ArchitectureCreateProjectRequest,
     ) => Promise<ArchitectureCreateProjectResultEnvelope>;
+    checkProject: (request: {
+      workspaceId: string;
+    }) => Promise<ArchitectureCheckProjectResultEnvelope>;
   };
   research: {
     open: (request: { query: string }) => Promise<ResearchOpenResultEnvelope>;

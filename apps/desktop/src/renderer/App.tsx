@@ -183,6 +183,19 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     'idle' | 'creating' | 'error'
   >('idle');
   const [architectureError, setArchitectureError] = useState('');
+  const [architectureCheckStatus, setArchitectureCheckStatus] = useState<
+    'idle' | 'checking' | 'complete' | 'error'
+  >('idle');
+  const [architectureCheckPassed, setArchitectureCheckPassed] = useState<
+    boolean | undefined
+  >();
+  const [architectureCheckFiles, setArchitectureCheckFiles] = useState<
+    Array<{
+      relativePath: string;
+      status: 'present' | 'missing' | 'invalid';
+      issues: string[];
+    }>
+  >([]);
   const [previewImageSources, setPreviewImageSources] = useState<
     Record<string, string>
   >({});
@@ -561,6 +574,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setArchitectureTechStack('');
     setArchitectureStatus('idle');
     setArchitectureError('');
+    setArchitectureCheckStatus('idle');
+    setArchitectureCheckPassed(undefined);
+    setArchitectureCheckFiles([]);
     setCommandPaletteOpen(true);
   };
 
@@ -581,6 +597,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setImageThumbnailErrors({});
     setArchitectureStatus('idle');
     setArchitectureError('');
+    setArchitectureCheckStatus('idle');
+    setArchitectureCheckPassed(undefined);
+    setArchitectureCheckFiles([]);
     commandTriggerRef.current?.focus();
   };
 
@@ -620,6 +639,32 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     } catch {
       setArchitectureError('프로젝트 문서 세트를 생성하지 못했습니다.');
       setArchitectureStatus('error');
+    }
+  };
+
+  const checkArchitectureWorkspace = async () => {
+    if (!workspaceId) {
+      setArchitectureError('먼저 문서 폴더를 선택해 주세요.');
+      setArchitectureCheckStatus('error');
+      return;
+    }
+    setArchitectureCheckStatus('checking');
+    setArchitectureError('');
+    try {
+      const response = await window.dock.architecture.checkProject({
+        workspaceId,
+      });
+      if (response.ok === false) {
+        setArchitectureError('아키텍처 문서 정합성을 점검하지 못했습니다.');
+        setArchitectureCheckStatus('error');
+        return;
+      }
+      setArchitectureCheckPassed(response.value.passed);
+      setArchitectureCheckFiles(response.value.files);
+      setArchitectureCheckStatus('complete');
+    } catch {
+      setArchitectureError('아키텍처 문서 정합성을 점검하지 못했습니다.');
+      setArchitectureCheckStatus('error');
     }
   };
 
@@ -1326,6 +1371,14 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                     취소
                   </button>
                 </div>
+                <button
+                  className="button button--quiet"
+                  type="button"
+                  onClick={() => void checkArchitectureWorkspace()}
+                  disabled={architectureCheckStatus === 'checking'}
+                >
+                  문서 정합성 점검
+                </button>
               </form>
             )}
 
@@ -1372,6 +1425,39 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                 >
                   {architectureError}
                 </p>
+              )}
+            {activeCommand === 'architecture' &&
+              architectureCheckStatus === 'checking' && (
+                <p className="dialog-message" role="status">
+                  아키텍처 문서 정합성을 점검하고 있습니다.
+                </p>
+              )}
+            {activeCommand === 'architecture' &&
+              architectureCheckStatus === 'complete' && (
+                <div className="architecture-check" role="status">
+                  <strong>
+                    {architectureCheckPassed
+                      ? '문서 세트가 정상입니다.'
+                      : '보완이 필요한 문서가 있습니다.'}
+                  </strong>
+                  <ul aria-label="아키텍처 문서 점검 결과">
+                    {architectureCheckFiles.map((file) => (
+                      <li key={file.relativePath}>
+                        <code>{file.relativePath}</code>
+                        <span>
+                          {file.status === 'present'
+                            ? '정상'
+                            : file.status === 'missing'
+                              ? '없음'
+                              : '확인 필요'}
+                        </span>
+                        {file.issues.length > 0 && (
+                          <small>{file.issues.join(' ')}</small>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             {activeCommand === 'image' &&
               imageStatus === 'selected' &&
