@@ -262,6 +262,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [previewImageSources, setPreviewImageSources] = useState<
     Record<string, string>
   >({});
+  const [mermaidRenders, setMermaidRenders] = useState<
+    Record<number, { source: string; svg?: string; error?: string }>
+  >({});
   const [assets, setAssets] = useState<ImageAssetItem[]>([]);
   const [assetSources, setAssetSources] = useState<Record<string, string>>({});
   const [assetStatus, setAssetStatus] = useState<'idle' | 'loading' | 'error'>(
@@ -564,6 +567,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     ? renderMarkdownPreview(content, {
         documentPath: selectedPath,
         imageSources: previewImageSources,
+        mermaidRenders,
       })
     : '';
 
@@ -577,30 +581,41 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         root.querySelectorAll<HTMLElement>('.mermaid-block'),
       );
       void Promise.all(
-        blocks.map(async (block) => {
+        blocks.map(async (block, index) => {
           const source =
             block.querySelector('.mermaid-source')?.textContent ??
             block.querySelector('details pre code')?.textContent ??
             '';
-          const diagram = block.querySelector<HTMLElement>('.mermaid-diagram');
-          if (!diagram) return;
+          const existingRender = mermaidRenders[index];
+          if (existingRender?.source === source) return;
           if (!source.trim()) {
-            diagram.textContent =
-              'Mermaid 미리보기를 생성하지 못했습니다. 원문이 비어 있습니다.';
-            diagram.classList.add('mermaid-diagram--error');
+            setMermaidRenders((current) => ({
+              ...current,
+              [index]: {
+                source,
+                error:
+                  'Mermaid 미리보기를 생성하지 못했습니다. 원문이 비어 있습니다.',
+              },
+            }));
             return;
           }
           try {
-            diagram.textContent = 'Mermaid 미리보기를 생성하는 중...';
             const svg = await renderMermaidDiagram(source);
             if (cancelled) return;
-            diagram.innerHTML = svg;
-            diagram.setAttribute('aria-label', 'Mermaid 다이어그램 미리보기');
+            setMermaidRenders((current) => ({
+              ...current,
+              [index]: { source, svg },
+            }));
           } catch {
             if (cancelled) return;
-            diagram.textContent =
-              'Mermaid 미리보기를 생성하지 못했습니다. 원문을 확인해 주세요.';
-            diagram.classList.add('mermaid-diagram--error');
+            setMermaidRenders((current) => ({
+              ...current,
+              [index]: {
+                source,
+                error:
+                  'Mermaid 미리보기를 생성하지 못했습니다. 원문을 확인해 주세요.',
+              },
+            }));
           }
         }),
       );
@@ -609,7 +624,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [previewHtml, selectedPath]);
+  }, [previewHtml, selectedPath, mermaidRenders]);
   const outlineItems = extractDocumentOutline(content);
 
   const rememberEditorSelection = () => {

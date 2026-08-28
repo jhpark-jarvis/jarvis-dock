@@ -480,7 +480,7 @@ test('Dock offers editor command shortcuts and renders Mermaid previews', async 
   try {
     const page = await app.firstWindow();
     const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
-    await editor.fill('!link');
+    await editor.fill('/link');
     await expect(
       page.getByRole('toolbar', { name: '문서 명령 제안' }),
     ).toBeVisible();

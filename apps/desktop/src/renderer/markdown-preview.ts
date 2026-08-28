@@ -62,6 +62,9 @@ export const renderMarkdownPreview = (
   options: {
     documentPath?: string;
     imageSources?: Readonly<Record<string, string>>;
+    mermaidRenders?: Readonly<
+      Record<number, { source: string; svg?: string; error?: string }>
+    >;
   } = {},
 ): string => {
   const renderer = new marked.Renderer();
@@ -111,6 +114,25 @@ export const renderMarkdownPreview = (
   });
   const template = document.createElement('template');
   template.innerHTML = sanitized;
+  Array.from(template.content.querySelectorAll('.mermaid-block')).forEach(
+    (block, index) => {
+      const source =
+        block.querySelector('.mermaid-source')?.textContent ??
+        block.querySelector('details pre code')?.textContent ??
+        '';
+      const render = options.mermaidRenders?.[index];
+      if (!render || render.source !== source) return;
+      const diagram = block.querySelector<HTMLElement>('.mermaid-diagram');
+      if (!diagram) return;
+      if (render.svg) {
+        diagram.innerHTML = render.svg;
+        diagram.setAttribute('aria-label', 'Mermaid 다이어그램 미리보기');
+      } else if (render.error) {
+        diagram.textContent = render.error;
+        diagram.classList.add('mermaid-diagram--error');
+      }
+    },
+  );
   for (const anchor of template.content.querySelectorAll('a')) {
     const href = anchor.getAttribute('href') ?? '';
     if (isLocalMarkdownLink(href)) {
