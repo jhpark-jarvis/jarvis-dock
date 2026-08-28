@@ -1,21 +1,26 @@
 # Dock
 
-> Markdown developer workspace
+> 로컬 Markdown 작성 중, 리서치부터 링크·이미지 삽입까지.
 
-Dock은 로컬 Markdown 기술 문서를 작성하는 동안 자료를 확인하고, 링크와 이미지를 안전한 Markdown 문법으로 삽입하도록 돕는 Electron 데스크톱 앱입니다. 문서 원본은 사용자가 선택한 로컬 폴더에 그대로 남으며, Git과 일반 파일 탐색기로 계속 관리할 수 있습니다.
+[![CI](https://github.com/jhpark-jarvis/jarvis-dock/actions/workflows/desktop-ci.yml/badge.svg)](https://github.com/jhpark-jarvis/jarvis-dock/actions/workflows/desktop-ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## 현재 제공하는 흐름
+Dock은 기술 문서를 작성하다가 브라우저와 파일 탐색기 사이를 오가는 시간을 줄이는 로컬 우선(Local-first) Electron 워크스페이스다. 문서는 사용자가 선택한 폴더에 그대로 저장되고, 검색 결과와 이미지는 필요한 순간에만 안전한 Markdown으로 들어간다.
 
-- document workspace 선택, Markdown 목록 조회·생성·열기·UTF-8 저장
-- 안전한 Markdown 미리보기와 document workspace 내부 상대 링크 이동
-- `/link`으로 별도 Research View에서 Google 검색 시작
-  - 실험적 로컬 범위에서 렌더링된 결과의 제목·HTTPS URL 카드 최대 10개 표시
-  - 카드 선택 또는 현재 페이지 링크를 현재 커서 위치에 Markdown으로 삽입
-- `/image`으로 Wikimedia Commons 이미지 검색, 출처·라이선스 확인, 검증된 다운로드와 `assets/` 저장, 상대 경로 Markdown 삽입
+## 핵심 경험
+
+| 흐름 | Dock에서 처리하는 일 |
+| --- | --- |
+| 문서 작성 | 로컬 폴더 선택 → Markdown 열기·생성·편집·저장 |
+| 링크 리서치 | `/link` → Research View에서 검색 → 결과 카드 또는 현재 페이지를 커서 위치에 삽입 |
+| 이미지 리서치 | `/image` → Wikimedia Commons 검색 → 출처·라이선스 확인 → `assets/` 저장 및 삽입 |
+| 문서 탐색 | Markdown 미리보기, 상대 링크 이동, 문서 개요, 이미지 자산 패널 |
+
+링크와 이미지 삽입은 Editor의 현재 선택 영역을 보존한다. 저장된 원본은 document workspace 내부에서만 관리하며, 미리보기는 검증된 로컬 자산만 읽는다.
 
 ## 빠른 시작
 
-요구 사항: Node.js `22.12.0` 이상, npm, Windows 개발 환경의 Electron 실행 가능 상태입니다.
+요구 사항: Node.js `22.12.0+`, npm
 
 ```powershell
 git clone https://github.com/jhpark-jarvis/jarvis-dock.git
@@ -24,42 +29,57 @@ npm ci
 npm run dev
 ```
 
-최상위 디렉터리는 npm workspace 명령의 실행 지점이며, 데스크톱 앱은 `apps/desktop`에 있습니다. 앱별 `package-lock.json`을 만들지 않습니다.
+최상위 디렉터리는 npm workspace 명령의 실행 지점이고, 데스크톱 앱은 [`apps/desktop`](apps/desktop)에 있다. 하위 `package-lock.json`은 만들지 않는다.
 
-## 주요 명령
+## 개발 명령
 
 ```powershell
-npm run check       # typecheck, lint, format check, unit/component/contract tests
-npm run test:e2e    # packaged bundle 기반 Electron E2E
-npm run test:smoke  # Windows packaged executable smoke
-npm run package     # Electron Forge package
+npm run check       # typecheck, lint, format, unit/component/IPC contract tests
+npm run test:e2e    # Electron packaged bundle E2E
+npm run test:smoke  # Windows packaged executable smoke test
+npm run package     # Electron 앱 패키징
 npm run make        # 설치 패키지 생성
 ```
 
-2026-08-22 기준 `npm run check`은 60개 테스트, `npm run test:e2e`는 5개 시나리오를 통과했습니다. Windows x64 packaged smoke도 통과했으며, macOS와 Linux 패키징 검증은 아직 남아 있습니다.
+현재 검증 기준:
 
-## 보안과 데이터 경계
+- `npm run check`: 89개 테스트 통과
+- `npm run test:e2e`: 12개 시나리오 통과
+- Windows x64 packaged smoke 및 installer 생성 통과
+- macOS/Linux package 검증은 CI에서 수행하며, runtime GUI 검증은 릴리스 전 항목
 
-Dock은 Main, Preload, Renderer를 분리합니다. Renderer는 Node.js·Electron·파일 시스템에 직접 접근하지 못하며, 기능별 `window.dock` API와 런타임 IPC 검증만 사용합니다.
+## 설계 원칙
 
-- document workspace 밖 경로, `..`, symbolic link 우회 차단
-- Markdown raw HTML과 위험한 URL scheme 차단
-- Research View에서 permission·popup·download 거부, 원격 페이지에 Dock API 미노출
-- 링크 카드는 제목과 검증된 HTTPS URL만 Renderer에 전달
-- 이미지 다운로드에서 HTTPS host, redirect, timeout, 10 MiB, MIME, magic bytes, 저장 경로 검증
+```text
+Renderer UI  →  좁은 Preload API  →  Main 권한 경계  →  파일 시스템·외부 콘텐츠
+```
 
-`/link` 카드 추출은 일반 배포 기능이 아닌 실험적 로컬 기능입니다. 원본 HTML·DOM·cookie·request header는 저장하거나 Renderer로 전달하지 않습니다. Google 결과의 selector와 locale 차이는 아직 수동 검증 대상이며, 카드가 비어 있으면 현재 Research View 페이지 링크 삽입을 사용할 수 있습니다.
+- Renderer에는 Node.js, Electron, 파일 시스템 권한을 노출하지 않는다.
+- 모든 IPC 입력과 외부 URL을 런타임 검증한다.
+- document workspace 바깥의 경로, `..`, symbolic link 우회를 차단한다.
+- Markdown raw HTML과 위험한 URL scheme을 미리보기에서 제거한다.
+- Research View의 원격 페이지는 별도 격리 영역에서 실행하고, Renderer에는 사용자가 선택한 제목과 검증된 HTTPS URL만 전달한다.
+- 이미지 다운로드는 HTTPS, redirect, timeout, MIME, magic bytes, 파일 크기, 저장 경로를 검증한다.
+
+## Research View의 범위
+
+`/link`의 Google 결과 카드 추출은 현재 실험적 로컬 기능이다. Google의 `Sorry` 차단, selector 변경, locale 차이로 카드가 비어 있을 수 있으며, 이 경우 Research View에서 현재 페이지 링크를 직접 삽입할 수 있다. 사용자 Chrome 프로필 복제나 User-Agent 위조는 사용하지 않는다.
 
 ## 프로젝트 구조
 
 ```text
 jarvis-dock/
-├─ apps/desktop/   # Electron + React 앱
-├─ packages/       # 향후 공유 패키지 예약
-├─ plugins/        # MVP 이후 plugin 영역 예약
-└─ scripts/        # 저장소 자동화 영역 예약
+├─ apps/desktop/   # Electron + React 데스크톱 앱
+├─ docs/           # 제품·아키텍처·보안·테스트·ADR
+├─ packages/       # 공유 패키지 예약 영역
+├─ plugins/        # 확장 기능 예약 영역
+└─ scripts/        # 저장소 자동화 예약 영역
 ```
+
+## 개발
+
+변경 후 `npm run check`를 실행하고, 영향받는 기능은 패키징·E2E 검증까지 확인한다. 앱 소스는 [`apps/desktop`](apps/desktop)에 있으며 모든 npm 명령은 저장소 루트에서 실행한다.
 
 ## 라이선스
 
-오픈소스 공개를 목표로 하지만, 아직 루트 `LICENSE` 파일과 최종 라이선스 결정이 없습니다. 라이선스가 확정되기 전에는 공개 릴리스를 만들지 않습니다.
+[MIT License](LICENSE) · Copyright (c) 2026 jhpark-jarvis
