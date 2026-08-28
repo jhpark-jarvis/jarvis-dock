@@ -32,6 +32,10 @@ import {
   extractDocumentOutline,
   type DocumentOutlineItem,
 } from './document-outline';
+import {
+  diagnoseMarkdownDocument,
+  type DocumentDiagnostic,
+} from './document-diagnostics';
 
 export type ShellState = 'empty' | 'error' | 'loading';
 
@@ -125,6 +129,18 @@ const ArchitectureIcon = () => (
     <circle cx="5" cy="18" r="2.25" />
     <circle cx="19" cy="18" r="2.25" />
     <path d="M12 7.25v4.5M10.4 12.8 6.7 16M13.6 12.8l3.7 3.2" />
+  </svg>
+);
+
+const DiagnosticsIcon = () => (
+  <svg
+    aria-hidden="true"
+    className="activity-bar__icon"
+    viewBox="0 0 24 24"
+    focusable="false"
+  >
+    <path d="M12 3.5 20 7v5.25c0 4.2-2.8 7.2-8 8.25-5.2-1.05-8-4.05-8-8.25V7z" />
+    <path d="M12 8v4.5M12 16h.01" strokeWidth="2.25" />
   </svg>
 );
 
@@ -271,8 +287,19 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     'idle',
   );
   const [assetRefreshKey, setAssetRefreshKey] = useState(0);
+  const [diagnosticAssetPaths, setDiagnosticAssetPaths] = useState<Set<string>>(
+    new Set(),
+  );
+  const [diagnosticsStatus, setDiagnosticsStatus] = useState<
+    'idle' | 'loading' | 'error'
+  >('idle');
   const [workspacePanel, setWorkspacePanel] = useState<
-    'explorer' | 'outline' | 'assets' | 'architecture' | undefined
+    | 'explorer'
+    | 'outline'
+    | 'assets'
+    | 'architecture'
+    | 'diagnostics'
+    | undefined
   >('explorer');
 
   useEffect(() => {
@@ -414,6 +441,42 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         setAssets([]);
         setAssetSources({});
         setAssetStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assetRefreshKey, workspaceId, workspacePanel]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!workspaceId || workspacePanel !== 'diagnostics') {
+      setDiagnosticAssetPaths(new Set());
+      setDiagnosticsStatus('idle');
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setDiagnosticsStatus('loading');
+    void window.dock.image
+      .list({ workspaceId })
+      .then((response) => {
+        if (cancelled) return;
+        if (response.ok === false) {
+          setDiagnosticAssetPaths(new Set());
+          setDiagnosticsStatus('error');
+          return;
+        }
+        setDiagnosticAssetPaths(
+          new Set(response.value.assets.map((asset) => asset.assetPath)),
+        );
+        setDiagnosticsStatus('idle');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDiagnosticAssetPaths(new Set());
+        setDiagnosticsStatus('error');
       });
 
     return () => {
@@ -563,6 +626,15 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   };
 
   const dirty = content !== savedContent;
+  const documentDiagnostics: DocumentDiagnostic[] = selectedPath
+    ? diagnoseMarkdownDocument({
+        documentPath: selectedPath,
+        content,
+        workspacePaths: new Set(files.map((file) => file.relativePath)),
+        assetPaths: diagnosticAssetPaths,
+        mermaidRenders,
+      })
+    : [];
   const previewHtml = selectedPath
     ? renderMarkdownPreview(content, {
         documentPath: selectedPath,
@@ -642,11 +714,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     return editorSelectionRef.current;
   };
 
-  const moveEditorToOutlineItem = (item: DocumentOutlineItem) => {
+  const moveEditorToLine = (line: number) => {
     const editor = editorRef.current;
     if (!editor) return;
     let lineStart = 0;
-    for (let line = 0; line < item.line; line += 1) {
+    for (let currentLine = 1; currentLine < line; currentLine += 1) {
       const newlineIndex = content.indexOf('\n', lineStart);
       if (newlineIndex < 0) {
         lineStart = content.length;
@@ -657,6 +729,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     editor.focus();
     editor.setSelectionRange(lineStart, lineStart);
     editorSelectionRef.current = { start: lineStart, end: lineStart };
+  };
+
+  const moveEditorToOutlineItem = (item: DocumentOutlineItem) => {
+    moveEditorToLine(item.line + 1);
   };
 
   const explorerOpen = workspacePanel === 'explorer';
@@ -2057,6 +2133,34 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                 : '프로젝트 설계 문서 열기'}
             </span>
           </button>
+          <button
+            className="activity-bar__button"
+            type="button"
+            aria-controls={workspacePanel ? 'workspace-sidebar' : undefined}
+            aria-expanded={workspacePanel === 'diagnostics'}
+            aria-label={
+              workspacePanel === 'diagnostics'
+                ? '문서 검사 닫기'
+                : '문서 검사 열기'
+            }
+            title={
+              workspacePanel === 'diagnostics'
+                ? '문서 검사 닫기'
+                : '문서 검사 열기'
+            }
+            onClick={() =>
+              setWorkspacePanel((panel) =>
+                panel === 'diagnostics' ? undefined : 'diagnostics',
+              )
+            }
+          >
+            <DiagnosticsIcon />
+            <span className="visually-hidden">
+              {workspacePanel === 'diagnostics'
+                ? '문서 검사 닫기'
+                : '문서 검사 열기'}
+            </span>
+          </button>
         </nav>
 
         <div
@@ -2289,6 +2393,95 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                         title="이미지 자산이 없습니다."
                         description="assets 폴더에 PNG, JPEG, WebP 파일을 추가하면 여기에 표시됩니다."
                       />
+                    )}
+                  </div>
+                </>
+              ) : workspacePanel === 'diagnostics' ? (
+                <>
+                  <div className="panel-heading">
+                    <div>
+                      <p className="panel-heading__eyebrow">DOCUMENT CHECK</p>
+                      <h2 id="workspace-title">문서 검사</h2>
+                    </div>
+                    <div className="panel-heading__actions">
+                      <button
+                        className="button button--quiet"
+                        type="button"
+                        onClick={() =>
+                          setAssetRefreshKey((current) => current + 1)
+                        }
+                        disabled={diagnosticsStatus === 'loading'}
+                      >
+                        새로고침
+                      </button>
+                      <button
+                        className="button button--quiet"
+                        type="button"
+                        aria-label="문서 검사 닫기"
+                        onClick={() => setWorkspacePanel(undefined)}
+                      >
+                        닫기
+                      </button>
+                    </div>
+                  </div>
+                  <div className="workspace-sidebar__body diagnostics-panel">
+                    <p className="diagnostics-panel__description">
+                      현재 문서의 링크·이미지·제목·Mermaid 상태를 확인합니다.
+                    </p>
+                    {!workspaceId || !selectedPath ? (
+                      <EmptyStateChip
+                        title="검사할 문서가 없습니다."
+                        description="문서 폴더와 Markdown 문서를 선택하면 검사 결과가 표시됩니다."
+                      />
+                    ) : diagnosticsStatus === 'loading' ? (
+                      <p className="workspace-state" role="status">
+                        문서 검사에 필요한 이미지 목록을 불러오고 있습니다.
+                      </p>
+                    ) : diagnosticsStatus === 'error' ? (
+                      <p
+                        className="workspace-state workspace-state--error"
+                        role="alert"
+                      >
+                        이미지 목록을 불러오지 못해 일부 검사 결과가 제한됩니다.
+                      </p>
+                    ) : documentDiagnostics.length === 0 ? (
+                      <EmptyStateChip
+                        title="문제 없음"
+                        description="현재 문서에서 확인할 문제를 찾지 못했습니다."
+                      />
+                    ) : (
+                      <ul
+                        className="diagnostics-list"
+                        aria-label="문서 검사 결과"
+                      >
+                        {documentDiagnostics.map((diagnostic, index) => (
+                          <li
+                            className={`diagnostics-list__item diagnostics-list__item--${diagnostic.severity}`}
+                            key={`${diagnostic.code}-${diagnostic.line ?? 'document'}-${index}`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                diagnostic.line &&
+                                moveEditorToLine(diagnostic.line)
+                              }
+                              disabled={!diagnostic.line}
+                            >
+                              <span>
+                                {diagnostic.severity === 'error'
+                                  ? '오류'
+                                  : diagnostic.severity === 'warning'
+                                    ? '경고'
+                                    : '정보'}
+                              </span>
+                              <strong>{diagnostic.message}</strong>
+                              {diagnostic.line && (
+                                <small>{diagnostic.line}행으로 이동</small>
+                              )}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
                 </>

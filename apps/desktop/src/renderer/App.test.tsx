@@ -58,6 +58,11 @@ describe('App', () => {
     ).toHaveFocus();
 
     await user.tab();
+    expect(
+      screen.getByRole('button', { name: '문서 검사 열기' }),
+    ).toHaveFocus();
+
+    await user.tab();
     expect(screen.getByRole('button', { name: '폴더 선택' })).toHaveFocus();
 
     await user.tab();
@@ -202,6 +207,65 @@ describe('App', () => {
     ).toBeVisible();
     expect(screen.getByRole('button', { name: '정합성 점검' })).toBeDisabled();
     expect(screen.getByText('선택된 폴더가 없습니다.')).toBeVisible();
+  });
+
+  it('shows document diagnostics and moves to the reported line', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [{ relativePath: 'guide.md', displayName: 'guide.md' }],
+            },
+          }),
+        },
+        document: {
+          read: async () => ({
+            ok: true as const,
+            value: {
+              relativePath: 'guide.md',
+              content:
+                '# Guide\n\n[Missing](./missing.md)\n![ ](./assets/missing.png)',
+            },
+          }),
+        },
+        image: {
+          list: async () => ({
+            ok: true as const,
+            value: {
+              assets: [] as Array<{ assetPath: string; displayName: string }>,
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    await user.click(await screen.findByRole('button', { name: 'guide.md' }));
+    await user.click(screen.getByRole('button', { name: '문서 검사 열기' }));
+
+    expect(
+      await screen.findByText('문서 링크 대상을 찾을 수 없습니다: missing.md'),
+    ).toBeVisible();
+    expect(
+      screen.getByText('이미지 파일을 찾을 수 없습니다: assets/missing.png'),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: /3행으로 이동/ }));
+    expect(
+      screen.getByRole('textbox', { name: 'Markdown 편집기' }),
+    ).toHaveProperty('selectionStart', 9);
   });
 
   it('opens image assets and inserts an existing asset at the editor selection', async () => {
