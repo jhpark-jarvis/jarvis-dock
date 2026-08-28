@@ -9,6 +9,7 @@ import {
   ImageDownloadRequestSchema,
   ImageDownloadResultEnvelopeSchema,
   ImageAssetListResultEnvelopeSchema,
+  DocumentWriteRequestSchema,
   ResearchOpenResultEnvelopeSchema,
   VersionResultSchema,
 } from './ipc';
@@ -102,6 +103,25 @@ describe('IPC contract schemas', () => {
         },
       }).success,
     ).toBe(true);
+  });
+
+  it('accepts an optional document revision for conflict-safe saves', () => {
+    expect(
+      DocumentWriteRequestSchema.safeParse({
+        workspaceId: '11111111-1111-4111-8111-111111111111',
+        relativePath: 'guide.md',
+        content: '# Guide',
+        expectedRevision: 'a'.repeat(64),
+      }).success,
+    ).toBe(true);
+    expect(
+      DocumentWriteRequestSchema.safeParse({
+        workspaceId: '11111111-1111-4111-8111-111111111111',
+        relativePath: 'guide.md',
+        content: '# Guide',
+        expectedRevision: 'stale',
+      }).success,
+    ).toBe(false);
   });
 
   it('accepts only bounded workspace image asset listings', () => {

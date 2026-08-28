@@ -41,6 +41,11 @@ import {
   searchMarkdownDocuments,
   type WorkspaceSearchResult,
 } from './workspace-search';
+import {
+  DOCUMENT_TEMPLATES,
+  getDocumentTemplate,
+  type DocumentTemplateId,
+} from './document-templates';
 
 export type ShellState = 'empty' | 'error' | 'loading';
 
@@ -222,12 +227,15 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
   const [selectedPath, setSelectedPath] = useState<string>();
   const [content, setContent] = useState('');
+  const [documentRevision, setDocumentRevision] = useState<string>();
   const [editorCommandSuggestion, setEditorCommandSuggestion] = useState<
     EditorCommandSuggestion | undefined
   >();
   const [savedContent, setSavedContent] = useState('');
   const [saveError, setSaveError] = useState('');
   const [newDocumentPath, setNewDocumentPath] = useState('untitled.md');
+  const [newDocumentTemplate, setNewDocumentTemplate] =
+    useState<DocumentTemplateId>('blank');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [activeCommand, setActiveCommand] = useState<
     'link' | 'image' | 'architecture' | 'adr'
@@ -574,6 +582,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setWorkspaceName(chosen.value.displayName);
     setSelectedPath(undefined);
     setContent('');
+    setDocumentRevision(undefined);
     setSavedContent('');
     setSaveError('');
     setAssets([]);
@@ -618,6 +627,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setSelectedPath(relativePath);
     setContent(result.value.content);
     setSavedContent(result.value.content);
+    setDocumentRevision(result.value.revision);
     editorSelectionRef.current = {
       start: result.value.content.length,
       end: result.value.content.length,
@@ -641,9 +651,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       workspaceId,
       relativePath: selectedPath,
       content,
+      ...(documentRevision ? { expectedRevision: documentRevision } : {}),
     });
     if (result.ok) {
       setSavedContent(content);
+      setDocumentRevision(result.value.revision);
       setSaveError('');
       if (shouldDeleteAssets) {
         const cleanupResults = await Promise.all(
@@ -665,7 +677,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         }
       }
     } else {
-      setSaveError('문서를 저장하지 못했습니다. 편집 내용은 유지됩니다.');
+      setSaveError(
+        result.ok === false && result.error.code === 'WRITE_CONFLICT'
+          ? '문서가 외부에서 변경되었습니다. 다시 불러온 뒤 저장해 주세요.'
+          : '문서를 저장하지 못했습니다. 편집 내용은 유지됩니다.',
+      );
     }
   };
 
@@ -685,13 +701,32 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       setState('error');
       return;
     }
+    const templateContent = getDocumentTemplate(newDocumentTemplate);
+    let createdRevision = result.value.revision;
+    if (templateContent) {
+      const written = await window.dock.document.write({
+        workspaceId,
+        relativePath,
+        content: templateContent,
+      });
+      if (!written.ok) {
+        setState('error');
+        return;
+      }
+      createdRevision = written.value.revision;
+    }
     if (!(await refreshFiles(workspaceId))) return;
     setSelectedPath(relativePath);
-    setContent('');
-    setSavedContent('');
-    editorSelectionRef.current = { start: 0, end: 0 };
+    setContent(templateContent);
+    setSavedContent(templateContent);
+    setDocumentRevision(createdRevision);
+    editorSelectionRef.current = {
+      start: templateContent.length,
+      end: templateContent.length,
+    };
     setSaveError('');
     setNewDocumentPath('');
+    setNewDocumentTemplate('blank');
     setState('empty');
   };
 
@@ -2339,6 +2374,25 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                             }
                             placeholder="notes/today.md"
                           />
+                          <label htmlFor="new-document-template">
+                            문서 템플릿
+                          </label>
+                          <select
+                            id="new-document-template"
+                            className="workspace-create__input"
+                            value={newDocumentTemplate}
+                            onChange={(event) =>
+                              setNewDocumentTemplate(
+                                event.target.value as DocumentTemplateId,
+                              )
+                            }
+                          >
+                            {DOCUMENT_TEMPLATES.map((template) => (
+                              <option key={template.id} value={template.id}>
+                                {template.label}
+                              </option>
+                            ))}
+                          </select>
                           <button
                             className="button button--quiet"
                             type="submit"

@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type {
   WorkspaceFile,
   WorkspaceSummary,
@@ -90,14 +90,21 @@ const collectMarkdownFiles = async (
 export const listMarkdownFiles = (root: string): Promise<WorkspaceFile[]> =>
   collectMarkdownFiles(root, root);
 
+export const getDocumentRevision = (content: string): string =>
+  createHash('sha256').update(content, 'utf8').digest('hex');
+
 export const readDocument = async (
   absolutePath: string,
   relativePath: string,
-): Promise<DocumentData> => ({
-  relativePath,
-  content: await fs.readFile(absolutePath, 'utf8'),
-  encoding: 'utf-8',
-});
+): Promise<DocumentData> => {
+  const content = await fs.readFile(absolutePath, 'utf8');
+  return {
+    relativePath,
+    content,
+    encoding: 'utf-8',
+    revision: getDocumentRevision(content),
+  };
+};
 
 const writeAtomically = async (
   absolutePath: string,
@@ -134,6 +141,7 @@ export const createDocument = (
     relativePath,
     bytesWritten,
     savedAt: new Date().toISOString(),
+    revision: getDocumentRevision(''),
   }));
 
 export const createDocumentWithContent = (
@@ -145,6 +153,7 @@ export const createDocumentWithContent = (
     relativePath,
     bytesWritten,
     savedAt: new Date().toISOString(),
+    revision: getDocumentRevision(content),
   }));
 
 export const writeDocument = (
@@ -156,4 +165,5 @@ export const writeDocument = (
     relativePath,
     bytesWritten,
     savedAt: new Date().toISOString(),
+    revision: getDocumentRevision(content),
   }));

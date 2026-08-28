@@ -179,4 +179,44 @@ describe('registerWorkspaceHandlers', () => {
       await fs.rm(root, { recursive: true, force: true });
     }
   });
+
+  it('rejects a save when the document changed outside Dock', async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'jarvis-dock-handler-write-conflict-'),
+    );
+    await fs.writeFile(path.join(root, 'note.md'), '# Before', 'utf8');
+    const { invoke } = createHarness(root);
+    const chosen = (await invoke(IPC.WORKSPACE_CHOOSE, {})) as {
+      value: { workspaceId: string };
+    };
+
+    try {
+      const read = (await invoke(IPC.DOCUMENT_READ, {
+        workspaceId: chosen.value.workspaceId,
+        relativePath: 'note.md',
+      })) as { value: { revision: string } };
+      await fs.writeFile(path.join(root, 'note.md'), '# Outside', 'utf8');
+
+      await expect(
+        invoke(IPC.DOCUMENT_WRITE, {
+          workspaceId: chosen.value.workspaceId,
+          relativePath: 'note.md',
+          content: '# After',
+          expectedRevision: read.value.revision,
+        }),
+      ).resolves.toEqual({
+        ok: false,
+        error: {
+          code: 'WRITE_CONFLICT',
+          message:
+            'The document changed outside Dock. Reload it before saving.',
+        },
+      });
+      await expect(
+        fs.readFile(path.join(root, 'note.md'), 'utf8'),
+      ).resolves.toBe('# Outside');
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
 });

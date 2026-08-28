@@ -42,6 +42,7 @@ export const DockErrorSchema = z
       'PATH_OUTSIDE_WORKSPACE',
       'UNSUPPORTED_FILE',
       'NOT_FOUND',
+      'WRITE_CONFLICT',
       'PERMISSION_DENIED',
       'WRITE_FAILED',
       'SEARCH_FAILED',
@@ -118,13 +119,16 @@ export const DocumentDataSchema = z
     relativePath: RelativeMarkdownPathSchema,
     content: z.string(),
     encoding: z.literal('utf-8'),
+    revision: z.string().regex(/^[a-f0-9]{64}$/),
   })
   .strict();
+export const DocumentRevisionSchema = z.string().regex(/^[a-f0-9]{64}$/);
 export const WriteResultSchema = z
   .object({
     relativePath: RelativeMarkdownPathSchema,
     bytesWritten: z.number().int().nonnegative(),
     savedAt: z.string().datetime(),
+    revision: DocumentRevisionSchema,
   })
   .strict();
 
@@ -173,6 +177,7 @@ export const DocumentRequestSchema = z
   .strict();
 export const DocumentWriteRequestSchema = DocumentRequestSchema.extend({
   content: z.string().max(5_000_000),
+  expectedRevision: DocumentRevisionSchema.optional(),
 }).strict();
 const hasUnsafeControlCharacter = (value: string): boolean =>
   [...value].some((character) => {

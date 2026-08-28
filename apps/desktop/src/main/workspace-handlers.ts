@@ -1,5 +1,5 @@
 import type { IpcMain, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
-import { mkdir, realpath } from 'node:fs/promises';
+import { mkdir, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import {
   DocumentRequestSchema,
@@ -23,6 +23,7 @@ import {
   registerWorkspace,
   resolveWorkspacePath,
   writeDocument,
+  getDocumentRevision,
   type WorkspaceStore,
 } from './workspace-service';
 
@@ -271,6 +272,21 @@ export const registerWorkspaceHandlers = ({
             'Only Markdown documents are supported.',
           ),
         });
+      const expectedRevision = create
+        ? undefined
+        : (parsed as { expectedRevision?: string }).expectedRevision;
+      if (expectedRevision) {
+        const currentContent = await readFile(resolved.absolutePath, 'utf8');
+        if (getDocumentRevision(currentContent) !== expectedRevision) {
+          return WriteResultEnvelopeSchema.parse({
+            ok: false,
+            error: error(
+              'WRITE_CONFLICT',
+              'The document changed outside Dock. Reload it before saving.',
+            ),
+          });
+        }
+      }
       const value = create
         ? await createDocument(resolved.absolutePath, parsed.relativePath)
         : await documentWriter(

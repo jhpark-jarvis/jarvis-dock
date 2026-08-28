@@ -55,6 +55,7 @@ describe('workspace service', () => {
       relativePath: 'note.md',
       content: 'updated',
       encoding: 'utf-8',
+      revision: expect.any(String),
     });
   });
 

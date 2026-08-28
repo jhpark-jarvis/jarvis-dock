@@ -801,10 +801,21 @@ describe('App', () => {
     });
     await user.clear(newDocumentPath);
     await user.type(newDocumentPath, 'new-note.md');
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: '문서 템플릿' }),
+      'technical-note',
+    );
     await user.click(screen.getByRole('button', { name: '새 문서 생성' }));
     expect(
       await screen.findByRole('button', { name: 'new-note.md' }),
     ).toBeInTheDocument();
+    expect(
+      (
+        screen.getByRole('textbox', {
+          name: 'Markdown 편집기',
+        }) as HTMLTextAreaElement
+      ).value,
+    ).toContain('# 기술 노트 제목');
     await user.click(screen.getByRole('button', { name: 'today.md' }));
     expect(await screen.findByDisplayValue('# Today')).toBeInTheDocument();
     await user.type(
