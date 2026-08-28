@@ -24,6 +24,7 @@ export const IPC = {
   IMAGE_READ_ASSET: 'image:read-asset',
   IMAGE_DELETE_ASSET: 'image:delete-asset',
   IMAGE_SAVE_CLIPBOARD: 'image:save-clipboard',
+  ARCHITECTURE_CREATE_PROJECT: 'architecture:create-project',
 } as const;
 
 export const EmptyRequestSchema = z.object({}).strict();
@@ -55,6 +56,8 @@ export const DockErrorSchema = z
       'IMAGE_TOO_LARGE',
       'IMAGE_UNSUPPORTED',
       'IMAGE_UNAVAILABLE',
+      'ARCHITECTURE_CONFLICT',
+      'ARCHITECTURE_CREATE_FAILED',
       'INTERNAL',
     ]),
     message: z.string(),
@@ -169,6 +172,60 @@ export const DocumentRequestSchema = z
 export const DocumentWriteRequestSchema = DocumentRequestSchema.extend({
   content: z.string().max(5_000_000),
 }).strict();
+const hasUnsafeControlCharacter = (value: string): boolean =>
+  [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return (
+      (code < 32 && code !== 9 && code !== 10 && code !== 13) || code === 127
+    );
+  });
+const ArchitectureTextSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(1_000)
+  .refine(
+    (value) => !hasUnsafeControlCharacter(value),
+    'control characters are not allowed',
+  );
+const ArchitectureOptionalTextSchema = z
+  .string()
+  .trim()
+  .max(500)
+  .refine(
+    (value) => !hasUnsafeControlCharacter(value),
+    'control characters are not allowed',
+  );
+export const ArchitectureCreateProjectRequestSchema = z
+  .object({
+    workspaceId: WorkspaceIdSchema,
+    projectName: ArchitectureTextSchema.max(120),
+    purpose: ArchitectureTextSchema.max(1_000),
+    techStack: ArchitectureOptionalTextSchema.optional().default(''),
+  })
+  .strict();
+export const ArchitectureDocumentResultSchema = z
+  .object({
+    relativePath: RelativeMarkdownPathSchema,
+    bytesWritten: z.number().int().positive(),
+  })
+  .strict();
+export const ArchitectureCreateProjectResultSchema = z
+  .object({
+    projectName: z.string().min(1).max(120),
+    files: z.array(ArchitectureDocumentResultSchema).length(5),
+  })
+  .strict();
+export const ArchitectureCreateProjectResultEnvelopeSchema =
+  z.discriminatedUnion('ok', [
+    z
+      .object({
+        ok: z.literal(true),
+        value: ArchitectureCreateProjectResultSchema,
+      })
+      .strict(),
+    z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+  ]);
 export const ResearchOpenRequestSchema = z
   .object({ query: z.string().trim().min(1).max(200) })
   .strict();
@@ -362,6 +419,12 @@ export type WorkspaceOpenFolderResultEnvelope = z.infer<
 export type WorkspaceFilesResult = z.infer<typeof WorkspaceFilesResultSchema>;
 export type DocumentResult = z.infer<typeof DocumentResultSchema>;
 export type WriteResultEnvelope = z.infer<typeof WriteResultEnvelopeSchema>;
+export type ArchitectureCreateProjectRequest = z.infer<
+  typeof ArchitectureCreateProjectRequestSchema
+>;
+export type ArchitectureCreateProjectResultEnvelope = z.infer<
+  typeof ArchitectureCreateProjectResultEnvelopeSchema
+>;
 export type ResearchOpenResult = z.infer<typeof ResearchOpenResultSchema>;
 export type ResearchSearchResult = z.infer<typeof ResearchSearchResultSchema>;
 export type ResearchOpenResultEnvelope = z.infer<
@@ -438,6 +501,11 @@ export interface DockApi {
       relativePath: string;
       content: string;
     }) => Promise<WriteResultEnvelope>;
+  };
+  architecture: {
+    createProject: (
+      request: ArchitectureCreateProjectRequest,
+    ) => Promise<ArchitectureCreateProjectResultEnvelope>;
   };
   research: {
     open: (request: { query: string }) => Promise<ResearchOpenResultEnvelope>;

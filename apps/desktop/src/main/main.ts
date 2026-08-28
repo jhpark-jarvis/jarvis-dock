@@ -35,6 +35,7 @@ import { registerImageDownloadHandlers } from './image-download-handlers';
 import { registerImageAssetHandlers } from './image-asset-handlers';
 import { WIKIMEDIA_IMAGE_HOSTS } from './image-search-service';
 import { registerWorkspaceHandlers } from './workspace-handlers';
+import { registerArchitectureWorkspaceHandlers } from './architecture-workspace-handlers';
 import { createWorkspaceStore, type WorkspaceStore } from './workspace-service';
 import type { ImageDownloadResult } from '../shared/ipc';
 
@@ -343,6 +344,12 @@ const registerIpcHandlers = () => {
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
     openPath: (folderPath) => shell.openPath(folderPath),
+  });
+  registerArchitectureWorkspaceHandlers({
+    ipcMain,
+    store: workspaceStore,
+    isTrustedSender: (senderUrl) =>
+      isTrustedRendererUrl(senderUrl, getRendererUrl()),
   });
   registerResearchHandlers({
     ipcMain,

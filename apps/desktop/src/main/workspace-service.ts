@@ -136,6 +136,17 @@ export const createDocument = (
     savedAt: new Date().toISOString(),
   }));
 
+export const createDocumentWithContent = (
+  absolutePath: string,
+  relativePath: string,
+  content: string,
+): Promise<WriteResult> =>
+  writeAtomically(absolutePath, content, 'wx').then((bytesWritten) => ({
+    relativePath,
+    bytesWritten,
+    savedAt: new Date().toISOString(),
+  }));
+
 export const writeDocument = (
   absolutePath: string,
   relativePath: string,

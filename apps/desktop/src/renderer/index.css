@@ -773,6 +773,34 @@ input:focus-visible {
   color: #e7edf5;
 }
 
+.architecture-purpose {
+  min-height: 5rem;
+  resize: vertical;
+  font: inherit;
+}
+
+.architecture-file-preview {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.75rem;
+  border: 1px solid #2b3b54;
+  border-radius: 0.5rem;
+  background: #0b1220;
+  color: #aebed1;
+  font-size: 0.78rem;
+}
+
+.architecture-file-preview strong {
+  color: #e7edf5;
+  font-size: 0.8rem;
+}
+
+.architecture-file-preview code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .file-list {
   display: grid;
   gap: 0.3rem;

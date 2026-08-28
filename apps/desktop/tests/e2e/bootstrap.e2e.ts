@@ -250,6 +250,48 @@ test('Dock selects, creates, saves, and reopens a document workspace after relau
   }
 });
 
+test('Dock initializes an Architecture Workspace without overwriting existing documents', async () => {
+  const workspaceRoot = mkdtempSync(
+    path.join(os.tmpdir(), 'dock-e2e-architecture-workspace-'),
+  );
+  const app = await launchDock(['--dock-e2e-document'], {
+    DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot,
+  });
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: '폴더 선택' }).click();
+    await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
+    await page.getByRole('button', { name: /Architecture Workspace/ }).click();
+    await page.getByLabel('프로젝트명').fill('Dock');
+    await page
+      .getByLabel('프로젝트 목적')
+      .fill('로컬 Markdown 기술 문서를 작성하고 관리합니다.');
+    await page.getByLabel('주요 기술 스택').fill('Electron, React, TypeScript');
+    await page.getByRole('button', { name: '문서 세트 생성' }).click();
+
+    await expect(
+      page.getByRole('heading', { name: 'docs/architecture/arc42.md' }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'arc42.md' })).toBeVisible();
+    expect(
+      readFileSync(
+        path.join(workspaceRoot, 'docs/architecture/c4-context.md'),
+        'utf8',
+      ),
+    ).toContain('C4Context');
+    expect(
+      readFileSync(
+        path.join(workspaceRoot, 'docs/adr/0001-initial-architecture.md'),
+        'utf8',
+      ),
+    ).toContain('Dock 초기 아키텍처 문서 세트');
+  } finally {
+    await app.close();
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test('Dock starts with a narrow preload API and no Renderer Node.js globals', async () => {
   const app = await launchDock();
 
@@ -277,6 +319,7 @@ test('Dock starts with a narrow preload API and no Renderer Node.js globals', as
       'system',
       'workspace',
       'document',
+      'architecture',
       'research',
       'image',
     ]);

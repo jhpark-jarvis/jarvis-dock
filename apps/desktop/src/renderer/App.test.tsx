@@ -216,7 +216,9 @@ describe('App', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('button', { name: '닫기' })).toHaveFocus();
     await user.keyboard('{Shift>}{Tab}{/Shift}');
-    expect(screen.getByRole('button', { name: /\/image/ })).toHaveFocus();
+    expect(
+      screen.getByRole('button', { name: /Architecture Workspace/ }),
+    ).toHaveFocus();
     await user.keyboard('{Tab}');
     expect(screen.getByRole('button', { name: '닫기' })).toHaveFocus();
     await user.keyboard('{Escape}');
@@ -238,6 +240,24 @@ describe('App', () => {
     rerender(<App state="error" />);
     expect(screen.getByRole('alert')).toHaveTextContent(
       '문서 목록을 불러오지 못했습니다.',
+    );
+  });
+
+  it('opens the Architecture Workspace initializer from the command palette', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
+    await user.click(
+      screen.getByRole('button', { name: /Architecture Workspace/ }),
+    );
+
+    expect(screen.getByLabelText('프로젝트명')).toBeVisible();
+    expect(screen.getByLabelText('프로젝트 목적')).toBeVisible();
+    expect(screen.getByText('docs/architecture/arc42.md')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: '문서 세트 생성' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '먼저 문서 폴더를 선택해 주세요.',
     );
   });
 

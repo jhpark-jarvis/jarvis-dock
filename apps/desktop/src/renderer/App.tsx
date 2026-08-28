@@ -144,7 +144,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [saveError, setSaveError] = useState('');
   const [newDocumentPath, setNewDocumentPath] = useState('untitled.md');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [activeCommand, setActiveCommand] = useState<'link' | 'image'>();
+  const [activeCommand, setActiveCommand] = useState<
+    'link' | 'image' | 'architecture'
+  >();
   const [linkQuery, setLinkQuery] = useState('');
   const [linkStatus, setLinkStatus] = useState<
     'idle' | 'search' | 'opening' | 'error'
@@ -174,6 +176,13 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [imageThumbnailErrors, setImageThumbnailErrors] = useState<
     Record<string, boolean>
   >({});
+  const [architectureProjectName, setArchitectureProjectName] = useState('');
+  const [architecturePurpose, setArchitecturePurpose] = useState('');
+  const [architectureTechStack, setArchitectureTechStack] = useState('');
+  const [architectureStatus, setArchitectureStatus] = useState<
+    'idle' | 'creating' | 'error'
+  >('idle');
+  const [architectureError, setArchitectureError] = useState('');
   const [previewImageSources, setPreviewImageSources] = useState<
     Record<string, string>
   >({});
@@ -547,6 +556,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setSelectedImage(undefined);
     setImageAltText('');
     setImageThumbnailErrors({});
+    setArchitectureProjectName('');
+    setArchitecturePurpose('');
+    setArchitectureTechStack('');
+    setArchitectureStatus('idle');
+    setArchitectureError('');
     setCommandPaletteOpen(true);
   };
 
@@ -565,7 +579,48 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setSelectedImage(undefined);
     setImageAltText('');
     setImageThumbnailErrors({});
+    setArchitectureStatus('idle');
+    setArchitectureError('');
     commandTriggerRef.current?.focus();
+  };
+
+  const createArchitectureWorkspace = async () => {
+    if (!workspaceId) {
+      setArchitectureError('먼저 문서 폴더를 선택해 주세요.');
+      setArchitectureStatus('error');
+      return;
+    }
+    setArchitectureStatus('creating');
+    setArchitectureError('');
+    try {
+      const response = await window.dock.architecture.createProject({
+        workspaceId,
+        projectName: architectureProjectName,
+        purpose: architecturePurpose,
+        techStack: architectureTechStack,
+      });
+      if (response.ok === false) {
+        setArchitectureError(
+          response.error.code === 'ARCHITECTURE_CONFLICT'
+            ? '생성 대상 문서가 이미 있습니다. 기존 문서는 덮어쓰지 않습니다.'
+            : response.error.code === 'WORKSPACE_NOT_SELECTED'
+              ? '먼저 문서 폴더를 선택해 주세요.'
+              : '프로젝트 문서 세트를 생성하지 못했습니다.',
+        );
+        setArchitectureStatus('error');
+        return;
+      }
+      if (!(await refreshFiles(workspaceId))) {
+        setArchitectureError('생성된 문서 목록을 갱신하지 못했습니다.');
+        setArchitectureStatus('error');
+        return;
+      }
+      await openDocument('docs/architecture/arc42.md');
+      closeCommandPalette();
+    } catch {
+      setArchitectureError('프로젝트 문서 세트를 생성하지 못했습니다.');
+      setArchitectureStatus('error');
+    }
   };
 
   const openLinkSearch = async () => {
@@ -1113,6 +1168,18 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   <strong>/image</strong>
                   <span>이미지 검색 및 삽입</span>
                 </button>
+                <button
+                  className="command-item"
+                  type="button"
+                  onClick={() => {
+                    setActiveCommand('architecture');
+                    setArchitectureStatus('idle');
+                    setArchitectureError('');
+                  }}
+                >
+                  <strong>Architecture Workspace</strong>
+                  <span>arc42·C4·ADR 프로젝트 문서 세트 초기화</span>
+                </button>
               </div>
             ) : activeCommand === 'link' ? (
               <div className="link-search-form">
@@ -1149,7 +1216,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   취소
                 </button>
               </div>
-            ) : (
+            ) : activeCommand === 'image' ? (
               <form
                 className="link-search-form"
                 onSubmit={(event) => {
@@ -1191,6 +1258,75 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   취소
                 </button>
               </form>
+            ) : (
+              <form
+                className="link-search-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void createArchitectureWorkspace();
+                }}
+              >
+                <p className="dialog-message">
+                  선택한 문서 폴더에 아키텍처 문서 초안을 생성합니다. 기존
+                  파일은 덮어쓰지 않습니다.
+                </p>
+                <label htmlFor="architecture-project-name">프로젝트명</label>
+                <input
+                  id="architecture-project-name"
+                  className="workspace-create__input"
+                  value={architectureProjectName}
+                  onChange={(event) =>
+                    setArchitectureProjectName(event.target.value)
+                  }
+                  placeholder="예: Dock"
+                  autoFocus
+                />
+                <label htmlFor="architecture-purpose">프로젝트 목적</label>
+                <textarea
+                  id="architecture-purpose"
+                  className="workspace-create__input architecture-purpose"
+                  value={architecturePurpose}
+                  onChange={(event) =>
+                    setArchitecturePurpose(event.target.value)
+                  }
+                  placeholder="예: 로컬 Markdown 기술 문서를 작성하고 관리합니다."
+                  rows={3}
+                />
+                <label htmlFor="architecture-tech-stack">주요 기술 스택</label>
+                <input
+                  id="architecture-tech-stack"
+                  className="workspace-create__input"
+                  value={architectureTechStack}
+                  onChange={(event) =>
+                    setArchitectureTechStack(event.target.value)
+                  }
+                  placeholder="예: Electron, React, TypeScript"
+                />
+                <div className="architecture-file-preview">
+                  <strong>생성 파일</strong>
+                  <code>docs/architecture/arc42.md</code>
+                  <code>docs/architecture/c4-context.md</code>
+                  <code>docs/architecture/c4-container.md</code>
+                  <code>docs/adr/README.md</code>
+                  <code>docs/adr/0001-initial-architecture.md</code>
+                </div>
+                <div className="link-search-form__row">
+                  <button
+                    className="button button--primary"
+                    type="submit"
+                    disabled={architectureStatus === 'creating'}
+                  >
+                    문서 세트 생성
+                  </button>
+                  <button
+                    className="button button--quiet"
+                    type="button"
+                    onClick={closeCommandPalette}
+                  >
+                    취소
+                  </button>
+                </div>
+              </form>
             )}
 
             {activeCommand === 'link' && linkStatus === 'opening' && (
@@ -1222,6 +1358,21 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                 {imageError}
               </p>
             )}
+            {activeCommand === 'architecture' &&
+              architectureStatus === 'creating' && (
+                <p className="dialog-message" role="status">
+                  프로젝트 문서 세트를 생성하고 있습니다.
+                </p>
+              )}
+            {activeCommand === 'architecture' &&
+              architectureStatus === 'error' && (
+                <p
+                  className="dialog-message dialog-message--error"
+                  role="alert"
+                >
+                  {architectureError}
+                </p>
+              )}
             {activeCommand === 'image' &&
               imageStatus === 'selected' &&
               selectedImage && (

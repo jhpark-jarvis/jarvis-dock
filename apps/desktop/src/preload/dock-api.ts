@@ -35,6 +35,8 @@ import {
   WorkspaceFilesResultSchema,
   WorkspaceRequestSchema,
   WriteResultEnvelopeSchema,
+  ArchitectureCreateProjectRequestSchema,
+  ArchitectureCreateProjectResultEnvelopeSchema,
   type DocumentResult,
   type WorkspaceChooseResult,
   type WorkspaceOpenFolderResultEnvelope,
@@ -50,6 +52,7 @@ import {
   type ImageAssetListResultEnvelope,
   type ImageAssetDeleteResultEnvelope,
   type ImageSearchResultEnvelope,
+  type ArchitectureCreateProjectResultEnvelope,
 } from '../shared/ipc';
 
 export interface IpcInvoker {
@@ -156,6 +159,25 @@ const invokeDocumentWrite = async (
     };
   const result = WriteResultEnvelopeSchema.safeParse(
     await ipcRenderer.invoke(channel, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
+const invokeArchitectureCreateProject = async (
+  ipcRenderer: IpcInvoker,
+  request: unknown,
+): Promise<ArchitectureCreateProjectResultEnvelope> => {
+  const parsed = ArchitectureCreateProjectRequestSchema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = ArchitectureCreateProjectResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(IPC.ARCHITECTURE_CREATE_PROJECT, parsed.data),
   );
   return result.success ? result.data : { ok: false, error: internalError() };
 };
@@ -385,6 +407,10 @@ export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
     },
     write: (request) =>
       invokeDocumentWrite(ipcRenderer, IPC.DOCUMENT_WRITE, request),
+  },
+  architecture: {
+    createProject: (request) =>
+      invokeArchitectureCreateProject(ipcRenderer, request),
   },
   research: {
     open: (request) => invokeResearchOpen(ipcRenderer, request),
