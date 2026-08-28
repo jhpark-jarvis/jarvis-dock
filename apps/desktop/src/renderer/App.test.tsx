@@ -43,6 +43,9 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '탐색기' })).toHaveFocus();
 
     await user.tab();
+    expect(screen.getByRole('button', { name: '검색 열기' })).toHaveFocus();
+
+    await user.tab();
     expect(
       screen.getByRole('button', { name: '문서 개요 열기' }),
     ).toHaveFocus();
@@ -266,6 +269,62 @@ describe('App', () => {
     expect(
       screen.getByRole('textbox', { name: 'Markdown 편집기' }),
     ).toHaveProperty('selectionStart', 9);
+  });
+
+  it('searches the workspace and opens a matching document at its result line', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [
+                { relativePath: 'guide.md', displayName: 'guide.md' },
+                { relativePath: 'notes.md', displayName: 'notes.md' },
+              ],
+            },
+          }),
+        },
+        document: {
+          read: async ({ relativePath }: { relativePath: string }) => ({
+            ok: true as const,
+            value: {
+              relativePath,
+              content:
+                relativePath === 'notes.md'
+                  ? '# Notes\n\nDock search target'
+                  : '# Guide',
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    await user.click(screen.getByRole('button', { name: '검색 열기' }));
+    await user.type(
+      screen.getByRole('textbox', { name: '문서 검색 또는 빠른 열기' }),
+      'target',
+    );
+
+    const result = await screen.findByRole('button', {
+      name: /notes\.md.*3행.*Dock search target/,
+    });
+    await user.click(result);
+
+    expect(
+      screen.getByRole('textbox', { name: 'Markdown 편집기' }),
+    ).toHaveValue('# Notes\n\nDock search target');
   });
 
   it('opens image assets and inserts an existing asset at the editor selection', async () => {

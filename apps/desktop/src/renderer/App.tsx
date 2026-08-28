@@ -36,6 +36,11 @@ import {
   diagnoseMarkdownDocument,
   type DocumentDiagnostic,
 } from './document-diagnostics';
+import {
+  filterWorkspaceFiles,
+  searchMarkdownDocuments,
+  type WorkspaceSearchResult,
+} from './workspace-search';
 
 export type ShellState = 'empty' | 'error' | 'loading';
 
@@ -141,6 +146,18 @@ const DiagnosticsIcon = () => (
   >
     <path d="M12 3.5 20 7v5.25c0 4.2-2.8 7.2-8 8.25-5.2-1.05-8-4.05-8-8.25V7z" />
     <path d="M12 8v4.5M12 16h.01" strokeWidth="2.25" />
+  </svg>
+);
+
+const SearchIcon = () => (
+  <svg
+    aria-hidden="true"
+    className="activity-bar__icon"
+    viewBox="0 0 24 24"
+    focusable="false"
+  >
+    <circle cx="10.75" cy="10.75" r="6.25" />
+    <path d="m15.5 15.5 4.75 4.75" />
   </svg>
 );
 
@@ -293,8 +310,16 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [diagnosticsStatus, setDiagnosticsStatus] = useState<
     'idle' | 'loading' | 'error'
   >('idle');
+  const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState('');
+  const [workspaceSearchStatus, setWorkspaceSearchStatus] = useState<
+    'idle' | 'loading'
+  >('idle');
+  const [workspaceSearchResults, setWorkspaceSearchResults] = useState<
+    WorkspaceSearchResult[]
+  >([]);
   const [workspacePanel, setWorkspacePanel] = useState<
     | 'explorer'
+    | 'search'
     | 'outline'
     | 'assets'
     | 'architecture'
@@ -450,6 +475,48 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
 
   useEffect(() => {
     let cancelled = false;
+    const query = workspaceSearchQuery.trim();
+    if (!workspaceId || workspacePanel !== 'search' || !query) {
+      setWorkspaceSearchResults([]);
+      setWorkspaceSearchStatus('idle');
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setWorkspaceSearchStatus('loading');
+    void Promise.all(
+      files.map(async (file) => {
+        try {
+          const response = await window.dock.document.read({
+            workspaceId,
+            relativePath: file.relativePath,
+          });
+          return response.ok
+            ? {
+                relativePath: file.relativePath,
+                content: response.value.content,
+              }
+            : null;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((documents) => {
+      if (cancelled) return;
+      setWorkspaceSearchResults(
+        searchMarkdownDocuments(documents.filter(Boolean), query),
+      );
+      setWorkspaceSearchStatus('idle');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [files, workspaceId, workspacePanel, workspaceSearchQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
     if (!workspaceId || workspacePanel !== 'diagnostics') {
       setDiagnosticAssetPaths(new Set());
       setDiagnosticsStatus('idle');
@@ -513,6 +580,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setAssetSources({});
     setAssetStatus('idle');
     setWorkspaceFolderError('');
+    setWorkspaceSearchQuery('');
+    setWorkspaceSearchResults([]);
+    setWorkspaceSearchStatus('idle');
     if (!(await refreshFiles(chosen.value.workspaceId))) return;
     setState('empty');
   };
@@ -635,6 +705,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         mermaidRenders,
       })
     : [];
+  const quickOpenFiles = filterWorkspaceFiles(files, workspaceSearchQuery);
   const previewHtml = selectedPath
     ? renderMarkdownPreview(content, {
         documentPath: selectedPath,
@@ -2057,6 +2128,24 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             className="activity-bar__button"
             type="button"
             aria-controls={workspacePanel ? 'workspace-sidebar' : undefined}
+            aria-expanded={workspacePanel === 'search'}
+            aria-label={workspacePanel === 'search' ? '검색 닫기' : '검색 열기'}
+            title={workspacePanel === 'search' ? '검색 닫기' : '검색 열기'}
+            onClick={() =>
+              setWorkspacePanel((panel) =>
+                panel === 'search' ? undefined : 'search',
+              )
+            }
+          >
+            <SearchIcon />
+            <span className="visually-hidden">
+              {workspacePanel === 'search' ? '검색 닫기' : '검색 열기'}
+            </span>
+          </button>
+          <button
+            className="activity-bar__button"
+            type="button"
+            aria-controls={workspacePanel ? 'workspace-sidebar' : undefined}
             aria-expanded={workspacePanel === 'outline'}
             aria-label={
               workspacePanel === 'outline' ? '문서 개요 닫기' : '문서 개요 열기'
@@ -2275,6 +2364,104 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                       </ul>
                     ) : (
                       <WorkspaceState state={state} />
+                    )}
+                  </div>
+                </>
+              ) : workspacePanel === 'search' ? (
+                <>
+                  <div className="panel-heading">
+                    <div>
+                      <p className="panel-heading__eyebrow">WORKSPACE SEARCH</p>
+                      <h2 id="workspace-title">검색</h2>
+                    </div>
+                    <button
+                      className="button button--quiet"
+                      type="button"
+                      aria-label="검색 닫기"
+                      onClick={() => setWorkspacePanel(undefined)}
+                    >
+                      닫기
+                    </button>
+                  </div>
+                  <div className="workspace-sidebar__body workspace-search-panel">
+                    <label htmlFor="workspace-search-query">
+                      문서 검색 또는 빠른 열기
+                    </label>
+                    <input
+                      id="workspace-search-query"
+                      className="workspace-create__input"
+                      value={workspaceSearchQuery}
+                      onChange={(event) =>
+                        setWorkspaceSearchQuery(event.target.value)
+                      }
+                      placeholder="파일명 또는 문서 내용 검색"
+                      autoFocus
+                    />
+                    {!workspaceId ? (
+                      <EmptyStateChip
+                        title="선택된 폴더가 없습니다."
+                        description="문서 폴더를 선택하면 파일과 문서 내용을 검색할 수 있습니다."
+                      />
+                    ) : !workspaceSearchQuery.trim() ? (
+                      quickOpenFiles.length > 0 ? (
+                        <ul
+                          className="file-list"
+                          aria-label="빠른 열기 파일 목록"
+                        >
+                          {quickOpenFiles.map((file) => (
+                            <li key={file.relativePath}>
+                              <button
+                                className="file-list__item"
+                                type="button"
+                                onClick={() =>
+                                  void openDocument(file.relativePath)
+                                }
+                              >
+                                {file.relativePath}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <WorkspaceState state={state} />
+                      )
+                    ) : workspaceSearchStatus === 'loading' ? (
+                      <p className="workspace-state" role="status">
+                        문서를 검색하고 있습니다.
+                      </p>
+                    ) : workspaceSearchResults.length > 0 ? (
+                      <ul
+                        className="workspace-search-results"
+                        aria-label="문서 검색 결과"
+                      >
+                        {workspaceSearchResults.map((result) => (
+                          <li key={`${result.relativePath}:${result.line}`}>
+                            <button
+                              className="workspace-search-result"
+                              type="button"
+                              onClick={() => {
+                                void openDocument(result.relativePath).then(
+                                  () => {
+                                    window.setTimeout(
+                                      () => moveEditorToLine(result.line),
+                                      0,
+                                    );
+                                  },
+                                );
+                              }}
+                            >
+                              <strong>{result.relativePath}</strong>
+                              <span>
+                                {result.line}행 · {result.snippet}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="workspace-state" role="status">
+                        일치하는 문서가 없습니다.
+                      </p>
                     )}
                   </div>
                 </>
