@@ -527,7 +527,8 @@ test('Dock keeps an actual Research View isolated and blocks privileged actions'
         true,
       );
       const popupTabOpened = await new Promise<boolean>((resolve) => {
-        setTimeout(() => {
+        const deadline = Date.now() + 1_000;
+        const checkPopupTab = () => {
           const popupTab = mainWindow?.contentView.children.find((child) => {
             const candidate = child as unknown as {
               webContents?: { getURL: () => string };
@@ -536,8 +537,13 @@ test('Dock keeps an actual Research View isolated and blocks privileged actions'
               candidate.webContents?.getURL() === 'https://popup.e2e.test/'
             );
           });
-          resolve(Boolean(popupTab));
-        }, 100);
+          if (popupTab || Date.now() >= deadline) {
+            resolve(Boolean(popupTab));
+            return;
+          }
+          setTimeout(checkPopupTab, 50);
+        };
+        checkPopupTab();
       });
       const permissionDenied = await webContents.executeJavaScript(
         `new Promise((resolve) => {
