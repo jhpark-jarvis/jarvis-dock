@@ -808,6 +808,68 @@ input:focus-visible {
   white-space: nowrap;
 }
 
+.architecture-panel {
+  gap: 0.8rem;
+}
+
+.architecture-panel__description {
+  margin: 0;
+  color: #aebed1;
+  line-height: 1.5;
+}
+
+.architecture-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.architecture-file-list {
+  display: grid;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.architecture-file-list__item {
+  display: grid;
+  width: 100%;
+  gap: 0.2rem;
+  border: 1px solid #2b3b54;
+  border-radius: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  background: #0b1220;
+  color: #e7edf5;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.architecture-file-list__item:hover,
+.architecture-file-list__item:focus-visible {
+  border-color: #7dd3fc;
+  background: #17263b;
+}
+
+.architecture-file-list__item:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.architecture-file-list__item code {
+  overflow: hidden;
+  color: #8da2bd;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.architecture-file-list__item small {
+  color: #86efac;
+  font-size: 0.7rem;
+}
+
 .architecture-check {
   display: grid;
   gap: 0.55rem;

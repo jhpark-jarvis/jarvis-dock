@@ -292,6 +292,18 @@ test('Dock initializes an Architecture Workspace without overwriting existing do
     await expect(page.getByRole('status')).toContainText(
       '문서 세트가 정상입니다.',
     );
+    await page.getByRole('button', { name: '취소' }).click();
+    await page.getByRole('button', { name: '아키텍처 문서 열기' }).click();
+    await expect(
+      page.getByRole('complementary', { name: '아키텍처 문서' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: /arc42 아키텍처/ }).click();
+    await expect(
+      page.getByRole('heading', { name: 'docs/architecture/arc42.md' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /ADR 0001-initial-architecture/ }),
+    ).toBeVisible();
   } finally {
     await app.close();
     rmSync(workspaceRoot, { recursive: true, force: true });

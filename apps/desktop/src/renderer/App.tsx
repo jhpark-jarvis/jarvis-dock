@@ -108,6 +108,28 @@ const AssetsIcon = () => (
   </svg>
 );
 
+const ArchitectureIcon = () => (
+  <svg
+    aria-hidden="true"
+    className="activity-bar__icon"
+    viewBox="0 0 24 24"
+    focusable="false"
+  >
+    <circle cx="12" cy="5" r="2.25" />
+    <circle cx="5" cy="18" r="2.25" />
+    <circle cx="19" cy="18" r="2.25" />
+    <path d="M12 7.25v4.5M10.4 12.8 6.7 16M13.6 12.8l3.7 3.2" />
+  </svg>
+);
+
+const ARCHITECTURE_FILE_ITEMS = [
+  { path: 'docs/architecture/arc42.md', label: 'arc42 아키텍처' },
+  { path: 'docs/architecture/c4-context.md', label: 'C4 Context' },
+  { path: 'docs/architecture/c4-container.md', label: 'C4 Container' },
+  { path: 'docs/architecture/c4-component.md', label: 'C4 Component' },
+  { path: 'docs/adr/README.md', label: 'ADR Index' },
+] as const;
+
 const trapDialogFocus = (event: KeyboardEvent<HTMLElement>): void => {
   if (event.key !== 'Tab') return;
   const focusable = Array.from(
@@ -217,7 +239,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   );
   const [assetRefreshKey, setAssetRefreshKey] = useState(0);
   const [workspacePanel, setWorkspacePanel] = useState<
-    'explorer' | 'outline' | 'assets' | undefined
+    'explorer' | 'outline' | 'assets' | 'architecture' | undefined
   >('explorer');
 
   useEffect(() => {
@@ -544,6 +566,19 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   };
 
   const explorerOpen = workspacePanel === 'explorer';
+  const architectureFileItems = [
+    ...ARCHITECTURE_FILE_ITEMS,
+    ...files
+      .filter(
+        (file) =>
+          file.relativePath.startsWith('docs/adr/') &&
+          file.relativePath !== 'docs/adr/README.md',
+      )
+      .map((file) => ({
+        path: file.relativePath,
+        label: `ADR ${file.displayName.replace(/\.md$/i, '')}`,
+      })),
+  ];
 
   const setResearchViewVisibility = useCallback(
     (visible: boolean) => {
@@ -596,6 +631,16 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setAdrCreateStatus('idle');
     setAdrError('');
     setCommandPaletteOpen(true);
+  };
+
+  const openArchitectureInitializer = () => {
+    openCommandPalette();
+    setActiveCommand('architecture');
+  };
+
+  const openAdrComposer = () => {
+    openCommandPalette();
+    setActiveCommand('adr');
   };
 
   const closeCommandPalette = () => {
@@ -1776,6 +1821,34 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                 : '이미지 자산 열기'}
             </span>
           </button>
+          <button
+            className="activity-bar__button"
+            type="button"
+            aria-controls={workspacePanel ? 'workspace-sidebar' : undefined}
+            aria-expanded={workspacePanel === 'architecture'}
+            aria-label={
+              workspacePanel === 'architecture'
+                ? '아키텍처 문서 닫기'
+                : '아키텍처 문서 열기'
+            }
+            title={
+              workspacePanel === 'architecture'
+                ? '아키텍처 문서 닫기'
+                : '아키텍처 문서 열기'
+            }
+            onClick={() =>
+              setWorkspacePanel((panel) =>
+                panel === 'architecture' ? undefined : 'architecture',
+              )
+            }
+          >
+            <ArchitectureIcon />
+            <span className="visually-hidden">
+              {workspacePanel === 'architecture'
+                ? '아키텍처 문서 닫기'
+                : '아키텍처 문서 열기'}
+            </span>
+          </button>
         </nav>
 
         <div
@@ -1936,7 +2009,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                     )}
                   </div>
                 </>
-              ) : (
+              ) : workspacePanel === 'assets' ? (
                 <>
                   <div className="panel-heading">
                     <div>
@@ -2008,6 +2081,129 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                         title="이미지 자산이 없습니다."
                         description="assets 폴더에 PNG, JPEG, WebP 파일을 추가하면 여기에 표시됩니다."
                       />
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="panel-heading">
+                    <div>
+                      <p className="panel-heading__eyebrow">
+                        ARCHITECTURE WORKSPACE
+                      </p>
+                      <h2 id="workspace-title">아키텍처 문서</h2>
+                    </div>
+                    <button
+                      className="button button--quiet"
+                      type="button"
+                      aria-label="아키텍처 문서 닫기"
+                      onClick={() => setWorkspacePanel(undefined)}
+                    >
+                      닫기
+                    </button>
+                  </div>
+                  <div className="workspace-sidebar__body architecture-panel">
+                    <p className="architecture-panel__description">
+                      arc42·C4·ADR 문서를 한곳에서 열고 정합성을 점검합니다.
+                    </p>
+                    <div className="architecture-panel__actions">
+                      <button
+                        className="button button--primary"
+                        type="button"
+                        onClick={openArchitectureInitializer}
+                      >
+                        문서 세트 초기화
+                      </button>
+                      <button
+                        className="button button--quiet"
+                        type="button"
+                        onClick={openAdrComposer}
+                        disabled={!workspaceId}
+                      >
+                        ADR 작성
+                      </button>
+                      <button
+                        className="button button--quiet"
+                        type="button"
+                        onClick={() => void checkArchitectureWorkspace()}
+                        disabled={
+                          !workspaceId || architectureCheckStatus === 'checking'
+                        }
+                      >
+                        정합성 점검
+                      </button>
+                    </div>
+                    {!workspaceId ? (
+                      <EmptyStateChip
+                        title="선택된 폴더가 없습니다."
+                        description="문서 폴더를 선택하면 아키텍처 문서가 여기에 표시됩니다."
+                      />
+                    ) : (
+                      <ul
+                        className="architecture-file-list"
+                        aria-label="아키텍처 문서 목록"
+                      >
+                        {architectureFileItems.map((item) => {
+                          const file = files.find(
+                            (candidate) => candidate.relativePath === item.path,
+                          );
+                          return (
+                            <li key={item.path}>
+                              <button
+                                className="architecture-file-list__item"
+                                type="button"
+                                disabled={!file}
+                                onClick={() =>
+                                  file && openDocument(file.relativePath)
+                                }
+                              >
+                                <span>{item.label}</span>
+                                <code>{item.path}</code>
+                                <small>{file ? '열기' : '없음'}</small>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                    {architectureCheckStatus === 'checking' && (
+                      <p className="workspace-state" role="status">
+                        아키텍처 문서 정합성을 점검하고 있습니다.
+                      </p>
+                    )}
+                    {architectureCheckStatus === 'complete' && (
+                      <div className="architecture-check" role="status">
+                        <strong>
+                          {architectureCheckPassed
+                            ? '문서 세트가 정상입니다.'
+                            : '보완이 필요한 문서가 있습니다.'}
+                        </strong>
+                        <ul aria-label="아키텍처 문서 점검 결과">
+                          {architectureCheckFiles.map((file) => (
+                            <li key={file.relativePath}>
+                              <code>{file.relativePath}</code>
+                              <span>
+                                {file.status === 'present'
+                                  ? '정상'
+                                  : file.status === 'missing'
+                                    ? '없음'
+                                    : '확인 필요'}
+                              </span>
+                              {file.issues.length > 0 && (
+                                <small>{file.issues.join(' ')}</small>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {architectureCheckStatus === 'error' && (
+                      <p
+                        className="workspace-state workspace-state--error"
+                        role="alert"
+                      >
+                        아키텍처 문서 정합성을 점검하지 못했습니다.
+                      </p>
                     )}
                   </div>
                 </>

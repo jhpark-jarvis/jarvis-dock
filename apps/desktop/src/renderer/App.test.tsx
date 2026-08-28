@@ -47,6 +47,11 @@ describe('App', () => {
     ).toHaveFocus();
 
     await user.tab();
+    expect(
+      screen.getByRole('button', { name: '아키텍처 문서 열기' }),
+    ).toHaveFocus();
+
+    await user.tab();
     expect(screen.getByRole('button', { name: '폴더 선택' })).toHaveFocus();
 
     await user.tab();
@@ -133,6 +138,24 @@ describe('App', () => {
     expect(editor).toHaveFocus();
     expect(editor).toHaveProperty('selectionStart', 21);
     expect(editor).toHaveProperty('selectionEnd', 21);
+  });
+
+  it('opens the architecture document panel from the Activity Bar', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(
+      screen.getByRole('button', { name: '아키텍처 문서 열기' }),
+    );
+
+    expect(
+      screen.getByRole('complementary', { name: '아키텍처 문서' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: '문서 세트 초기화' }),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: '정합성 점검' })).toBeDisabled();
+    expect(screen.getByText('선택된 폴더가 없습니다.')).toBeVisible();
   });
 
   it('opens image assets and inserts an existing asset at the editor selection', async () => {
