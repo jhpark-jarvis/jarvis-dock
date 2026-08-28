@@ -34,6 +34,10 @@ const createHarness = () => {
             relativePath: 'docs/architecture/c4-container.md' as const,
             bytesWritten: 10,
           },
+          {
+            relativePath: 'docs/architecture/c4-component.md' as const,
+            bytesWritten: 10,
+          },
           { relativePath: 'docs/adr/README.md' as const, bytesWritten: 10 },
           {
             relativePath: 'docs/adr/0001-initial-architecture.md' as const,

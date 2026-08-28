@@ -214,7 +214,7 @@ export const ArchitectureDocumentResultSchema = z
 export const ArchitectureCreateProjectResultSchema = z
   .object({
     projectName: z.string().min(1).max(120),
-    files: z.array(ArchitectureDocumentResultSchema).length(5),
+    files: z.array(ArchitectureDocumentResultSchema).length(6),
   })
   .strict();
 export const ArchitectureCreateProjectResultEnvelopeSchema =
@@ -240,7 +240,7 @@ export const ArchitectureCheckFileSchema = z
 export const ArchitectureCheckProjectResultSchema = z
   .object({
     passed: z.boolean(),
-    files: z.array(ArchitectureCheckFileSchema).length(5),
+    files: z.array(ArchitectureCheckFileSchema).length(6),
   })
   .strict();
 export const ArchitectureCheckProjectResultEnvelopeSchema =

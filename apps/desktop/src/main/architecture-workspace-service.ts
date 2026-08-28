@@ -10,6 +10,7 @@ export const ARCHITECTURE_DOCUMENTS = [
   'docs/architecture/arc42.md',
   'docs/architecture/c4-context.md',
   'docs/architecture/c4-container.md',
+  'docs/architecture/c4-component.md',
   'docs/adr/README.md',
   'docs/adr/0001-initial-architecture.md',
 ] as const;
@@ -73,7 +74,7 @@ ${purpose}
 
 ## 5. 빌딩 블록 뷰
 
-현재 단계에서는 Context와 Container 수준을 우선 기록합니다. Component 수준의 분해가 필요해지면 별도 문서와 ADR을 추가합니다.
+Context·Container·Component 수준의 구조를 각각의 C4 문서에서 관리합니다.
 
 ## 6. 런타임 뷰
 
@@ -176,6 +177,43 @@ Rel(docs, git, "변경 이력 관리")
     },
     {
       relativePath: ARCHITECTURE_DOCUMENTS[3],
+      content: `# ${projectName} C4 Component
+
+## 목적
+
+Container 내부의 책임과 주요 컴포넌트 간 협력을 구체화합니다.
+
+## Component 뷰
+
+\`\`\`mermaid
+C4Component
+title ${projectName} Application Component 뷰
+
+Container_Boundary(app, "Application") {
+  Component(entry, "Entry Point", "사용자 요청을 받는 진입점")
+  Component(core, "Core Flow", "핵심 사용자 흐름을 조정하는 컴포넌트")
+  Component(storage, "Document Storage", "문서와 결정을 저장하는 컴포넌트")
+}
+
+Rel(entry, core, "요청 전달")
+Rel(core, storage, "문서 읽기·쓰기")
+\`\`\`
+
+## Component 책임
+
+| Component | 책임 | 검증 방법 |
+|---|---|---|
+| Entry Point | 사용자 요청과 입력 경계 처리 | 입력 검증 테스트 |
+| Core Flow | 도메인 흐름과 책임 조정 | 핵심 사용자 여정 E2E |
+| Document Storage | 문서와 결정의 영속화 | 저장·재시작 회귀 테스트 |
+
+## 설계 메모
+
+실제 코드 모듈과 책임이 달라지면 이 문서와 관련 ADR을 함께 갱신합니다.
+`,
+    },
+    {
+      relativePath: ARCHITECTURE_DOCUMENTS[4],
       content: `# Architecture Decision Records
 
 이 디렉터리는 ${projectName}의 중요한 기술 결정을 기록합니다.
@@ -194,7 +232,7 @@ Rel(docs, git, "변경 이력 관리")
 `,
     },
     {
-      relativePath: ARCHITECTURE_DOCUMENTS[4],
+      relativePath: ARCHITECTURE_DOCUMENTS[5],
       content: `# ADR-0001: ${projectName} 초기 아키텍처 문서 세트
 
 ## 상태
@@ -210,7 +248,7 @@ ${purpose}
 ## 결정
 
 - arc42를 전체 아키텍처 설명의 기본 목차로 사용합니다.
-- C4 Context와 Container를 Mermaid가 포함된 Markdown으로 관리합니다.
+- C4 Context·Container·Component를 Mermaid가 포함된 Markdown으로 관리합니다.
 - 중요한 설계 변경은 ADR로 기록합니다.
 - 주요 기술 스택은 ${techStack}입니다.
 
@@ -326,8 +364,9 @@ const requiredContent = new Map<string, string[]>([
   ],
   [ARCHITECTURE_DOCUMENTS[1], ['```mermaid', 'C4Context']],
   [ARCHITECTURE_DOCUMENTS[2], ['```mermaid', 'C4Container']],
-  [ARCHITECTURE_DOCUMENTS[3], ['./0001-initial-architecture.md', '## Index']],
-  [ARCHITECTURE_DOCUMENTS[4], ['## 상태', '## 결정']],
+  [ARCHITECTURE_DOCUMENTS[3], ['```mermaid', 'C4Component']],
+  [ARCHITECTURE_DOCUMENTS[4], ['./0001-initial-architecture.md', '## Index']],
+  [ARCHITECTURE_DOCUMENTS[5], ['## 상태', '## 결정']],
 ]);
 
 export const checkArchitectureDocuments = async (

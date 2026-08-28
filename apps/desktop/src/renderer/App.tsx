@@ -1352,6 +1352,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   <code>docs/architecture/arc42.md</code>
                   <code>docs/architecture/c4-context.md</code>
                   <code>docs/architecture/c4-container.md</code>
+                  <code>docs/architecture/c4-component.md</code>
                   <code>docs/adr/README.md</code>
                   <code>docs/adr/0001-initial-architecture.md</code>
                 </div>
