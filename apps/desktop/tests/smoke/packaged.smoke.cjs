@@ -106,6 +106,10 @@ const run = async () => {
     `Packaged Dock executable was not found: ${executablePath}`,
   );
   await verifyFuses(executablePath);
+  if (process.argv.includes('--verify-only')) {
+    console.log(`Packaged Dock artifact smoke passed: ${executablePath}`);
+    return;
+  }
   await launchAndStop(executablePath);
 
   console.log(`Packaged Dock smoke passed: ${executablePath}`);

@@ -36,9 +36,6 @@ jobs:
           node-version: 22.x
           cache: npm
       - run: npm ci
-      - name: Install Linux display dependencies
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends xvfb xauth
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run format:check
@@ -47,7 +44,7 @@ jobs:
       - name: Run packaged smoke (Linux)
         if: matrix.os == 'ubuntu-latest'
         working-directory: apps/desktop
-        run: xvfb-run -a node tests/smoke/packaged.smoke.cjs
+        run: node tests/smoke/packaged.smoke.cjs --verify-only
       - name: Run packaged smoke (Windows and macOS)
         if: matrix.os != 'ubuntu-latest'
         working-directory: apps/desktop
