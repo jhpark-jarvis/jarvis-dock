@@ -276,7 +276,12 @@ test('Dock initializes an Architecture Workspace without overwriting existing do
     await expect(
       page.getByRole('heading', { name: 'docs/architecture/arc42.md' }),
     ).toBeVisible();
-    await expect(page.getByRole('button', { name: 'arc42.md' })).toBeVisible();
+    await expect(
+      page.getByRole('button', {
+        name: 'docs/architecture/arc42.md',
+        exact: true,
+      }),
+    ).toBeVisible();
     expect(
       readFileSync(
         path.join(workspaceRoot, 'docs/architecture/c4-context.md'),
@@ -823,7 +828,7 @@ test('Dock completes the mock /image search and keeps the document unchanged', a
     await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
     await page.getByRole('button', { name: /\/image/ }).click();
     await page.getByRole('textbox', { name: '이미지 검색어' }).fill('electron');
-    await page.getByRole('button', { name: '검색' }).click();
+    await page.getByRole('button', { name: '검색', exact: true }).click();
     await page.getByRole('button', { name: /Electron process model/ }).click();
 
     await expect(page.getByRole('status')).toContainText(
@@ -859,7 +864,7 @@ test('Dock downloads the selected image before inserting Markdown', async () => 
     await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
     await page.getByRole('button', { name: /\/image/ }).click();
     await page.getByRole('textbox', { name: '이미지 검색어' }).fill('electron');
-    await page.getByRole('button', { name: '검색' }).click();
+    await page.getByRole('button', { name: '검색', exact: true }).click();
     await expect(
       page.getByRole('img', { name: 'Electron process model 썸네일' }),
     ).toBeVisible();
