@@ -41,6 +41,14 @@ jobs:
       - run: npm run format:check
       - run: npm run test:unit
       - run: npm run package
+      - name: Run packaged smoke (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: apps/desktop
+        run: xvfb-run -a node tests/smoke/packaged.smoke.cjs
+      - name: Run packaged smoke (Windows and macOS)
+        if: matrix.os != 'ubuntu-latest'
+        working-directory: apps/desktop
+        run: node tests/smoke/packaged.smoke.cjs
 
   windows-runtime:
     name: Electron runtime regression (Windows)
@@ -55,5 +63,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:e2e
-      - run: npm run test:smoke
       - run: npm run make
