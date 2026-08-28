@@ -36,6 +36,9 @@ jobs:
           node-version: 22.x
           cache: npm
       - run: npm ci
+      - name: Install Linux display dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends xvfb xauth
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run format:check
