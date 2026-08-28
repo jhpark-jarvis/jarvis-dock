@@ -657,6 +657,19 @@ input:focus-visible {
   font-weight: 650;
 }
 
+.form-help {
+  margin: -0.3rem 0 0.15rem;
+  color: #7890ad;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.label-optional {
+  color: #7890ad;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
 .link-search-form__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -779,6 +792,10 @@ input:focus-visible {
   font: inherit;
 }
 
+.architecture-intro {
+  line-height: 1.55;
+}
+
 .adr-textarea {
   min-height: 6rem;
   resize: vertical;
@@ -795,6 +812,30 @@ input:focus-visible {
   background: #0b1220;
   color: #aebed1;
   font-size: 0.78rem;
+}
+
+.architecture-file-preview p {
+  margin: 0;
+  color: #8da2bd;
+  font-size: 0.75rem;
+}
+
+.architecture-file-preview > div {
+  display: grid;
+  gap: 0.1rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #1e2b40;
+}
+
+.architecture-file-preview > div b {
+  color: #e7edf5;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.architecture-file-preview > div span {
+  color: #aebed1;
+  font-size: 0.74rem;
 }
 
 .architecture-file-preview strong {

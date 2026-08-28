@@ -262,12 +262,15 @@ test('Dock initializes an Architecture Workspace without overwriting existing do
     const page = await app.firstWindow();
     await page.getByRole('button', { name: '폴더 선택' }).click();
     await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
-    await page.getByRole('button', { name: /Architecture Workspace/ }).click();
-    await page.getByLabel('프로젝트명').fill('Dock');
     await page
-      .getByLabel('프로젝트 목적')
+      .getByRole('dialog', { name: '명령 팔레트' })
+      .getByRole('button', { name: /프로젝트 설계 문서/ })
+      .click();
+    await page.getByLabel('프로젝트 이름').fill('Dock');
+    await page
+      .getByLabel('무엇을 만들고 있나요?')
       .fill('로컬 Markdown 기술 문서를 작성하고 관리합니다.');
-    await page.getByLabel('주요 기술 스택').fill('Electron, React, TypeScript');
+    await page.getByLabel('사용 기술').fill('Electron, React, TypeScript');
     await page.getByRole('button', { name: '문서 세트 생성' }).click();
 
     await expect(
@@ -287,17 +290,20 @@ test('Dock initializes an Architecture Workspace without overwriting existing do
       ),
     ).toContain('Dock 초기 아키텍처 문서 세트');
     await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
-    await page.getByRole('button', { name: /Architecture Workspace/ }).click();
+    await page
+      .getByRole('dialog', { name: '명령 팔레트' })
+      .getByRole('button', { name: /프로젝트 설계 문서/ })
+      .click();
     await page.getByRole('button', { name: '문서 정합성 점검' }).click();
     await expect(page.getByRole('status')).toContainText(
       '문서 세트가 정상입니다.',
     );
     await page.getByRole('button', { name: '취소' }).click();
-    await page.getByRole('button', { name: '아키텍처 문서 열기' }).click();
+    await page.getByRole('button', { name: '프로젝트 설계 문서 열기' }).click();
     await expect(
-      page.getByRole('complementary', { name: '아키텍처 문서' }),
+      page.getByRole('complementary', { name: '프로젝트 설계 문서' }),
     ).toBeVisible();
-    await page.getByRole('button', { name: /arc42 아키텍처/ }).click();
+    await page.getByRole('button', { name: /전체 아키텍처/ }).click();
     await expect(
       page.getByRole('heading', { name: 'docs/architecture/arc42.md' }),
     ).toBeVisible();

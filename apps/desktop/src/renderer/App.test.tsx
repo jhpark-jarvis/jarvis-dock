@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -48,7 +54,7 @@ describe('App', () => {
 
     await user.tab();
     expect(
-      screen.getByRole('button', { name: '아키텍처 문서 열기' }),
+      screen.getByRole('button', { name: '프로젝트 설계 문서 열기' }),
     ).toHaveFocus();
 
     await user.tab();
@@ -145,11 +151,11 @@ describe('App', () => {
     render(<App />);
 
     await user.click(
-      screen.getByRole('button', { name: '아키텍처 문서 열기' }),
+      screen.getByRole('button', { name: '프로젝트 설계 문서 열기' }),
     );
 
     expect(
-      screen.getByRole('complementary', { name: '아키텍처 문서' }),
+      screen.getByRole('complementary', { name: '프로젝트 설계 문서' }),
     ).toBeVisible();
     expect(
       screen.getByRole('button', { name: '문서 세트 초기화' }),
@@ -270,11 +276,14 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
     await user.click(
-      screen.getByRole('button', { name: /Architecture Workspace/ }),
+      within(screen.getByRole('dialog', { name: '명령 팔레트' })).getByRole(
+        'button',
+        { name: /프로젝트 설계 문서/ },
+      ),
     );
 
-    expect(screen.getByLabelText('프로젝트명')).toBeVisible();
-    expect(screen.getByLabelText('프로젝트 목적')).toBeVisible();
+    expect(screen.getByLabelText('프로젝트 이름')).toBeVisible();
+    expect(screen.getByLabelText('무엇을 만들고 있나요?')).toBeVisible();
     expect(screen.getByText('docs/architecture/arc42.md')).toBeVisible();
     await user.click(screen.getByRole('button', { name: '문서 세트 생성' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(

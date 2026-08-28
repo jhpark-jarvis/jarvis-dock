@@ -123,11 +123,31 @@ const ArchitectureIcon = () => (
 );
 
 const ARCHITECTURE_FILE_ITEMS = [
-  { path: 'docs/architecture/arc42.md', label: 'arc42 아키텍처' },
-  { path: 'docs/architecture/c4-context.md', label: 'C4 Context' },
-  { path: 'docs/architecture/c4-container.md', label: 'C4 Container' },
-  { path: 'docs/architecture/c4-component.md', label: 'C4 Component' },
-  { path: 'docs/adr/README.md', label: 'ADR Index' },
+  {
+    path: 'docs/architecture/arc42.md',
+    label: '전체 아키텍처',
+    technical: 'arc42',
+  },
+  {
+    path: 'docs/architecture/c4-context.md',
+    label: '시스템과 외부 관계',
+    technical: 'C4 Context',
+  },
+  {
+    path: 'docs/architecture/c4-container.md',
+    label: '주요 애플리케이션 구성',
+    technical: 'C4 Container',
+  },
+  {
+    path: 'docs/architecture/c4-component.md',
+    label: '구성 내부의 책임',
+    technical: 'C4 Component',
+  },
+  {
+    path: 'docs/adr/README.md',
+    label: '기술 결정 목록',
+    technical: 'ADR Index',
+  },
 ] as const;
 
 const trapDialogFocus = (event: KeyboardEvent<HTMLElement>): void => {
@@ -577,6 +597,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       .map((file) => ({
         path: file.relativePath,
         label: `ADR ${file.displayName.replace(/\.md$/i, '')}`,
+        technical: 'Architecture Decision Record',
       })),
   ];
 
@@ -1328,8 +1349,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                     setArchitectureError('');
                   }}
                 >
-                  <strong>Architecture Workspace</strong>
-                  <span>arc42·C4·ADR 프로젝트 문서 세트 초기화</span>
+                  <strong>프로젝트 설계 문서</strong>
+                  <span>
+                    Architecture Workspace · 프로젝트 구조와 기술 결정 문서
+                    초기화
+                  </span>
                 </button>
                 <button
                   className="command-item"
@@ -1431,11 +1455,12 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   void createArchitectureWorkspace();
                 }}
               >
-                <p className="dialog-message">
-                  선택한 문서 폴더에 아키텍처 문서 초안을 생성합니다. 기존
-                  파일은 덮어쓰지 않습니다.
+                <p className="dialog-message architecture-intro">
+                  프로젝트의 구조와 기술 결정을 Markdown 문서로 정리하는
+                  기능입니다. 전문 용어를 몰라도 기본 문서를 만든 뒤 내용을 채워
+                  갈 수 있습니다.
                 </p>
-                <label htmlFor="architecture-project-name">프로젝트명</label>
+                <label htmlFor="architecture-project-name">프로젝트 이름</label>
                 <input
                   id="architecture-project-name"
                   className="workspace-create__input"
@@ -1446,7 +1471,12 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   placeholder="예: Dock"
                   autoFocus
                 />
-                <label htmlFor="architecture-purpose">프로젝트 목적</label>
+                <p className="form-help">
+                  문서에 기록할 프로젝트의 이름입니다.
+                </p>
+                <label htmlFor="architecture-purpose">
+                  무엇을 만들고 있나요?
+                </label>
                 <textarea
                   id="architecture-purpose"
                   className="workspace-create__input architecture-purpose"
@@ -1454,10 +1484,15 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   onChange={(event) =>
                     setArchitecturePurpose(event.target.value)
                   }
-                  placeholder="예: 로컬 Markdown 기술 문서를 작성하고 관리합니다."
+                  placeholder="예: 팀의 기술 문서를 로컬에서 작성하고 관리합니다."
                   rows={3}
                 />
-                <label htmlFor="architecture-tech-stack">주요 기술 스택</label>
+                <p className="form-help">
+                  프로젝트가 해결하려는 문제와 목표를 적어 주세요.
+                </p>
+                <label htmlFor="architecture-tech-stack">
+                  사용 기술 <span className="label-optional">선택</span>
+                </label>
                 <input
                   id="architecture-tech-stack"
                   className="workspace-create__input"
@@ -1467,14 +1502,42 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   }
                   placeholder="예: Electron, React, TypeScript"
                 />
+                <p className="form-help">
+                  사용하는 언어, 프레임워크, 데이터베이스 등을 적어 주세요.
+                </p>
                 <div className="architecture-file-preview">
-                  <strong>생성 파일</strong>
-                  <code>docs/architecture/arc42.md</code>
-                  <code>docs/architecture/c4-context.md</code>
-                  <code>docs/architecture/c4-container.md</code>
-                  <code>docs/architecture/c4-component.md</code>
-                  <code>docs/adr/README.md</code>
-                  <code>docs/adr/0001-initial-architecture.md</code>
+                  <strong>만들어지는 문서</strong>
+                  <p>프로젝트 폴더 안에 다음 초안이 생성됩니다.</p>
+                  <div>
+                    <b>전체 아키텍처</b>
+                    <span>프로젝트의 목표와 전체 구조</span>
+                    <code>docs/architecture/arc42.md</code>
+                  </div>
+                  <div>
+                    <b>시스템과 외부 관계</b>
+                    <span>사용자·외부 서비스와의 연결</span>
+                    <code>docs/architecture/c4-context.md</code>
+                  </div>
+                  <div>
+                    <b>주요 애플리케이션 구성</b>
+                    <span>시스템을 구성하는 큰 단위</span>
+                    <code>docs/architecture/c4-container.md</code>
+                  </div>
+                  <div>
+                    <b>구성 내부의 책임</b>
+                    <span>각 단위가 맡은 역할</span>
+                    <code>docs/architecture/c4-component.md</code>
+                  </div>
+                  <div>
+                    <b>기술 결정 목록</b>
+                    <span>왜 이렇게 만들었는지 기록하는 문서</span>
+                    <code>docs/adr/README.md</code>
+                  </div>
+                  <div>
+                    <b>첫 번째 기술 결정</b>
+                    <span>프로젝트 문서 세트를 만든 이유</span>
+                    <code>docs/adr/0001-initial-architecture.md</code>
+                  </div>
                 </div>
                 <div className="link-search-form__row">
                   <button
@@ -1828,13 +1891,13 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             aria-expanded={workspacePanel === 'architecture'}
             aria-label={
               workspacePanel === 'architecture'
-                ? '아키텍처 문서 닫기'
-                : '아키텍처 문서 열기'
+                ? '프로젝트 설계 문서 닫기'
+                : '프로젝트 설계 문서 열기'
             }
             title={
               workspacePanel === 'architecture'
-                ? '아키텍처 문서 닫기'
-                : '아키텍처 문서 열기'
+                ? '프로젝트 설계 문서 닫기'
+                : '프로젝트 설계 문서 열기'
             }
             onClick={() =>
               setWorkspacePanel((panel) =>
@@ -1845,8 +1908,8 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             <ArchitectureIcon />
             <span className="visually-hidden">
               {workspacePanel === 'architecture'
-                ? '아키텍처 문서 닫기'
-                : '아키텍처 문서 열기'}
+                ? '프로젝트 설계 문서 닫기'
+                : '프로젝트 설계 문서 열기'}
             </span>
           </button>
         </nav>
@@ -2091,12 +2154,12 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                       <p className="panel-heading__eyebrow">
                         ARCHITECTURE WORKSPACE
                       </p>
-                      <h2 id="workspace-title">아키텍처 문서</h2>
+                      <h2 id="workspace-title">프로젝트 설계 문서</h2>
                     </div>
                     <button
                       className="button button--quiet"
                       type="button"
-                      aria-label="아키텍처 문서 닫기"
+                      aria-label="프로젝트 설계 문서 닫기"
                       onClick={() => setWorkspacePanel(undefined)}
                     >
                       닫기
@@ -2136,7 +2199,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                     {!workspaceId ? (
                       <EmptyStateChip
                         title="선택된 폴더가 없습니다."
-                        description="문서 폴더를 선택하면 아키텍처 문서가 여기에 표시됩니다."
+                        description="문서 폴더를 선택하면 프로젝트 설계 문서가 여기에 표시됩니다."
                       />
                     ) : (
                       <ul
@@ -2158,6 +2221,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                                 }
                               >
                                 <span>{item.label}</span>
+                                <small>{item.technical}</small>
                                 <code>{item.path}</code>
                                 <small>{file ? '열기' : '없음'}</small>
                               </button>
