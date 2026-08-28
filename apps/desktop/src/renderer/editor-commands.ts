@@ -6,7 +6,7 @@ export interface EditorCommandSuggestion {
   end: number;
 }
 
-const commandPattern = /(?:^|\s)(!link|!image)$/;
+const commandPattern = /(?:^|\s)(\/link|\/image)$/;
 
 const isInsideFencedCodeBlock = (contentBeforeCursor: string): boolean => {
   let fenced = false;
@@ -31,7 +31,7 @@ export const findEditorCommandSuggestion = (
 
   const token = match[1];
   return {
-    command: token === '!link' ? 'link' : 'image',
+    command: token === '/link' ? 'link' : 'image',
     start: lineStart + match.index + match[0].length - token.length,
     end: cursor,
   };

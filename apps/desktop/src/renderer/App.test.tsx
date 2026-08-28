@@ -104,7 +104,7 @@ describe('App', () => {
     const editor = screen.getByRole('textbox', { name: 'Markdown 편집기' });
 
     await user.click(editor);
-    await user.type(editor, '!link');
+    await user.type(editor, '/link');
     expect(
       screen.getByRole('toolbar', { name: '문서 명령 제안' }),
     ).toBeInTheDocument();
@@ -129,7 +129,7 @@ describe('App', () => {
     const editor = screen.getByRole('textbox', { name: 'Markdown 편집기' });
 
     await user.click(editor);
-    await user.type(editor, '!image');
+    await user.type(editor, '/image');
     await user.click(screen.getByRole('button', { name: /이미지 검색/ }));
 
     expect(
