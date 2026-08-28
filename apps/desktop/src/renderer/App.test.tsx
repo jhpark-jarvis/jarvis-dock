@@ -216,9 +216,7 @@ describe('App', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('button', { name: '닫기' })).toHaveFocus();
     await user.keyboard('{Shift>}{Tab}{/Shift}');
-    expect(
-      screen.getByRole('button', { name: /Architecture Workspace/ }),
-    ).toHaveFocus();
+    expect(screen.getByRole('button', { name: /^ADR 작성/ })).toHaveFocus();
     await user.keyboard('{Tab}');
     expect(screen.getByRole('button', { name: '닫기' })).toHaveFocus();
     await user.keyboard('{Escape}');
@@ -256,6 +254,26 @@ describe('App', () => {
     expect(screen.getByLabelText('프로젝트 목적')).toBeVisible();
     expect(screen.getByText('docs/architecture/arc42.md')).toBeVisible();
     await user.click(screen.getByRole('button', { name: '문서 세트 생성' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '먼저 문서 폴더를 선택해 주세요.',
+    );
+  });
+
+  it('opens the ADR form and requires a selected document workspace', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
+    await user.click(screen.getByRole('button', { name: /^ADR 작성/ }));
+
+    expect(screen.getByLabelText('결정 제목')).toBeVisible();
+    expect(screen.getByLabelText('상태')).toBeVisible();
+    await user.type(screen.getByLabelText('결정 제목'), 'ADR 테스트');
+    await user.type(screen.getByLabelText('배경'), '배경 테스트');
+    await user.type(screen.getByLabelText('결정'), '결정 테스트');
+    await user.type(screen.getByLabelText('결과'), '결과 테스트');
+    await user.click(screen.getByRole('button', { name: 'ADR 생성' }));
+
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '먼저 문서 폴더를 선택해 주세요.',
     );

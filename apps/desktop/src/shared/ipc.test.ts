@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   EmptyRequestSchema,
+  ArchitectureCreateAdrRequestSchema,
+  ArchitectureCreateAdrResultEnvelopeSchema,
   HealthResultSchema,
   ImageSearchRequestSchema,
   ImageSearchResultEnvelopeSchema,
@@ -121,6 +123,38 @@ describe('IPC contract schemas', () => {
         },
       }).success,
     ).toBe(false);
+  });
+
+  it('validates bounded ADR requests and result metadata', () => {
+    const request = {
+      workspaceId: '11111111-1111-4111-8111-111111111111',
+      title: 'ADR workflow',
+      status: 'Accepted',
+      context: '배경',
+      decision: '결정',
+      consequences: '결과',
+    };
+    expect(ArchitectureCreateAdrRequestSchema.safeParse(request).success).toBe(
+      true,
+    );
+    expect(
+      ArchitectureCreateAdrRequestSchema.safeParse({
+        ...request,
+        title: 'x'.repeat(201),
+      }).success,
+    ).toBe(false);
+    expect(
+      ArchitectureCreateAdrResultEnvelopeSchema.safeParse({
+        ok: true,
+        value: {
+          relativePath: 'docs/adr/0002-adr-workflow.md',
+          adrNumber: 2,
+          title: 'ADR workflow',
+          status: 'Accepted',
+          indexUpdated: true,
+        },
+      }).success,
+    ).toBe(true);
   });
 
   it('allows only bounded HTTPS link cards in a Research View response', () => {

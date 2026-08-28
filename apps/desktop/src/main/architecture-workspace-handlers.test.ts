@@ -46,13 +46,28 @@ const createHarness = () => {
         ],
       },
     })),
+    createAdr: vi.fn(async (_root, request) => ({
+      ok: true as const,
+      value: {
+        relativePath: 'docs/adr/0002-record.md',
+        adrNumber: 2,
+        title: request.title,
+        status: request.status,
+        indexUpdated: true as const,
+      },
+    })),
   });
   const invoke = (request: unknown, url = 'http://localhost:5173/') =>
     handlers.get(IPC.ARCHITECTURE_CREATE_PROJECT)?.(
       { senderFrame: { url } } as IpcMainInvokeEvent,
       request,
     );
-  return { handle, invoke };
+  const invokeAdr = (request: unknown, url = 'http://localhost:5173/') =>
+    handlers.get(IPC.ARCHITECTURE_CREATE_ADR)?.(
+      { senderFrame: { url } } as IpcMainInvokeEvent,
+      request,
+    );
+  return { handle, invoke, invokeAdr };
 };
 
 describe('architecture workspace handlers', () => {
@@ -98,6 +113,52 @@ describe('architecture workspace handlers', () => {
     ).resolves.toMatchObject({
       ok: true,
       value: { projectName: 'Dock', files: expect.arrayContaining([]) },
+    });
+  });
+
+  it('validates the ADR request and forwards only selected workspace data', async () => {
+    const { handle, invokeAdr } = createHarness();
+    expect(handle).toHaveBeenCalledWith(
+      IPC.ARCHITECTURE_CREATE_ADR,
+      expect.any(Function),
+    );
+
+    await expect(
+      invokeAdr({ title: '누락된 workspaceId' }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_REQUEST' },
+    });
+    await expect(
+      invokeAdr({
+        workspaceId: '22222222-2222-4222-8222-222222222222',
+        title: 'ADR',
+        status: 'Accepted',
+        context: '배경',
+        decision: '결정',
+        consequences: '결과',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'WORKSPACE_NOT_SELECTED' },
+    });
+    await expect(
+      invokeAdr({
+        workspaceId: '11111111-1111-4111-8111-111111111111',
+        title: 'ADR',
+        status: 'Accepted',
+        context: '배경',
+        decision: '결정',
+        consequences: '결과',
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: {
+        relativePath: 'docs/adr/0002-record.md',
+        title: 'ADR',
+        status: 'Accepted',
+        indexUpdated: true,
+      },
     });
   });
 });

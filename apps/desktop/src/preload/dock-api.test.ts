@@ -223,4 +223,32 @@ describe('createDockApi', () => {
     });
     expect(invoke).toHaveBeenCalledWith(IPC.WORKSPACE_OPEN_FOLDER, request);
   });
+
+  it('validates and invokes ADR creation through the fixed architecture channel', async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        relativePath: 'docs/adr/0002-record.md',
+        adrNumber: 2,
+        title: 'ADR',
+        status: 'Accepted',
+        indexUpdated: true,
+      },
+    });
+    const dock = createDockApi({ invoke });
+    const request = {
+      workspaceId: '11111111-1111-4111-8111-111111111111',
+      title: 'ADR',
+      status: 'Accepted' as const,
+      context: '배경',
+      decision: '결정',
+      consequences: '결과',
+    };
+
+    await expect(dock.architecture.createAdr(request)).resolves.toMatchObject({
+      ok: true,
+      value: { relativePath: 'docs/adr/0002-record.md' },
+    });
+    expect(invoke).toHaveBeenCalledWith(IPC.ARCHITECTURE_CREATE_ADR, request);
+  });
 });

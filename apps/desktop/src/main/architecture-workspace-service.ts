@@ -2,9 +2,11 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type {
   ArchitectureCheckProjectResultEnvelope,
+  ArchitectureCreateAdrRequest,
+  ArchitectureCreateAdrResultEnvelope,
   ArchitectureCreateProjectRequest,
 } from '../shared/ipc';
-import { createDocumentWithContent } from './workspace-service';
+import { createDocumentWithContent, writeDocument } from './workspace-service';
 
 export const ARCHITECTURE_DOCUMENTS = [
   'docs/architecture/arc42.md',
@@ -429,6 +431,142 @@ export const checkArchitectureDocuments = async (
     value: {
       passed: files.every((file) => file.status === 'present'),
       files,
+    },
+  };
+};
+
+const adrSlug = (title: string): string =>
+  oneLine(title)
+    .normalize('NFKC')
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80)
+    .toLowerCase() || 'decision';
+
+const tableText = (value: string): string =>
+  oneLine(value).replace(/\|/g, '\\|');
+
+const readAdrNumber = (name: string): number | undefined => {
+  const match = /^(\d{4})-[^/]+\.md$/i.exec(name);
+  if (!match) return undefined;
+  const number = Number(match[1]);
+  return number > 0 ? number : undefined;
+};
+
+const appendAdrIndexEntry = (content: string, entry: string): string => {
+  const indexMatch = /^## Index\s*$/m.exec(content);
+  if (!indexMatch || indexMatch.index === undefined) {
+    return `${content.trimEnd()}\n\n## Index\n\n| ADR | 상태 | 결정 |\n|---|---|---|\n${entry}\n`;
+  }
+  const sectionStart = indexMatch.index + indexMatch[0].length;
+  const nextHeading = content.indexOf('\n## ', sectionStart);
+  const insertionPoint = nextHeading >= 0 ? nextHeading : content.length;
+  const before = content.slice(0, insertionPoint).trimEnd();
+  const after = content.slice(insertionPoint).trimStart();
+  return `${before}\n${entry}\n\n${after}`;
+};
+
+const createAdrMarkdown = (
+  request: ArchitectureCreateAdrRequest,
+  adrNumber: number,
+): string => {
+  const title = oneLine(request.title);
+  return `# ADR-${String(adrNumber).padStart(4, '0')}: ${title}
+
+## 상태
+
+${request.status}
+
+## 배경
+
+${request.context.trim()}
+
+## 결정
+
+${request.decision.trim()}
+
+## 결과
+
+${request.consequences.trim()}
+`;
+};
+
+export const createAdrDocument = async (
+  rootPath: string,
+  request: ArchitectureCreateAdrRequest,
+): Promise<Extract<ArchitectureCreateAdrResultEnvelope, { ok: true }>> => {
+  const root = await fs.realpath(rootPath);
+  const adrDirectory = path.resolve(root, 'docs/adr');
+  await fs.mkdir(adrDirectory, { recursive: true });
+  const realAdrDirectory = await fs.realpath(adrDirectory);
+  if (!isInside(root, realAdrDirectory)) {
+    throw new Error('The ADR directory is outside the document workspace.');
+  }
+
+  const entries = await fs.readdir(realAdrDirectory, { withFileTypes: true });
+  const numbers = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => readAdrNumber(entry.name))
+    .filter((number): number is number => number !== undefined);
+  const adrNumber = Math.max(0, ...numbers) + 1;
+  if (adrNumber > 9999) throw new Error('The ADR number limit was exceeded.');
+
+  const fileName = `${String(adrNumber).padStart(4, '0')}-${adrSlug(request.title)}.md`;
+  const relativePath = `docs/adr/${fileName}`;
+  const absolutePath = path.resolve(root, relativePath);
+  if (!isInside(root, absolutePath)) {
+    throw new Error('The ADR path is outside the document workspace.');
+  }
+  try {
+    await fs.lstat(absolutePath);
+    throw new ArchitectureWorkspaceConflictError([relativePath]);
+  } catch (cause) {
+    if (cause instanceof ArchitectureWorkspaceConflictError) throw cause;
+    if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause;
+  }
+
+  const indexPath = path.join(realAdrDirectory, 'README.md');
+  let indexContent = '';
+  let indexExists = false;
+  try {
+    const indexStat = await fs.lstat(indexPath);
+    if (!indexStat.isFile())
+      throw new Error('The ADR index is not a regular file.');
+    indexContent = await fs.readFile(indexPath, 'utf8');
+    indexExists = true;
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause;
+  }
+
+  const entry = `| [${fileName}](./${fileName}) | ${request.status} | ${tableText(
+    request.title,
+  )} |`;
+  const nextIndexContent = appendAdrIndexEntry(indexContent, entry);
+  const createdPath = createAdrMarkdown(request, adrNumber);
+  await createDocumentWithContent(absolutePath, relativePath, createdPath);
+  try {
+    if (indexExists) {
+      await writeDocument(indexPath, 'docs/adr/README.md', nextIndexContent);
+    } else {
+      await createDocumentWithContent(
+        indexPath,
+        'docs/adr/README.md',
+        nextIndexContent,
+      );
+    }
+  } catch (cause) {
+    await fs.rm(absolutePath, { force: true });
+    throw cause;
+  }
+
+  return {
+    ok: true,
+    value: {
+      relativePath,
+      adrNumber,
+      title: oneLine(request.title),
+      status: request.status,
+      indexUpdated: true,
     },
   };
 };

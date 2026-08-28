@@ -2,6 +2,8 @@ import type { IpcMain } from 'electron';
 import {
   ArchitectureCheckProjectRequestSchema,
   ArchitectureCheckProjectResultEnvelopeSchema,
+  ArchitectureCreateAdrRequestSchema,
+  ArchitectureCreateAdrResultEnvelopeSchema,
   ArchitectureCreateProjectRequestSchema,
   ArchitectureCreateProjectResultEnvelopeSchema,
   IPC,
@@ -10,6 +12,7 @@ import {
 import {
   ArchitectureWorkspaceConflictError,
   checkArchitectureDocuments,
+  createAdrDocument,
   createArchitectureDocuments,
 } from './architecture-workspace-service';
 import { createWorkspaceStore, type WorkspaceStore } from './workspace-service';
@@ -22,6 +25,7 @@ export interface ArchitectureWorkspaceHandlerDependencies {
   store?: WorkspaceStore;
   createDocuments?: typeof createArchitectureDocuments;
   checkDocuments?: typeof checkArchitectureDocuments;
+  createAdr?: typeof createAdrDocument;
 }
 
 const error = (code: DockError['code'], message: string): DockError => ({
@@ -35,6 +39,7 @@ export const registerArchitectureWorkspaceHandlers = ({
   store = createWorkspaceStore(),
   createDocuments = createArchitectureDocuments,
   checkDocuments = checkArchitectureDocuments,
+  createAdr = createAdrDocument,
 }: ArchitectureWorkspaceHandlerDependencies): void => {
   ipcMain.handle(IPC.ARCHITECTURE_CREATE_PROJECT, async (event, request) => {
     if (!isTrustedSender(event.senderFrame.url)) {
@@ -123,6 +128,56 @@ export const registerArchitectureWorkspaceHandlers = ({
         error: error(
           'ARCHITECTURE_CREATE_FAILED',
           'The architecture documents could not be checked.',
+        ),
+      });
+    }
+  });
+  ipcMain.handle(IPC.ARCHITECTURE_CREATE_ADR, async (event, request) => {
+    if (!isTrustedSender(event.senderFrame.url)) {
+      return ArchitectureCreateAdrResultEnvelopeSchema.parse({
+        ok: false,
+        error: error(
+          'UNAUTHORIZED_SENDER',
+          'The Dock request is not authorized.',
+        ),
+      });
+    }
+    const parsed = ArchitectureCreateAdrRequestSchema.safeParse(request);
+    if (!parsed.success) {
+      return ArchitectureCreateAdrResultEnvelopeSchema.parse({
+        ok: false,
+        error: error('INVALID_REQUEST', 'The Dock request is invalid.'),
+      });
+    }
+    const root = store.get(parsed.data.workspaceId);
+    if (!root) {
+      return ArchitectureCreateAdrResultEnvelopeSchema.parse({
+        ok: false,
+        error: error(
+          'WORKSPACE_NOT_SELECTED',
+          'No document workspace is selected.',
+        ),
+      });
+    }
+    try {
+      return ArchitectureCreateAdrResultEnvelopeSchema.parse(
+        await createAdr(root, parsed.data),
+      );
+    } catch (cause) {
+      if (cause instanceof ArchitectureWorkspaceConflictError) {
+        return ArchitectureCreateAdrResultEnvelopeSchema.parse({
+          ok: false,
+          error: error(
+            'ARCHITECTURE_CONFLICT',
+            `The ADR already exists: ${cause.paths.join(', ')}`,
+          ),
+        });
+      }
+      return ArchitectureCreateAdrResultEnvelopeSchema.parse({
+        ok: false,
+        error: error(
+          'ARCHITECTURE_CREATE_FAILED',
+          'The ADR could not be created.',
         ),
       });
     }

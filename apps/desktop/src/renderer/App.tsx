@@ -145,7 +145,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [newDocumentPath, setNewDocumentPath] = useState('untitled.md');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [activeCommand, setActiveCommand] = useState<
-    'link' | 'image' | 'architecture'
+    'link' | 'image' | 'architecture' | 'adr'
   >();
   const [linkQuery, setLinkQuery] = useState('');
   const [linkStatus, setLinkStatus] = useState<
@@ -196,6 +196,17 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       issues: string[];
     }>
   >([]);
+  const [adrTitle, setAdrTitle] = useState('');
+  const [adrStatus, setAdrStatus] = useState<
+    'Proposed' | 'Accepted' | 'Rejected' | 'Superseded'
+  >('Proposed');
+  const [adrContext, setAdrContext] = useState('');
+  const [adrDecision, setAdrDecision] = useState('');
+  const [adrConsequences, setAdrConsequences] = useState('');
+  const [adrCreateStatus, setAdrCreateStatus] = useState<
+    'idle' | 'creating' | 'error'
+  >('idle');
+  const [adrError, setAdrError] = useState('');
   const [previewImageSources, setPreviewImageSources] = useState<
     Record<string, string>
   >({});
@@ -577,6 +588,13 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setArchitectureCheckStatus('idle');
     setArchitectureCheckPassed(undefined);
     setArchitectureCheckFiles([]);
+    setAdrTitle('');
+    setAdrStatus('Proposed');
+    setAdrContext('');
+    setAdrDecision('');
+    setAdrConsequences('');
+    setAdrCreateStatus('idle');
+    setAdrError('');
     setCommandPaletteOpen(true);
   };
 
@@ -600,6 +618,8 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setArchitectureCheckStatus('idle');
     setArchitectureCheckPassed(undefined);
     setArchitectureCheckFiles([]);
+    setAdrCreateStatus('idle');
+    setAdrError('');
     commandTriggerRef.current?.focus();
   };
 
@@ -665,6 +685,47 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     } catch {
       setArchitectureError('아키텍처 문서 정합성을 점검하지 못했습니다.');
       setArchitectureCheckStatus('error');
+    }
+  };
+
+  const createAdr = async () => {
+    if (!workspaceId) {
+      setAdrError('먼저 문서 폴더를 선택해 주세요.');
+      setAdrCreateStatus('error');
+      return;
+    }
+    setAdrCreateStatus('creating');
+    setAdrError('');
+    try {
+      const response = await window.dock.architecture.createAdr({
+        workspaceId,
+        title: adrTitle,
+        status: adrStatus,
+        context: adrContext,
+        decision: adrDecision,
+        consequences: adrConsequences,
+      });
+      if (response.ok === false) {
+        setAdrError(
+          response.error.code === 'ARCHITECTURE_CONFLICT'
+            ? '같은 ADR 파일이 이미 있습니다. 기존 ADR은 덮어쓰지 않습니다.'
+            : response.error.code === 'WORKSPACE_NOT_SELECTED'
+              ? '먼저 문서 폴더를 선택해 주세요.'
+              : 'ADR을 생성하지 못했습니다.',
+        );
+        setAdrCreateStatus('error');
+        return;
+      }
+      if (!(await refreshFiles(workspaceId))) {
+        setAdrError('ADR은 생성했지만 문서 목록을 갱신하지 못했습니다.');
+        setAdrCreateStatus('error');
+        return;
+      }
+      await openDocument(response.value.relativePath);
+      closeCommandPalette();
+    } catch {
+      setAdrError('ADR을 생성하지 못했습니다.');
+      setAdrCreateStatus('error');
     }
   };
 
@@ -1225,6 +1286,20 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   <strong>Architecture Workspace</strong>
                   <span>arc42·C4·ADR 프로젝트 문서 세트 초기화</span>
                 </button>
+                <button
+                  className="command-item"
+                  type="button"
+                  onClick={() => {
+                    setActiveCommand('adr');
+                    setAdrCreateStatus('idle');
+                    setAdrError('');
+                  }}
+                >
+                  <strong>ADR 작성</strong>
+                  <span>
+                    새 Architecture Decision Record 작성 및 index 갱신
+                  </span>
+                </button>
               </div>
             ) : activeCommand === 'link' ? (
               <div className="link-search-form">
@@ -1303,7 +1378,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   취소
                 </button>
               </form>
-            ) : (
+            ) : activeCommand === 'architecture' ? (
               <form
                 className="link-search-form"
                 onSubmit={(event) => {
@@ -1380,6 +1455,95 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                 >
                   문서 정합성 점검
                 </button>
+              </form>
+            ) : (
+              <form
+                className="link-search-form adr-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void createAdr();
+                }}
+              >
+                <p className="dialog-message">
+                  다음 ADR 번호를 자동으로 부여하고 docs/adr/README.md index를
+                  갱신합니다.
+                </p>
+                <label htmlFor="adr-title">결정 제목</label>
+                <input
+                  id="adr-title"
+                  className="workspace-create__input"
+                  value={adrTitle}
+                  onChange={(event) => setAdrTitle(event.target.value)}
+                  placeholder="예: ADR 작성 흐름을 애플리케이션에 추가"
+                  autoFocus
+                  required
+                />
+                <label htmlFor="adr-status">상태</label>
+                <select
+                  id="adr-status"
+                  className="workspace-create__input"
+                  value={adrStatus}
+                  onChange={(event) =>
+                    setAdrStatus(
+                      event.target.value as
+                        | 'Proposed'
+                        | 'Accepted'
+                        | 'Rejected'
+                        | 'Superseded',
+                    )
+                  }
+                >
+                  <option value="Proposed">Proposed</option>
+                  <option value="Accepted">Accepted</option>
+                  <option value="Rejected">Rejected</option>
+                  <option value="Superseded">Superseded</option>
+                </select>
+                <label htmlFor="adr-context">배경</label>
+                <textarea
+                  id="adr-context"
+                  className="workspace-create__input adr-textarea"
+                  value={adrContext}
+                  onChange={(event) => setAdrContext(event.target.value)}
+                  placeholder="어떤 문제나 요구사항이 이 결정을 만들었는지 적어 주세요."
+                  rows={4}
+                  required
+                />
+                <label htmlFor="adr-decision">결정</label>
+                <textarea
+                  id="adr-decision"
+                  className="workspace-create__input adr-textarea"
+                  value={adrDecision}
+                  onChange={(event) => setAdrDecision(event.target.value)}
+                  placeholder="무엇을 선택했는지 적어 주세요."
+                  rows={4}
+                  required
+                />
+                <label htmlFor="adr-consequences">결과</label>
+                <textarea
+                  id="adr-consequences"
+                  className="workspace-create__input adr-textarea"
+                  value={adrConsequences}
+                  onChange={(event) => setAdrConsequences(event.target.value)}
+                  placeholder="기대 효과와 트레이드오프를 적어 주세요."
+                  rows={4}
+                  required
+                />
+                <div className="link-search-form__row">
+                  <button
+                    className="button button--primary"
+                    type="submit"
+                    disabled={adrCreateStatus === 'creating'}
+                  >
+                    ADR 생성
+                  </button>
+                  <button
+                    className="button button--quiet"
+                    type="button"
+                    onClick={closeCommandPalette}
+                  >
+                    취소
+                  </button>
+                </div>
               </form>
             )}
 
@@ -1460,6 +1624,16 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   </ul>
                 </div>
               )}
+            {activeCommand === 'adr' && adrCreateStatus === 'creating' && (
+              <p className="dialog-message" role="status">
+                ADR을 생성하고 index를 갱신하고 있습니다.
+              </p>
+            )}
+            {activeCommand === 'adr' && adrCreateStatus === 'error' && (
+              <p className="dialog-message dialog-message--error" role="alert">
+                {adrError}
+              </p>
+            )}
             {activeCommand === 'image' &&
               imageStatus === 'selected' &&
               selectedImage && (

@@ -298,6 +298,67 @@ test('Dock initializes an Architecture Workspace without overwriting existing do
   }
 });
 
+test('Dock creates numbered ADRs and updates the ADR index', async () => {
+  const workspaceRoot = mkdtempSync(
+    path.join(os.tmpdir(), 'dock-e2e-adr-create-'),
+  );
+  const app = await launchDock(['--dock-e2e-document'], {
+    DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot,
+  });
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: '폴더 선택' }).click();
+    await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
+    await page.getByRole('button', { name: 'ADR 작성' }).click();
+    await page.getByLabel('결정 제목').fill('Add ADR workflow');
+    await page.getByLabel('상태', { exact: true }).selectOption('Accepted');
+    await page
+      .getByLabel('배경')
+      .fill('Architecture decisions need a durable record.');
+    await page
+      .getByLabel('결정', { exact: true })
+      .fill('Create a numbered ADR and update the index.');
+    await page
+      .getByLabel('결과')
+      .fill('Decisions remain discoverable in the document workspace.');
+    await page.getByRole('button', { name: 'ADR 생성' }).click();
+
+    await expect(
+      page.getByRole('heading', { name: 'docs/adr/0001-add-adr-workflow.md' }),
+    ).toBeVisible();
+    expect(
+      readFileSync(
+        path.join(workspaceRoot, 'docs/adr/0001-add-adr-workflow.md'),
+        'utf8',
+      ),
+    ).toContain('# ADR-0001: Add ADR workflow');
+    expect(
+      readFileSync(path.join(workspaceRoot, 'docs/adr/README.md'), 'utf8'),
+    ).toContain('0001-add-adr-workflow.md');
+
+    await page.getByRole('button', { name: '명령 팔레트 열기' }).click();
+    await page.getByRole('button', { name: 'ADR 작성' }).click();
+    await page.getByLabel('결정 제목').fill('Refine ADR index');
+    await page.getByLabel('배경').fill('The first ADR is already present.');
+    await page
+      .getByLabel('결정', { exact: true })
+      .fill('Append later ADRs without changing history.');
+    await page.getByLabel('결과').fill('The index lists both decisions.');
+    await page.getByRole('button', { name: 'ADR 생성' }).click();
+
+    await expect(
+      page.getByRole('heading', { name: 'docs/adr/0002-refine-adr-index.md' }),
+    ).toBeVisible();
+    expect(
+      readFileSync(path.join(workspaceRoot, 'docs/adr/README.md'), 'utf8'),
+    ).toEqual(expect.stringContaining('0002-refine-adr-index.md'));
+  } finally {
+    await app.close();
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test('Dock starts with a narrow preload API and no Renderer Node.js globals', async () => {
   const app = await launchDock();
 

@@ -26,6 +26,7 @@ export const IPC = {
   IMAGE_SAVE_CLIPBOARD: 'image:save-clipboard',
   ARCHITECTURE_CREATE_PROJECT: 'architecture:create-project',
   ARCHITECTURE_CHECK_PROJECT: 'architecture:check-project',
+  ARCHITECTURE_CREATE_ADR: 'architecture:create-adr',
 } as const;
 
 export const EmptyRequestSchema = z.object({}).strict();
@@ -253,6 +254,52 @@ export const ArchitectureCheckProjectResultEnvelopeSchema =
       .strict(),
     z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
   ]);
+export const ArchitectureAdrStatusSchema = z.enum([
+  'Proposed',
+  'Accepted',
+  'Rejected',
+  'Superseded',
+]);
+const ArchitectureAdrTextSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(5_000)
+  .refine(
+    (value) => !hasUnsafeControlCharacter(value),
+    'control characters are not allowed',
+  );
+export const ArchitectureCreateAdrRequestSchema = z
+  .object({
+    workspaceId: WorkspaceIdSchema,
+    title: ArchitectureAdrTextSchema.max(200),
+    status: ArchitectureAdrStatusSchema,
+    context: ArchitectureAdrTextSchema,
+    decision: ArchitectureAdrTextSchema,
+    consequences: ArchitectureAdrTextSchema,
+  })
+  .strict();
+export const ArchitectureCreateAdrResultSchema = z
+  .object({
+    relativePath: RelativeMarkdownPathSchema,
+    adrNumber: z.number().int().positive().max(9999),
+    title: z.string().min(1).max(200),
+    status: ArchitectureAdrStatusSchema,
+    indexUpdated: z.literal(true),
+  })
+  .strict();
+export const ArchitectureCreateAdrResultEnvelopeSchema = z.discriminatedUnion(
+  'ok',
+  [
+    z
+      .object({
+        ok: z.literal(true),
+        value: ArchitectureCreateAdrResultSchema,
+      })
+      .strict(),
+    z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+  ],
+);
 export const ResearchOpenRequestSchema = z
   .object({ query: z.string().trim().min(1).max(200) })
   .strict();
@@ -455,6 +502,12 @@ export type ArchitectureCreateProjectResultEnvelope = z.infer<
 export type ArchitectureCheckProjectResultEnvelope = z.infer<
   typeof ArchitectureCheckProjectResultEnvelopeSchema
 >;
+export type ArchitectureCreateAdrRequest = z.infer<
+  typeof ArchitectureCreateAdrRequestSchema
+>;
+export type ArchitectureCreateAdrResultEnvelope = z.infer<
+  typeof ArchitectureCreateAdrResultEnvelopeSchema
+>;
 export type ResearchOpenResult = z.infer<typeof ResearchOpenResultSchema>;
 export type ResearchSearchResult = z.infer<typeof ResearchSearchResultSchema>;
 export type ResearchOpenResultEnvelope = z.infer<
@@ -539,6 +592,9 @@ export interface DockApi {
     checkProject: (request: {
       workspaceId: string;
     }) => Promise<ArchitectureCheckProjectResultEnvelope>;
+    createAdr: (
+      request: ArchitectureCreateAdrRequest,
+    ) => Promise<ArchitectureCreateAdrResultEnvelope>;
   };
   research: {
     open: (request: { query: string }) => Promise<ResearchOpenResultEnvelope>;
