@@ -396,6 +396,129 @@ describe('App', () => {
     );
   });
 
+  it('keeps the Architecture Workspace draft while selecting its folder', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'architecture-notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [] as Array<{
+                relativePath: string;
+                displayName: string;
+              }>,
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: '명령 팔레트' })).getByRole(
+        'button',
+        { name: /프로젝트 설계 문서/ },
+      ),
+    );
+    await user.type(screen.getByLabelText('프로젝트 이름'), 'Dock');
+    await user.type(
+      screen.getByLabelText('무엇을 만들고 있나요?'),
+      '로컬 문서 작업 공간',
+    );
+
+    await user.click(
+      within(screen.getByRole('dialog', { name: '명령 팔레트' })).getByRole(
+        'button',
+        { name: '닫기' },
+      ),
+    );
+    await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: '명령 팔레트' })).getByRole(
+        'button',
+        { name: /프로젝트 설계 문서/ },
+      ),
+    );
+    expect(screen.getByLabelText('프로젝트 이름')).toHaveValue('Dock');
+    expect(screen.getByLabelText('무엇을 만들고 있나요?')).toHaveValue(
+      '로컬 문서 작업 공간',
+    );
+
+    await user.click(
+      within(screen.getByRole('dialog', { name: '명령 팔레트' })).getByRole(
+        'button',
+        { name: '폴더 선택' },
+      ),
+    );
+
+    expect((await screen.findAllByText('architecture-notes'))[0]).toBeVisible();
+    expect(screen.getByLabelText('프로젝트 이름')).toHaveValue('Dock');
+    expect(screen.getByLabelText('무엇을 만들고 있나요?')).toHaveValue(
+      '로컬 문서 작업 공간',
+    );
+    expect(screen.getByRole('button', { name: '폴더 변경' })).toBeVisible();
+  });
+
+  it('keeps the ADR draft while selecting its folder', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '22222222-2222-4222-8222-222222222222',
+              displayName: 'adr-notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [] as Array<{
+                relativePath: string;
+                displayName: string;
+              }>,
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
+    await user.click(screen.getByRole('button', { name: /^ADR 작성/ }));
+    await user.type(screen.getByLabelText('결정 제목'), '폴더 선택 흐름');
+    await user.type(
+      screen.getByLabelText('배경'),
+      '작성 중인 초안을 보존해야 합니다.',
+    );
+
+    await user.click(
+      within(screen.getByRole('dialog', { name: '명령 팔레트' })).getByRole(
+        'button',
+        { name: '폴더 선택' },
+      ),
+    );
+
+    expect((await screen.findAllByText('adr-notes'))[0]).toBeVisible();
+    expect(screen.getByLabelText('결정 제목')).toHaveValue('폴더 선택 흐름');
+    expect(screen.getByLabelText('배경')).toHaveValue(
+      '작성 중인 초안을 보존해야 합니다.',
+    );
+    expect(screen.getByRole('button', { name: '폴더 변경' })).toBeVisible();
+  });
+
   it('keeps unsaved text and reports a save failure', async () => {
     const user = userEvent.setup();
     Object.defineProperty(window, 'dock', {

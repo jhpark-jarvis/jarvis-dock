@@ -61,6 +61,20 @@ describe('renderMarkdownPreview', () => {
     expect(html).not.toContain('<div>safe</div>');
   });
 
+  it('renders GitHub-flavored Markdown tables after sanitizing preview HTML', () => {
+    const html = renderMarkdownPreview(
+      '| 이름 | 역할 | 상태 |\n| --- | :---: | ---: |\n| Dock | Editor | 준비 |\n| Research | Preview | 완료 |',
+    );
+
+    expect(html).toContain('<table>');
+    expect(html).toContain('<thead>');
+    expect(html).toContain('<tbody>');
+    expect(html).toContain('<th>이름</th>');
+    expect(html).toContain('<td>Dock</td>');
+    expect(html).toContain('align="center"');
+    expect(html).toContain('align="right"');
+  });
+
   it('keeps Mermaid source in a local preview block for the renderer', () => {
     const html = renderMarkdownPreview(
       '```mermaid\nflowchart LR\n  A[Start] --> B[Finish]\n```',

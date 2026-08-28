@@ -690,6 +690,20 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setResearchViewVisibility(!commandPaletteOpen);
   }, [commandPaletteOpen, researchOpen, setResearchViewVisibility]);
 
+  const resetArchitectureDraft = () => {
+    setArchitectureProjectName('');
+    setArchitecturePurpose('');
+    setArchitectureTechStack('');
+  };
+
+  const resetAdrDraft = () => {
+    setAdrTitle('');
+    setAdrStatus('Proposed');
+    setAdrContext('');
+    setAdrDecision('');
+    setAdrConsequences('');
+  };
+
   /*
    * The Research View is a native child view, so the Renderer dialog cannot
    * cover it with z-index alone. Keep its native visibility aligned with the
@@ -715,19 +729,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setSelectedImage(undefined);
     setImageAltText('');
     setImageThumbnailErrors({});
-    setArchitectureProjectName('');
-    setArchitecturePurpose('');
-    setArchitectureTechStack('');
     setArchitectureStatus('idle');
     setArchitectureError('');
     setArchitectureCheckStatus('idle');
     setArchitectureCheckPassed(undefined);
     setArchitectureCheckFiles([]);
-    setAdrTitle('');
-    setAdrStatus('Proposed');
-    setAdrContext('');
-    setAdrDecision('');
-    setAdrConsequences('');
     setAdrCreateStatus('idle');
     setAdrError('');
     setCommandPaletteOpen(true);
@@ -818,6 +824,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         return;
       }
       await openDocument('docs/architecture/arc42.md');
+      resetArchitectureDraft();
       closeCommandPalette();
     } catch {
       setArchitectureError('프로젝트 문서 세트를 생성하지 못했습니다.');
@@ -885,6 +892,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         return;
       }
       await openDocument(response.value.relativePath);
+      resetAdrDraft();
       closeCommandPalette();
     } catch {
       setAdrError('ADR을 생성하지 못했습니다.');
@@ -1557,6 +1565,26 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   기능입니다. 전문 용어를 몰라도 기본 문서를 만든 뒤 내용을 채워
                   갈 수 있습니다.
                 </p>
+                <div className="command-workspace-picker">
+                  <div className="command-workspace-picker__details">
+                    <span>문서 저장 위치</span>
+                    <strong>
+                      {workspaceName ?? '선택된 폴더가 없습니다.'}
+                    </strong>
+                    <small>
+                      {workspaceName
+                        ? '이 폴더 안에 프로젝트 문서가 생성됩니다.'
+                        : '문서를 생성할 폴더를 먼저 선택해 주세요.'}
+                    </small>
+                  </div>
+                  <button
+                    className="button button--quiet"
+                    type="button"
+                    onClick={() => void chooseWorkspace()}
+                  >
+                    {workspaceName ? '폴더 변경' : '폴더 선택'}
+                  </button>
+                </div>
                 <label htmlFor="architecture-project-name">프로젝트 이름</label>
                 <input
                   id="architecture-project-name"
@@ -1673,6 +1701,26 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   다음 ADR 번호를 자동으로 부여하고 docs/adr/README.md index를
                   갱신합니다.
                 </p>
+                <div className="command-workspace-picker">
+                  <div className="command-workspace-picker__details">
+                    <span>문서 저장 위치</span>
+                    <strong>
+                      {workspaceName ?? '선택된 폴더가 없습니다.'}
+                    </strong>
+                    <small>
+                      {workspaceName
+                        ? '이 폴더 안에 ADR 문서가 생성됩니다.'
+                        : '문서를 생성할 폴더를 먼저 선택해 주세요.'}
+                    </small>
+                  </div>
+                  <button
+                    className="button button--quiet"
+                    type="button"
+                    onClick={() => void chooseWorkspace()}
+                  >
+                    {workspaceName ? '폴더 변경' : '폴더 선택'}
+                  </button>
+                </div>
                 <label htmlFor="adr-title">결정 제목</label>
                 <input
                   id="adr-title"
