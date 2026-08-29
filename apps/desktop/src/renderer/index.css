@@ -1421,7 +1421,7 @@ input:focus-visible {
   align-items: center;
   justify-content: center;
   overflow: auto;
-  padding: 1.25rem 1rem;
+  padding: 1.1rem 0.85rem 1.25rem;
   border: 1px solid rgb(71 105 145 / 45%);
   border-radius: 0.55rem;
   background:
@@ -1438,7 +1438,7 @@ input:focus-visible {
 .mermaid-diagram svg {
   display: block;
   max-width: 100%;
-  min-width: min(100%, 28rem);
+  min-width: min(100%, 36rem);
   height: auto;
   font-family: 'Pretendard', 'Segoe UI', sans-serif;
   filter: drop-shadow(0 0.45rem 0.8rem rgb(0 0 0 / 18%));
@@ -1522,6 +1522,23 @@ input:focus-visible {
 .mermaid-diagram svg .c4-external path {
   fill: #3a2a13;
   stroke: #fbbf24;
+}
+
+.mermaid-diagram svg .c4-person text,
+.mermaid-diagram svg .c4-system text,
+.mermaid-diagram svg .c4-container text,
+.mermaid-diagram svg .c4-component text,
+.mermaid-diagram svg .c4-external text {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.mermaid-diagram svg .c4-person .label,
+.mermaid-diagram svg .c4-system .label,
+.mermaid-diagram svg .c4-container .label,
+.mermaid-diagram svg .c4-component .label,
+.mermaid-diagram svg .c4-external .label {
+  line-height: 1.35;
 }
 
 .mermaid-diagram svg .edgeLabel rect,

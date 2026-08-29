@@ -12,6 +12,12 @@ const ensureMermaidInitialized = (): void => {
     theme: 'dark',
     maxTextSize: 10000,
     htmlLabels: false,
+    flowchart: {
+      htmlLabels: false,
+      nodeSpacing: 80,
+      rankSpacing: 110,
+      padding: 24,
+    },
   });
   initialized = true;
 };
