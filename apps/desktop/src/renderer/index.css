@@ -1156,6 +1156,23 @@ input:focus-visible {
   line-height: 1.5;
 }
 
+.backlinks-section {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.backlinks-section h3 {
+  margin: 0;
+  color: #dbeafe;
+  font-size: 0.78rem;
+}
+
+.backlinks-section__empty {
+  margin: 0;
+  color: #7890ad;
+  font-size: 0.75rem;
+}
+
 .backlinks-list {
   display: grid;
   gap: 0.35rem;

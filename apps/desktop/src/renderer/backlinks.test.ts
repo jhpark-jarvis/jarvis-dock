@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findBacklinks } from './backlinks';
+import { findBacklinks, findDocumentLinks } from './backlinks';
 
 describe('backlinks', () => {
   it('finds internal Markdown links that point to the current document', () => {
@@ -45,5 +45,35 @@ describe('backlinks', () => {
         'design.md',
       ),
     ).toEqual([]);
+  });
+
+  it('resolves documents linked from the current document', () => {
+    expect(
+      findDocumentLinks(
+        {
+          relativePath: 'docs/architecture/arc42.md',
+          content:
+            '[Context](./c4-context.md)\n[Container](./c4-container.md)\n[Missing](./missing.md)',
+        },
+        new Set([
+          'docs/architecture/arc42.md',
+          'docs/architecture/c4-context.md',
+          'docs/architecture/c4-container.md',
+        ]),
+      ),
+    ).toEqual([
+      {
+        relativePath: 'docs/architecture/arc42.md',
+        targetPath: 'docs/architecture/c4-context.md',
+        line: 1,
+        snippet: '[Context](./c4-context.md)',
+      },
+      {
+        relativePath: 'docs/architecture/arc42.md',
+        targetPath: 'docs/architecture/c4-container.md',
+        line: 2,
+        snippet: '[Container](./c4-container.md)',
+      },
+    ]);
   });
 });

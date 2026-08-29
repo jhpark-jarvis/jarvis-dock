@@ -9,6 +9,10 @@ export interface BacklinkResult {
   snippet: string;
 }
 
+export interface DocumentLinkResult extends BacklinkResult {
+  targetPath: string;
+}
+
 const markdownLinkPattern = /(!?)\[[^\]]*\]\((?:<([^>]+)>|([^\s)]+))/g;
 
 const normalizePath = (value: string): string | undefined => {
@@ -71,5 +75,30 @@ export const findBacklinks = (
       }
     });
   }
+  return results;
+};
+
+export const findDocumentLinks = (
+  document: BacklinkDocument,
+  workspacePaths: ReadonlySet<string>,
+): DocumentLinkResult[] => {
+  const results: DocumentLinkResult[] = [];
+  const lines = document.content.split(/\r?\n/);
+  lines.forEach((line, index) => {
+    for (const match of line.matchAll(markdownLinkPattern)) {
+      if (match[1] === '!') continue;
+      const target = match[2] ?? match[3];
+      const targetPath = target
+        ? resolveDocumentLink(document.relativePath, target)
+        : undefined;
+      if (!targetPath || !workspacePaths.has(targetPath)) continue;
+      results.push({
+        relativePath: document.relativePath,
+        targetPath,
+        line: index + 1,
+        snippet: line.trim() || '(빈 줄)',
+      });
+    }
+  });
   return results;
 };

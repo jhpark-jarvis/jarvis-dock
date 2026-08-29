@@ -46,7 +46,12 @@ import {
   getDocumentTemplate,
   type DocumentTemplateId,
 } from './document-templates';
-import { findBacklinks, type BacklinkResult } from './backlinks';
+import {
+  findBacklinks,
+  findDocumentLinks,
+  type BacklinkResult,
+  type DocumentLinkResult,
+} from './backlinks';
 
 export type ShellState = 'empty' | 'error' | 'loading';
 
@@ -859,6 +864,12 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       })
     : [];
   const quickOpenFiles = filterWorkspaceFiles(files, workspaceSearchQuery);
+  const documentLinks: DocumentLinkResult[] = selectedPath
+    ? findDocumentLinks(
+        { relativePath: selectedPath, content },
+        new Set(files.map((file) => file.relativePath)),
+      )
+    : [];
   const previewHtml = selectedPath
     ? renderMarkdownPreview(content, {
         documentPath: selectedPath,
@@ -2694,39 +2705,78 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                       <p className="workspace-state" role="status">
                         연결 문서를 찾고 있습니다.
                       </p>
-                    ) : backlinkResults.length > 0 ? (
-                      <ul
-                        className="backlinks-list"
-                        aria-label="연결 문서 목록"
-                      >
-                        {backlinkResults.map((result) => (
-                          <li key={`${result.relativePath}:${result.line}`}>
-                            <button
-                              className="backlink-item"
-                              type="button"
-                              onClick={() => {
-                                void openDocument(result.relativePath).then(
-                                  () => {
-                                    window.setTimeout(
-                                      () => moveEditorToLine(result.line),
-                                      0,
-                                    );
-                                  },
-                                );
-                              }}
-                            >
-                              <strong>{result.relativePath}</strong>
-                              <span>
-                                {result.line}행 · {result.snippet}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
                     ) : (
-                      <p className="workspace-state" role="status">
-                        이 문서를 참조하는 문서가 없습니다.
-                      </p>
+                      <>
+                        <section className="backlinks-section">
+                          <h3>이 문서가 연결한 문서</h3>
+                          {documentLinks.length > 0 ? (
+                            <ul
+                              className="backlinks-list"
+                              aria-label="현재 문서의 연결 목록"
+                            >
+                              {documentLinks.map((result) => (
+                                <li key={`${result.targetPath}:${result.line}`}>
+                                  <button
+                                    className="backlink-item"
+                                    type="button"
+                                    onClick={() =>
+                                      void openDocument(result.targetPath)
+                                    }
+                                  >
+                                    <strong>{result.targetPath}</strong>
+                                    <span>
+                                      {result.line}행 · {result.snippet}
+                                    </span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="backlinks-section__empty">
+                              연결한 문서가 없습니다.
+                            </p>
+                          )}
+                        </section>
+                        <section className="backlinks-section">
+                          <h3>이 문서를 참조하는 문서</h3>
+                          {backlinkResults.length > 0 ? (
+                            <ul
+                              className="backlinks-list"
+                              aria-label="현재 문서를 참조하는 목록"
+                            >
+                              {backlinkResults.map((result) => (
+                                <li
+                                  key={`${result.relativePath}:${result.line}`}
+                                >
+                                  <button
+                                    className="backlink-item"
+                                    type="button"
+                                    onClick={() => {
+                                      void openDocument(
+                                        result.relativePath,
+                                      ).then(() => {
+                                        window.setTimeout(
+                                          () => moveEditorToLine(result.line),
+                                          0,
+                                        );
+                                      });
+                                    }}
+                                  >
+                                    <strong>{result.relativePath}</strong>
+                                    <span>
+                                      {result.line}행 · {result.snippet}
+                                    </span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="backlinks-section__empty">
+                              참조하는 문서가 없습니다.
+                            </p>
+                          )}
+                        </section>
+                      </>
                     )}
                   </div>
                 </>

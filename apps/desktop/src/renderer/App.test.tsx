@@ -421,6 +421,15 @@ describe('App', () => {
         name: /guide\.md.*1행.*Design/,
       }),
     ).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: '탐색기 열기' }));
+    await user.click(screen.getByRole('button', { name: 'guide.md' }));
+    await user.click(screen.getByRole('button', { name: '연결 문서 열기' }));
+    expect(
+      await screen.findByRole('button', {
+        name: /design\.md.*1행.*design\.md/,
+      }),
+    ).toBeVisible();
   });
 
   it('opens image assets and inserts an existing asset at the editor selection', async () => {
