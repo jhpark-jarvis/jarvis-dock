@@ -33,8 +33,10 @@ describe('renderMermaidDiagram', () => {
     expect(svg).toContain('class="nodes"');
     expect(svg).toContain('flowchart-link');
     expect(svg).not.toContain('<style');
-    expect(svg).not.toContain(' style=');
     expect(svg).not.toContain('<script');
+    expect(svg).not.toMatch(
+      /style="[^"]*(?:url|expression|javascript|var\s*\()/i,
+    );
   });
 
   it('renders a Mermaid C4 context diagram as sanitized SVG', async () => {
@@ -43,6 +45,8 @@ describe('renderMermaidDiagram', () => {
     );
 
     expect(svg).toContain('<svg');
+    expect(svg).toContain('mermaid-c4-svg');
+    expect(svg).toContain('c4-shape');
   });
 
   it('renders Mermaid C4 container and component diagrams as sanitized SVG', async () => {

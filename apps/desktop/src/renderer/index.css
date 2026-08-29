@@ -1444,6 +1444,12 @@ input:focus-visible {
   filter: drop-shadow(0 0.45rem 0.8rem rgb(0 0 0 / 18%));
 }
 
+.mermaid-diagram svg.mermaid-c4-svg {
+  flex: 0 0 auto;
+  width: auto !important;
+  max-width: none;
+}
+
 .mermaid-diagram svg .node rect,
 .mermaid-diagram svg .node circle,
 .mermaid-diagram svg .node ellipse,
@@ -1517,28 +1523,53 @@ input:focus-visible {
   stroke: #34d399;
 }
 
+.mermaid-diagram svg .c4-external,
 .mermaid-diagram svg .c4-external rect,
 .mermaid-diagram svg .c4-external circle,
-.mermaid-diagram svg .c4-external path {
+.mermaid-diagram svg .c4-external path,
+.mermaid-diagram svg .c4-external_system rect,
+.mermaid-diagram svg .c4-external_system circle,
+.mermaid-diagram svg .c4-external_system path,
+.mermaid-diagram svg .c4-external_person rect,
+.mermaid-diagram svg .c4-external_person circle,
+.mermaid-diagram svg .c4-external_person path,
+.mermaid-diagram svg .c4-external_container rect,
+.mermaid-diagram svg .c4-external_container circle,
+.mermaid-diagram svg .c4-external_container path,
+.mermaid-diagram svg .c4-external_component rect,
+.mermaid-diagram svg .c4-external_component circle,
+.mermaid-diagram svg .c4-external_component path {
   fill: #3a2a13;
   stroke: #fbbf24;
 }
 
-.mermaid-diagram svg .c4-person text,
-.mermaid-diagram svg .c4-system text,
-.mermaid-diagram svg .c4-container text,
-.mermaid-diagram svg .c4-component text,
-.mermaid-diagram svg .c4-external text {
-  font-size: 0.82rem;
-  font-weight: 600;
+.mermaid-diagram svg .c4-shape .label,
+.mermaid-diagram svg .c4-shape .label text {
+  color: #e6f4ff;
+  fill: currentColor;
+  font-family: 'Pretendard', 'Segoe UI', sans-serif;
 }
 
-.mermaid-diagram svg .c4-person .label,
-.mermaid-diagram svg .c4-system .label,
-.mermaid-diagram svg .c4-container .label,
-.mermaid-diagram svg .c4-component .label,
-.mermaid-diagram svg .c4-external .label {
-  line-height: 1.35;
+.mermaid-diagram svg .c4-shape .label .c4-name {
+  font-weight: 700;
+}
+
+.mermaid-diagram svg .c4-shape .label .c4-type {
+  fill: #b8cbe1;
+  font-size: 0.75em;
+}
+
+.mermaid-diagram svg .c4-shape .label .c4-descr {
+  fill: #d5e3f1;
+  font-size: 0.82em;
+}
+
+.mermaid-diagram svg .c4-shape rect,
+.mermaid-diagram svg .c4-shape path,
+.mermaid-diagram svg .c4-shape circle,
+.mermaid-diagram svg .c4-shape ellipse,
+.mermaid-diagram svg .c4-shape line {
+  stroke-width: 2px;
 }
 
 .mermaid-diagram svg .edgeLabel rect,
