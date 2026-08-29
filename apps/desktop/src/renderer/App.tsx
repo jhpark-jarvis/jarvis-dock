@@ -243,6 +243,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [selectedPath, setSelectedPath] = useState<string>();
   const [content, setContent] = useState('');
   const [documentRevision, setDocumentRevision] = useState<string>();
+  const [documentError, setDocumentError] = useState('');
   const [editorCommandSuggestion, setEditorCommandSuggestion] = useState<
     EditorCommandSuggestion | undefined
   >();
@@ -372,6 +373,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setSelectedPath('guide.md');
     setContent('# Start');
     setSavedContent('# Start');
+    setDocumentError('');
   }, [initialState]);
 
   const refreshResearchInfo = useCallback(async () => {
@@ -647,6 +649,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setContent('');
     setDocumentRevision(undefined);
     setSavedContent('');
+    setDocumentError('');
     setSaveError('');
     setAssets([]);
     setAssetSources({});
@@ -678,7 +681,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   };
 
   const openDocument = async (relativePath: string) => {
-    if (!workspaceId) return;
+    if (!workspaceId) {
+      setDocumentError('먼저 문서 폴더를 선택해 주세요.');
+      return;
+    }
     if (
       selectedPath &&
       selectedPath !== relativePath &&
@@ -687,26 +693,35 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     ) {
       return;
     }
-    const result = await window.dock.document.read({
-      workspaceId,
-      relativePath,
-    });
-    if (!result.ok) {
-      setState('error');
-      return;
+    try {
+      const result = await window.dock.document.read({
+        workspaceId,
+        relativePath,
+      });
+      if (!result.ok) {
+        setDocumentError(
+          '문서를 열지 못했습니다. 파일이 존재하고 Markdown 파일인지 확인해 주세요.',
+        );
+        return;
+      }
+      setDocumentError('');
+      setOpenDocumentPaths((current) =>
+        current.includes(relativePath) ? current : [...current, relativePath],
+      );
+      setSelectedPath(relativePath);
+      setContent(result.value.content);
+      setSavedContent(result.value.content);
+      setDocumentRevision(result.value.revision);
+      editorSelectionRef.current = {
+        start: result.value.content.length,
+        end: result.value.content.length,
+      };
+      setSaveError('');
+    } catch {
+      setDocumentError(
+        '문서를 열지 못했습니다. 파일이 존재하고 Markdown 파일인지 확인해 주세요.',
+      );
     }
-    setOpenDocumentPaths((current) =>
-      current.includes(relativePath) ? current : [...current, relativePath],
-    );
-    setSelectedPath(relativePath);
-    setContent(result.value.content);
-    setSavedContent(result.value.content);
-    setDocumentRevision(result.value.revision);
-    editorSelectionRef.current = {
-      start: result.value.content.length,
-      end: result.value.content.length,
-    };
-    setSaveError('');
   };
 
   const closeDocumentTab = async (relativePath: string) => {
@@ -731,6 +746,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setContent('');
     setSavedContent('');
     setDocumentRevision(undefined);
+    setDocumentError('');
     editorSelectionRef.current = { start: 0, end: 0 };
     setSaveError('');
   };
@@ -821,6 +837,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setContent(templateContent);
     setSavedContent(templateContent);
     setDocumentRevision(createdRevision);
+    setDocumentError('');
     editorSelectionRef.current = {
       start: templateContent.length,
       end: templateContent.length,
@@ -3100,6 +3117,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             {saveError && (
               <p className="editor-save-error" role="alert">
                 {saveError}
+              </p>
+            )}
+            {documentError && (
+              <p className="editor-save-error" role="alert">
+                {documentError}
               </p>
             )}
             <textarea

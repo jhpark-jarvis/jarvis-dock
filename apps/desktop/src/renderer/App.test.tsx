@@ -199,6 +199,47 @@ describe('App', () => {
     expect(editor).toHaveProperty('selectionEnd', 21);
   });
 
+  it('reports a document read failure instead of failing silently', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [{ relativePath: 'broken.md', displayName: 'broken.md' }],
+            },
+          }),
+        },
+        document: {
+          read: async () => ({
+            ok: false as const,
+            error: {
+              code: 'NOT_FOUND' as const,
+              message: 'The requested file was not found.',
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    await user.click(screen.getByRole('button', { name: 'broken.md' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '문서를 열지 못했습니다. 파일이 존재하고 Markdown 파일인지 확인해 주세요.',
+    );
+  });
+
   it('opens the architecture document panel from the Activity Bar', async () => {
     const user = userEvent.setup();
     render(<App />);
