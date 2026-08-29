@@ -23,6 +23,7 @@ import {
 } from './image-search';
 import { renderMarkdownPreview } from './markdown-preview';
 import { renderMermaidDiagram } from './mermaid-preview';
+import { getScrollRatio, setScrollRatio } from './preview-scroll';
 import {
   findEditorCommandSuggestion,
   type EditorCommand,
@@ -239,6 +240,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const previewRef = useRef<HTMLDivElement>(null);
   const commandTriggerRef = useRef<HTMLButtonElement>(null);
   const editorSelectionRef = useRef({ start: 0, end: 0 });
+  const scrollSyncLockRef = useRef<'editor' | 'preview' | undefined>(undefined);
   const [state, setState] = useState<ShellState>(initialState);
   const [workspaceId, setWorkspaceId] = useState<string>();
   const [workspaceName, setWorkspaceName] = useState<string>();
@@ -324,6 +326,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [previewImageSources, setPreviewImageSources] = useState<
     Record<string, string>
   >({});
+  const [scrollSyncEnabled, setScrollSyncEnabled] = useState(true);
   const [mermaidRenders, setMermaidRenders] = useState<
     Record<number, { source: string; svg?: string; error?: string }>
   >({});
@@ -932,6 +935,49 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       window.clearTimeout(timer);
     };
   }, [previewHtml, selectedPath, mermaidRenders]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    const preview = previewRef.current;
+    if (!scrollSyncEnabled || !editor || !preview) return;
+
+    let unlockTimer: number | undefined;
+    const lockTarget = (target: 'editor' | 'preview') => {
+      scrollSyncLockRef.current = target;
+      if (unlockTimer !== undefined) window.clearTimeout(unlockTimer);
+      unlockTimer = window.setTimeout(() => {
+        if (scrollSyncLockRef.current === target) {
+          scrollSyncLockRef.current = undefined;
+        }
+      }, 0);
+    };
+
+    const handleEditorScroll = () => {
+      if (scrollSyncLockRef.current === 'editor') {
+        scrollSyncLockRef.current = undefined;
+        return;
+      }
+      lockTarget('preview');
+      setScrollRatio(preview, getScrollRatio(editor));
+    };
+    const handlePreviewScroll = () => {
+      if (scrollSyncLockRef.current === 'preview') {
+        scrollSyncLockRef.current = undefined;
+        return;
+      }
+      lockTarget('editor');
+      setScrollRatio(editor, getScrollRatio(preview));
+    };
+
+    editor.addEventListener('scroll', handleEditorScroll);
+    preview.addEventListener('scroll', handlePreviewScroll);
+    return () => {
+      editor.removeEventListener('scroll', handleEditorScroll);
+      preview.removeEventListener('scroll', handlePreviewScroll);
+      if (unlockTimer !== undefined) window.clearTimeout(unlockTimer);
+      scrollSyncLockRef.current = undefined;
+    };
+  }, [scrollSyncEnabled, selectedPath]);
   const outlineItems = extractDocumentOutline(content);
 
   const rememberEditorSelection = () => {
@@ -3246,6 +3292,19 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               <div>
                 <p className="panel-heading__eyebrow">PREVIEW</p>
                 <h2 id="preview-title">미리보기</h2>
+              </div>
+              <div className="panel-heading__actions">
+                <button
+                  className="button button--quiet"
+                  type="button"
+                  aria-pressed={scrollSyncEnabled}
+                  onClick={() => setScrollSyncEnabled((enabled) => !enabled)}
+                  title="Editor와 Preview의 스크롤 위치를 맞춥니다."
+                >
+                  {scrollSyncEnabled
+                    ? '스크롤 동기화 켜짐'
+                    : '스크롤 동기화 꺼짐'}
+                </button>
               </div>
             </div>
             {selectedPath ? (
