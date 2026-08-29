@@ -75,6 +75,16 @@ describe('renderMarkdownPreview', () => {
     expect(html).toContain('align="right"');
   });
 
+  it('keeps blockquotes as semantic preview elements', () => {
+    const html = renderMarkdownPreview(
+      '> 중요한 결정은 배경과 함께 기록합니다.\n>\n> 다음 작업에서 다시 확인합니다.',
+    );
+
+    expect(html).toContain('<blockquote>');
+    expect(html).toContain('<p>중요한 결정은 배경과 함께 기록합니다.</p>');
+    expect(html).toContain('<p>다음 작업에서 다시 확인합니다.</p>');
+  });
+
   it('keeps Mermaid source in a local preview block for the renderer', () => {
     const html = renderMarkdownPreview(
       '```mermaid\nflowchart LR\n  A[Start] --> B[Finish]\n```',

@@ -1221,6 +1221,56 @@ input:focus-visible {
   white-space: pre-wrap;
 }
 
+.preview-content blockquote {
+  position: relative;
+  margin: 0.7rem 0;
+  padding: 0.75rem 1rem 0.75rem 1.15rem;
+  border: 1px solid #304766;
+  border-left: 3px solid #7dd3fc;
+  border-radius: 0.6rem;
+  background:
+    linear-gradient(135deg, rgb(56 189 248 / 9%), transparent 55%), #111f33;
+  box-shadow:
+    inset 0 1px rgb(148 163 184 / 8%),
+    0 0.35rem 0.9rem rgb(3 8 18 / 16%);
+  color: #cbd8e8;
+}
+
+.preview-content blockquote::before {
+  position: absolute;
+  top: 0.05rem;
+  left: 0.45rem;
+  color: rgb(125 211 252 / 55%);
+  content: '“';
+  font-family: Georgia, serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.preview-content blockquote > * {
+  position: relative;
+}
+
+.preview-content blockquote > :first-child {
+  margin-top: 0;
+}
+
+.preview-content blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.preview-content blockquote p {
+  margin: 0.3rem 0;
+  line-height: 1.65;
+}
+
+.preview-content blockquote ul,
+.preview-content blockquote ol {
+  margin: 0.35rem 0;
+  padding-left: 1.3rem;
+}
+
 .preview-content pre {
   overflow: auto;
   margin: 1rem 0;
