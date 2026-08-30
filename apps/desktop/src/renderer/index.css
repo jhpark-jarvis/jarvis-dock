@@ -1397,6 +1397,10 @@ input:focus-visible {
   padding: 0.35rem 0.4rem 0;
 }
 
+.editor-panel .document-tabs {
+  margin-bottom: 0.65rem;
+}
+
 .document-tab {
   display: inline-flex;
   min-width: 0;
