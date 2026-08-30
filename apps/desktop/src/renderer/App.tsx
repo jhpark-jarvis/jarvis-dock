@@ -58,6 +58,18 @@ import { WorkspaceExplorer } from './WorkspaceExplorer';
 
 export type ShellState = 'empty' | 'error' | 'loading';
 
+type DocumentConflict =
+  | {
+      kind: 'changed';
+      relativePath: string;
+      externalContent: string;
+      externalRevision: string;
+    }
+  | {
+      kind: 'removed';
+      relativePath: string;
+    };
+
 interface AppProps {
   state?: ShellState;
 }
@@ -242,6 +254,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const previewRef = useRef<HTMLDivElement>(null);
   const commandTriggerRef = useRef<HTMLButtonElement>(null);
   const editorSelectionRef = useRef({ start: 0, end: 0 });
+  const expectedRevisionRef = useRef<string | undefined>(undefined);
   const scrollSyncLockRef = useRef<'editor' | 'preview' | undefined>(undefined);
   const [state, setState] = useState<ShellState>(initialState);
   const [workspaceId, setWorkspaceId] = useState<string>();
@@ -255,6 +268,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [selectedPath, setSelectedPath] = useState<string>();
   const [content, setContent] = useState('');
   const [documentRevision, setDocumentRevision] = useState<string>();
+  const [documentConflict, setDocumentConflict] = useState<DocumentConflict>();
   const [documentError, setDocumentError] = useState('');
   const [editorCommandSuggestion, setEditorCommandSuggestion] = useState<
     EditorCommandSuggestion | undefined
@@ -648,49 +662,100 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       return false;
     }
     setFiles(listed.value.files);
+    let entries: WorkspaceEntry[];
     if (window.dock.workspace.listEntries) {
-      const entries = await window.dock.workspace.listEntries({
+      const listedEntries = await window.dock.workspace.listEntries({
         workspaceId: nextWorkspaceId,
       });
-      if (!entries.ok) {
+      if (!listedEntries.ok) {
         setState('error');
         return false;
       }
-      setWorkspaceEntries(entries.value.entries);
+      entries = listedEntries.value.entries;
     } else {
-      setWorkspaceEntries(
-        listed.value.files.map((file) => ({ ...file, kind: 'file' as const })),
-      );
+      entries = listed.value.files.map((file) => ({
+        ...file,
+        kind: 'file' as const,
+      }));
     }
-    return true;
+    setWorkspaceEntries(entries);
+    return { files: listed.value.files, entries };
   }, []);
+
+  const handleWorkspaceChanged = useCallback(
+    async (changedWorkspaceId: string) => {
+      const refreshed = await refreshFiles(changedWorkspaceId);
+      if (!refreshed || changedWorkspaceId !== workspaceId || !selectedPath)
+        return;
+
+      const selectedFile = refreshed.files.some(
+        (file) => file.relativePath === selectedPath,
+      );
+      if (!selectedFile) {
+        if (content !== savedContent) {
+          setDocumentConflict({
+            kind: 'removed',
+            relativePath: selectedPath,
+          });
+          return;
+        }
+        setOpenDocumentPaths((current) =>
+          current.filter((path) => path !== selectedPath),
+        );
+        setSelectedPath(undefined);
+        setContent('');
+        setSavedContent('');
+        setDocumentRevision(undefined);
+        setDocumentError('외부 변경으로 현재 문서가 닫혔습니다.');
+        setDocumentConflict(undefined);
+        editorSelectionRef.current = { start: 0, end: 0 };
+        return;
+      }
+
+      const current = await window.dock.document.read({
+        workspaceId: changedWorkspaceId,
+        relativePath: selectedPath,
+      });
+      if (!current.ok || current.value.revision === documentRevision) return;
+      if (current.value.revision === expectedRevisionRef.current) {
+        expectedRevisionRef.current = undefined;
+        return;
+      }
+      if (content !== savedContent) {
+        setDocumentConflict({
+          kind: 'changed',
+          relativePath: selectedPath,
+          externalContent: current.value.content,
+          externalRevision: current.value.revision,
+        });
+        return;
+      }
+      setContent(current.value.content);
+      setSavedContent(current.value.content);
+      setDocumentRevision(current.value.revision);
+      setDocumentError('');
+      editorSelectionRef.current = {
+        start: current.value.content.length,
+        end: current.value.content.length,
+      };
+    },
+    [
+      content,
+      documentRevision,
+      refreshFiles,
+      savedContent,
+      selectedPath,
+      workspaceId,
+    ],
+  );
 
   useEffect(() => {
     if (!workspaceId || !window.dock.workspace.onChanged) return;
     return window.dock.workspace.onChanged((event) => {
-      if (event.workspaceId === workspaceId) void refreshFiles(workspaceId);
+      if (event.workspaceId === workspaceId)
+        void handleWorkspaceChanged(workspaceId);
     });
-  }, [refreshFiles, workspaceId]);
-
-  useEffect(() => {
-    if (!workspaceId || !selectedPath) return;
-    if (files.some((file) => file.relativePath === selectedPath)) return;
-    if (content !== savedContent) {
-      setDocumentError(
-        '선택한 문서가 외부에서 삭제되거나 이름이 변경되었습니다. 미저장 내용은 유지됩니다.',
-      );
-      return;
-    }
-    setOpenDocumentPaths((current) =>
-      current.filter((path) => path !== selectedPath),
-    );
-    setSelectedPath(undefined);
-    setContent('');
-    setSavedContent('');
-    setDocumentRevision(undefined);
-    setDocumentError('외부 변경으로 현재 문서가 닫혔습니다.');
-    editorSelectionRef.current = { start: 0, end: 0 };
-  }, [content, files, savedContent, selectedPath, workspaceId]);
+  }, [handleWorkspaceChanged, workspaceId]);
 
   const chooseWorkspace = async () => {
     setState('loading');
@@ -706,6 +771,8 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setSelectedPath(undefined);
     setContent('');
     setDocumentRevision(undefined);
+    setDocumentConflict(undefined);
+    expectedRevisionRef.current = undefined;
     setSavedContent('');
     setDocumentError('');
     setSaveError('');
@@ -744,8 +811,8 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const renameWorkspaceEntry = async (
     relativePath: string,
     newName: string,
-  ) => {
-    if (!workspaceId || !window.dock.workspace.renameEntry) return;
+  ): Promise<boolean> => {
+    if (!workspaceId || !window.dock.workspace.renameEntry) return false;
     const result = await window.dock.workspace.renameEntry({
       workspaceId,
       relativePath,
@@ -753,7 +820,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     });
     if (result.ok === false) {
       setWorkspaceFolderError(result.error.message);
-      return;
+      return false;
     }
     const oldPrefix = `${relativePath}/`;
     const newPrefix = `${result.value.relativePath}/`;
@@ -770,7 +837,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       if (moved !== selectedPath) setSelectedPath(moved);
     }
     setWorkspaceFolderError('');
-    await refreshFiles(workspaceId);
+    return Boolean(await refreshFiles(workspaceId));
   };
 
   const deleteWorkspaceEntry = async (relativePath: string) => {
@@ -803,6 +870,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       setContent('');
       setSavedContent('');
       setDocumentRevision(undefined);
+      setDocumentConflict(undefined);
       editorSelectionRef.current = { start: 0, end: 0 };
     }
     setWorkspaceFolderError('');
@@ -852,6 +920,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         return;
       }
       setDocumentError('');
+      setDocumentConflict(undefined);
       setOpenDocumentPaths((current) =>
         current.includes(relativePath) ? current : [...current, relativePath],
       );
@@ -859,6 +928,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       setContent(result.value.content);
       setSavedContent(result.value.content);
       setDocumentRevision(result.value.revision);
+      expectedRevisionRef.current = undefined;
       editorSelectionRef.current = {
         start: result.value.content.length,
         end: result.value.content.length,
@@ -893,13 +963,15 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setContent('');
     setSavedContent('');
     setDocumentRevision(undefined);
+    setDocumentConflict(undefined);
     setDocumentError('');
     editorSelectionRef.current = { start: 0, end: 0 };
     setSaveError('');
   };
 
-  const saveDocument = async () => {
+  const saveDocument = async (force = false) => {
     if (!workspaceId || !selectedPath) return;
+    const conflictKind = documentConflict?.kind;
     const removedAssets = findRemovedWorkspaceImageAssets(
       savedContent,
       content,
@@ -910,15 +982,30 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       window.confirm(
         `본문에서 ${removedAssets.length}개의 이미지 참조가 제거되었습니다.\n저장된 원본 파일도 삭제하시겠습니까?`,
       );
+    if (force && conflictKind === 'removed') {
+      const recreated = await window.dock.document.create({
+        workspaceId,
+        relativePath: selectedPath,
+      });
+      if (!recreated.ok) {
+        setSaveError('문서를 다시 만들지 못했습니다. 편집 내용은 유지됩니다.');
+        return;
+      }
+    }
     const result = await window.dock.document.write({
       workspaceId,
       relativePath: selectedPath,
       content,
-      ...(documentRevision ? { expectedRevision: documentRevision } : {}),
+      ...(!force && documentRevision
+        ? { expectedRevision: documentRevision }
+        : {}),
     });
     if (result.ok) {
+      expectedRevisionRef.current = result.value.revision;
       setSavedContent(content);
       setDocumentRevision(result.value.revision);
+      setDocumentConflict(undefined);
+      setDocumentError('');
       setSaveError('');
       if (shouldDeleteAssets) {
         const cleanupResults = await Promise.all(
@@ -946,6 +1033,37 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
           : '문서를 저장하지 못했습니다. 편집 내용은 유지됩니다.',
       );
     }
+  };
+
+  const reloadExternalDocument = () => {
+    if (!documentConflict || documentConflict.kind !== 'changed') return;
+    expectedRevisionRef.current = undefined;
+    setContent(documentConflict.externalContent);
+    setSavedContent(documentConflict.externalContent);
+    setDocumentRevision(documentConflict.externalRevision);
+    setDocumentConflict(undefined);
+    setDocumentError('외부 변경 내용을 불러왔습니다.');
+    setSaveError('');
+    editorSelectionRef.current = {
+      start: documentConflict.externalContent.length,
+      end: documentConflict.externalContent.length,
+    };
+  };
+
+  const closeConflictedDocument = () => {
+    if (!selectedPath) return;
+    expectedRevisionRef.current = undefined;
+    setOpenDocumentPaths((current) =>
+      current.filter((path) => path !== selectedPath),
+    );
+    setSelectedPath(undefined);
+    setContent('');
+    setSavedContent('');
+    setDocumentRevision(undefined);
+    setDocumentConflict(undefined);
+    setDocumentError('');
+    setSaveError('');
+    editorSelectionRef.current = { start: 0, end: 0 };
   };
 
   const createDocument = async () => {
@@ -984,6 +1102,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setContent(templateContent);
     setSavedContent(templateContent);
     setDocumentRevision(createdRevision);
+    setDocumentConflict(undefined);
     setDocumentError('');
     editorSelectionRef.current = {
       start: templateContent.length,
@@ -3340,7 +3459,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               <button
                 className="button button--quiet"
                 type="button"
-                onClick={saveDocument}
+                onClick={() => void saveDocument()}
                 disabled={!selectedPath || !dirty}
               >
                 {dirty ? '저장' : '저장됨'}
@@ -3355,6 +3474,46 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               <p className="editor-save-error" role="alert">
                 {documentError}
               </p>
+            )}
+            {documentConflict && (
+              <div className="document-conflict" role="alert">
+                <div>
+                  <strong>
+                    {documentConflict.kind === 'changed'
+                      ? '문서가 외부에서 변경되었습니다.'
+                      : '문서가 외부에서 삭제되거나 이름이 변경되었습니다.'}
+                  </strong>
+                  <p>
+                    미저장 내용을 유지하거나 외부 변경을 적용할 방법을 선택해
+                    주세요.
+                  </p>
+                </div>
+                <div className="document-conflict__actions">
+                  {documentConflict.kind === 'changed' && (
+                    <button
+                      className="button button--quiet"
+                      type="button"
+                      onClick={reloadExternalDocument}
+                    >
+                      외부 변경 불러오기
+                    </button>
+                  )}
+                  <button
+                    className="button button--primary"
+                    type="button"
+                    onClick={() => void saveDocument(true)}
+                  >
+                    내 작업으로 저장
+                  </button>
+                  <button
+                    className="button button--quiet"
+                    type="button"
+                    onClick={closeConflictedDocument}
+                  >
+                    문서 닫기
+                  </button>
+                </div>
+              </div>
             )}
             <textarea
               ref={editorRef}

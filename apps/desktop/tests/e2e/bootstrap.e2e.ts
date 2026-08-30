@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -196,6 +197,139 @@ test('Dock preserves unsaved Markdown when the document write fails', async () =
     expect(readFileSync(path.join(workspaceRoot, 'guide.md'), 'utf8')).toBe(
       '# Before',
     );
+  } finally {
+    await app.close();
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('Dock lets the user resolve an external Markdown change without losing local edits', async () => {
+  test.setTimeout(45_000);
+  const workspaceRoot = mkdtempSync(
+    path.join(os.tmpdir(), 'dock-e2e-document-conflict-'),
+  );
+  const documentPath = path.join(workspaceRoot, 'guide.md');
+  writeFileSync(documentPath, '# Before', 'utf8');
+  const app = await launchDock(['--dock-e2e-document'], {
+    DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot,
+  });
+
+  try {
+    const page = await app.firstWindow();
+    const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
+    await page.getByRole('button', { name: '폴더 선택' }).click();
+    await page.getByRole('button', { name: 'guide.md' }).click();
+    await expect(editor).toHaveValue('# Before');
+
+    await editor.fill('# Local work');
+    writeFileSync(documentPath, '# External work', 'utf8');
+    await expect(page.locator('.document-conflict')).toContainText(
+      '문서가 외부에서 변경되었습니다.',
+    );
+    await expect(editor).toHaveValue('# Local work');
+
+    await page.getByRole('button', { name: '외부 변경 불러오기' }).click();
+    await expect(editor).toHaveValue('# External work');
+
+    await editor.fill('# Local work wins');
+    writeFileSync(documentPath, '# External work again', 'utf8');
+    await expect(page.locator('.document-conflict')).toContainText(
+      '문서가 외부에서 변경되었습니다.',
+    );
+    await page.getByRole('button', { name: '내 작업으로 저장' }).click();
+    await expect
+      .poll(() => readFileSync(documentPath, 'utf8'))
+      .toBe('# Local work wins');
+    await expect(page.getByRole('button', { name: '저장됨' })).toBeDisabled();
+  } finally {
+    await app.close();
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('Dock can restore local work when an edited document is deleted externally', async () => {
+  test.setTimeout(45_000);
+  const workspaceRoot = mkdtempSync(
+    path.join(os.tmpdir(), 'dock-e2e-document-removed-'),
+  );
+  const documentPath = path.join(workspaceRoot, 'guide.md');
+  writeFileSync(documentPath, '# Before', 'utf8');
+  const app = await launchDock(['--dock-e2e-document'], {
+    DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot,
+  });
+
+  try {
+    const page = await app.firstWindow();
+    const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
+    await page.getByRole('button', { name: '폴더 선택' }).click();
+    await page.getByRole('button', { name: 'guide.md' }).click();
+    await expect(editor).toHaveValue('# Before');
+
+    await editor.fill('# Keep this work');
+    rmSync(documentPath);
+    await expect(page.locator('.document-conflict')).toContainText(
+      '문서가 외부에서 삭제되거나 이름이 변경되었습니다.',
+    );
+    await expect(editor).toHaveValue('# Keep this work');
+    await page.getByRole('button', { name: '내 작업으로 저장' }).click();
+    await expect
+      .poll(() => readFileSync(documentPath, 'utf8'))
+      .toBe('# Keep this work');
+    await expect(page.getByRole('button', { name: '저장됨' })).toBeDisabled();
+  } finally {
+    await app.close();
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('Dock refreshes the Explorer after external file and folder changes', async () => {
+  test.setTimeout(45_000);
+  const workspaceRoot = mkdtempSync(
+    path.join(os.tmpdir(), 'dock-e2e-explorer-external-'),
+  );
+  const externalPath = path.join(workspaceRoot, 'external.md');
+  const folderPath = path.join(workspaceRoot, 'notes');
+  const nestedPath = path.join(folderPath, 'nested.md');
+  writeFileSync(path.join(workspaceRoot, 'guide.md'), '# Guide', 'utf8');
+  const app = await launchDock(['--dock-e2e-document'], {
+    DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot,
+  });
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: '폴더 선택' }).click();
+    await expect(page.getByRole('button', { name: 'guide.md' })).toBeVisible();
+
+    writeFileSync(externalPath, '# External', 'utf8');
+    await expect(
+      page.getByRole('button', { name: 'external.md' }),
+    ).toBeVisible();
+
+    renameSync(externalPath, path.join(workspaceRoot, 'renamed.md'));
+    await expect(
+      page.getByRole('button', { name: 'renamed.md' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'external.md' }),
+    ).not.toBeVisible();
+
+    mkdirSync(folderPath);
+    writeFileSync(nestedPath, '# Nested', 'utf8');
+    await expect(
+      page.getByRole('button', { name: 'notes', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'notes/nested.md' }),
+    ).toBeVisible();
+
+    rmSync(path.join(workspaceRoot, 'renamed.md'));
+    rmSync(folderPath, { recursive: true, force: true });
+    await expect(
+      page.getByRole('button', { name: 'renamed.md' }),
+    ).not.toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'notes', exact: true }),
+    ).not.toBeVisible();
   } finally {
     await app.close();
     rmSync(workspaceRoot, { recursive: true, force: true });

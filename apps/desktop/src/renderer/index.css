@@ -1167,6 +1167,8 @@ input:focus-visible {
 }
 
 .workspace-tree__twisty {
+  display: grid;
+  place-items: center;
   flex: 0 0 1.25rem;
   width: 1.25rem;
   height: 1.5rem;
@@ -1175,13 +1177,26 @@ input:focus-visible {
   background: transparent;
   color: #87a7c6;
   cursor: pointer;
-  font-size: 1rem;
 }
 
 .workspace-tree__twisty--file {
   cursor: default;
-  color: #4d7093;
-  text-align: center;
+}
+
+.workspace-tree__chevron {
+  width: 0.85rem;
+  height: 0.85rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  transform: rotate(-90deg);
+  transition: transform 120ms ease;
+}
+
+.workspace-tree__chevron--expanded {
+  transform: rotate(0deg);
 }
 
 .workspace-tree__name {
@@ -1208,14 +1223,101 @@ input:focus-visible {
 .workspace-tree__icon {
   flex: 0 0 1rem;
   color: #68c8ed;
-  font-size: 0.78rem;
   text-align: center;
+}
+
+.workspace-tree__entry-icon {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
 }
 
 .workspace-tree__label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.workspace-tree__rename {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.workspace-tree__rename-input {
+  min-width: 0;
+  flex: 1;
+  height: 1.55rem;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid #4a8fc3;
+  border-radius: 0.25rem;
+  outline: none;
+  background: #0b1220;
+  color: #f1f7ff;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.workspace-tree__rename-input:focus {
+  box-shadow: 0 0 0 2px rgb(52 177 239 / 20%);
+}
+
+.workspace-tree__rename-confirm,
+.workspace-tree__rename-cancel {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid #334d6b;
+  border-radius: 0.25rem;
+  background: #17263b;
+  color: #cfe6fb;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.68rem;
+}
+
+.workspace-tree__rename-confirm:hover,
+.workspace-tree__rename-confirm:focus-visible,
+.workspace-tree__rename-cancel:hover,
+.workspace-tree__rename-cancel:focus-visible {
+  border-color: #5bb8ea;
+  background: #213b59;
+  color: #fff;
+}
+
+.workspace-tree__context-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin: 0.1rem 0 0.25rem 1.25rem;
+  padding: 0.3rem;
+  border: 1px solid #334d6b;
+  border-radius: 0.35rem;
+  background: #101d30;
+  box-shadow: 0 0.45rem 1rem rgb(0 0 0 / 18%);
+}
+
+.workspace-tree__context-menu button {
+  padding: 0.25rem 0.4rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: #b7d2ec;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+}
+
+.workspace-tree__context-menu button:hover,
+.workspace-tree__context-menu button:focus-visible {
+  background: #1b304a;
+  color: #fff;
 }
 
 .workspace-tree__actions {
@@ -1913,6 +2015,39 @@ input:focus-visible {
   margin: 0.75rem 0;
   border: 1px solid #3a4b66;
   border-radius: 0.45rem;
+}
+
+.document-conflict {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  gap: 0.8rem;
+  margin-bottom: 0.65rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #9a6b2f;
+  border-radius: 0.5rem;
+  background: #2b2114;
+  color: #f8e6c5;
+}
+
+.document-conflict strong,
+.document-conflict p {
+  margin: 0;
+}
+
+.document-conflict p {
+  margin-top: 0.2rem;
+  color: #d9c29b;
+  font-size: 0.75rem;
+}
+
+.document-conflict__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.35rem;
 }
 
 .markdown-editor {

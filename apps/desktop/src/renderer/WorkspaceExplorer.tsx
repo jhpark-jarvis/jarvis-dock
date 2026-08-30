@@ -13,7 +13,7 @@ interface WorkspaceExplorerProps {
     kind: EntryKind,
     name: string,
   ) => Promise<void>;
-  onRename: (relativePath: string, newName: string) => Promise<void>;
+  onRename: (relativePath: string, newName: string) => Promise<boolean>;
   onDelete: (relativePath: string) => Promise<void>;
 }
 
@@ -24,6 +24,42 @@ const parentPathOf = (relativePath: string): string => {
   const index = relativePath.lastIndexOf('/');
   return index === -1 ? '' : relativePath.slice(0, index);
 };
+
+const ChevronIcon = ({ expanded }: { expanded: boolean }) => (
+  <svg
+    className={`workspace-tree__chevron${
+      expanded ? ' workspace-tree__chevron--expanded' : ''
+    }`}
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <path d="m8 9 4 4 4-4" />
+  </svg>
+);
+
+const FolderIcon = ({ expanded }: { expanded: boolean }) => (
+  <svg
+    className="workspace-tree__entry-icon"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <path
+      d={expanded ? 'M3.5 7.5h6l1.8 2H20.5v9h-17z' : 'M3.5 7.5h6l1.8 2H20.5'}
+    />
+    <path d={expanded ? 'M3.5 7.5v-1h6l1.8 2' : 'M3.5 7.5v11h17v-9'} />
+  </svg>
+);
+
+const FileIcon = () => (
+  <svg
+    className="workspace-tree__entry-icon"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <path d="M6.5 3.5h7l4 4v13h-11z" />
+    <path d="M13.5 3.5v4h4" />
+  </svg>
+);
 
 export const WorkspaceExplorer = ({
   entries,
@@ -36,6 +72,10 @@ export const WorkspaceExplorer = ({
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
     () => new Set(['']),
   );
+  const [editingPath, setEditingPath] = useState<string>();
+  const [editingName, setEditingName] = useState('');
+  const [renamePending, setRenamePending] = useState(false);
+  const [contextMenuPath, setContextMenuPath] = useState<string>();
   useEffect(() => {
     setExpandedPaths((current) => {
       const next = new Set(current);
@@ -66,10 +106,38 @@ export const WorkspaceExplorer = ({
     void onCreate(parentPath, kind, name.trim());
   };
 
-  const askRename = (entry: WorkspaceEntry) => {
-    const name = window.prompt('새 이름', entry.displayName);
-    if (!name?.trim() || name.trim() === entry.displayName) return;
-    void onRename(entry.relativePath, name.trim());
+  const beginRename = (entry: WorkspaceEntry) => {
+    setContextMenuPath(undefined);
+    setEditingPath(entry.relativePath);
+    setEditingName(entry.displayName);
+  };
+
+  const cancelRename = () => {
+    if (renamePending) return;
+    setEditingPath(undefined);
+    setEditingName('');
+  };
+
+  const commitRename = async () => {
+    if (!editingPath || renamePending) return;
+    const name = editingName.trim();
+    const entry = entries.find((item) => item.relativePath === editingPath);
+    if (!entry || !name || name === entry.displayName) {
+      cancelRename();
+      return;
+    }
+    setRenamePending(true);
+    try {
+      const renamed = await onRename(editingPath, name);
+      if (renamed) {
+        setEditingPath(undefined);
+        setEditingName('');
+      }
+    } catch {
+      // The parent displays the operation error; keep the input available for retry.
+    } finally {
+      setRenamePending(false);
+    }
   };
 
   const askDelete = (entry: WorkspaceEntry) => {
@@ -80,11 +148,21 @@ export const WorkspaceExplorer = ({
     if (window.confirm(message)) void onDelete(entry.relativePath);
   };
 
+  useEffect(() => {
+    if (
+      contextMenuPath &&
+      !entries.some((entry) => entry.relativePath === contextMenuPath)
+    ) {
+      setContextMenuPath(undefined);
+    }
+  }, [contextMenuPath, entries]);
+
   const renderEntries = (parentPath: string, depth: number): ReactNode => {
     const children = childrenByParent.get(parentPath) ?? [];
     return children.map((entry) => {
       const expanded = expandedPaths.has(entry.relativePath);
       const markdown = isMarkdown(entry);
+      const editing = editingPath === entry.relativePath;
       return (
         <li className="workspace-tree__item" key={entry.relativePath}>
           <div
@@ -94,6 +172,10 @@ export const WorkspaceExplorer = ({
                 : ''
             }`}
             style={{ '--tree-depth': depth } as CSSProperties}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              setContextMenuPath(entry.relativePath);
+            }}
           >
             {entry.kind === 'directory' ? (
               <button
@@ -111,45 +193,95 @@ export const WorkspaceExplorer = ({
                   })
                 }
               >
-                {expanded ? '⌄' : '›'}
+                <ChevronIcon expanded={expanded} />
               </button>
             ) : (
               <span
                 className="workspace-tree__twisty workspace-tree__twisty--file"
                 aria-hidden="true"
-              >
-                ·
-              </span>
+              />
             )}
-            <button
-              className="workspace-tree__name"
-              type="button"
-              disabled={entry.kind === 'file' && !markdown}
-              aria-label={
-                entry.kind === 'file' ? entry.relativePath : undefined
-              }
-              title={
-                entry.kind === 'file' && !markdown
-                  ? 'Markdown 파일만 열 수 있습니다.'
-                  : entry.relativePath
-              }
-              onClick={() => {
-                if (entry.kind === 'directory') {
-                  setExpandedPaths((current) => {
-                    const next = new Set(current);
-                    if (next.has(entry.relativePath))
-                      next.delete(entry.relativePath);
-                    else next.add(entry.relativePath);
-                    return next;
-                  });
-                } else if (markdown) onOpen(entry.relativePath);
-              }}
-            >
-              <span aria-hidden="true" className="workspace-tree__icon">
-                {entry.kind === 'directory' ? (expanded ? '▾' : '▸') : '◇'}
-              </span>
-              <span className="workspace-tree__label">{entry.displayName}</span>
-            </button>
+            {editing ? (
+              <div className="workspace-tree__rename">
+                <input
+                  className="workspace-tree__rename-input"
+                  value={editingName}
+                  aria-label={`${entry.displayName} 이름 변경 입력`}
+                  autoFocus
+                  disabled={renamePending}
+                  onChange={(event) => setEditingName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void commitRename();
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      cancelRename();
+                    }
+                  }}
+                />
+                <button
+                  className="workspace-tree__rename-confirm"
+                  type="button"
+                  disabled={renamePending}
+                  aria-label={`${entry.displayName} 이름 변경 저장`}
+                  onClick={() => void commitRename()}
+                >
+                  저장
+                </button>
+                <button
+                  className="workspace-tree__rename-cancel"
+                  type="button"
+                  disabled={renamePending}
+                  aria-label="이름 변경 취소"
+                  onClick={cancelRename}
+                >
+                  취소
+                </button>
+              </div>
+            ) : (
+              <button
+                className="workspace-tree__name"
+                type="button"
+                disabled={entry.kind === 'file' && !markdown}
+                aria-label={
+                  entry.kind === 'file' ? entry.relativePath : undefined
+                }
+                title={
+                  entry.kind === 'file' && !markdown
+                    ? 'Markdown 파일만 열 수 있습니다.'
+                    : entry.relativePath
+                }
+                onDoubleClick={(event) => {
+                  event.preventDefault();
+                  beginRename(entry);
+                }}
+                onClick={() => {
+                  setContextMenuPath(undefined);
+                  if (entry.kind === 'directory') {
+                    setExpandedPaths((current) => {
+                      const next = new Set(current);
+                      if (next.has(entry.relativePath))
+                        next.delete(entry.relativePath);
+                      else next.add(entry.relativePath);
+                      return next;
+                    });
+                  } else if (markdown) onOpen(entry.relativePath);
+                }}
+              >
+                <span aria-hidden="true" className="workspace-tree__icon">
+                  {entry.kind === 'directory' ? (
+                    <FolderIcon expanded={expanded} />
+                  ) : (
+                    <FileIcon />
+                  )}
+                </span>
+                <span className="workspace-tree__label">
+                  {entry.displayName}
+                </span>
+              </button>
+            )}
             <div className="workspace-tree__actions">
               {entry.kind === 'directory' && (
                 <>
@@ -171,7 +303,7 @@ export const WorkspaceExplorer = ({
               )}
               <button
                 type="button"
-                onClick={() => askRename(entry)}
+                onClick={() => beginRename(entry)}
                 aria-label={`${entry.displayName} 이름 변경`}
               >
                 이름 변경
@@ -185,6 +317,55 @@ export const WorkspaceExplorer = ({
               </button>
             </div>
           </div>
+          {contextMenuPath === entry.relativePath && !editing && (
+            <div
+              className="workspace-tree__context-menu"
+              role="menu"
+              aria-label={`${entry.displayName} 메뉴`}
+            >
+              {entry.kind === 'directory' && (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setContextMenuPath(undefined);
+                      askCreate(entry.relativePath, 'file');
+                    }}
+                  >
+                    새 파일
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setContextMenuPath(undefined);
+                      askCreate(entry.relativePath, 'directory');
+                    }}
+                  >
+                    새 폴더
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => beginRename(entry)}
+              >
+                이름 변경
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setContextMenuPath(undefined);
+                  askDelete(entry);
+                }}
+              >
+                삭제
+              </button>
+            </div>
+          )}
           {entry.kind === 'directory' && expanded && (
             <ul
               className="workspace-tree"
