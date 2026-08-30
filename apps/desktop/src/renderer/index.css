@@ -1543,9 +1543,10 @@ input:focus-visible {
 }
 
 .mermaid-diagram svg.mermaid-c4-svg {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   width: auto !important;
-  max-width: none;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .mermaid-diagram svg .node rect,
