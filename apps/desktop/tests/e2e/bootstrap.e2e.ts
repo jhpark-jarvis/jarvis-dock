@@ -39,6 +39,15 @@ const launchDock = (
   });
 };
 
+const readFileIfAvailable = (filePath: string): string | undefined => {
+  try {
+    return readFileSync(filePath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  }
+};
+
 test('Dock opens a large Markdown document without truncating the editor value', async () => {
   test.setTimeout(45_000);
   const workspaceRoot = mkdtempSync(
@@ -237,10 +246,10 @@ test('Dock lets the user resolve an external Markdown change without losing loca
       '문서가 외부에서 변경되었습니다.',
     );
     await page.getByRole('button', { name: '내 작업으로 저장' }).click();
-    await expect
-      .poll(() => readFileSync(documentPath, 'utf8'))
-      .toBe('# Local work wins');
     await expect(page.getByRole('button', { name: '저장됨' })).toBeDisabled();
+    await expect
+      .poll(() => readFileIfAvailable(documentPath))
+      .toBe('# Local work wins');
   } finally {
     await app.close();
     rmSync(workspaceRoot, { recursive: true, force: true });
@@ -272,10 +281,10 @@ test('Dock can restore local work when an edited document is deleted externally'
     );
     await expect(editor).toHaveValue('# Keep this work');
     await page.getByRole('button', { name: '내 작업으로 저장' }).click();
-    await expect
-      .poll(() => readFileSync(documentPath, 'utf8'))
-      .toBe('# Keep this work');
     await expect(page.getByRole('button', { name: '저장됨' })).toBeDisabled();
+    await expect
+      .poll(() => readFileIfAvailable(documentPath))
+      .toBe('# Keep this work');
   } finally {
     await app.close();
     rmSync(workspaceRoot, { recursive: true, force: true });
