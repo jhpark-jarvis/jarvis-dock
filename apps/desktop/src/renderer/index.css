@@ -1094,6 +1094,146 @@ input:focus-visible {
   background: #17263b;
 }
 
+.workspace-explorer {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.workspace-explorer__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.15rem 0.25rem 0.3rem;
+  color: #dbe8f7;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workspace-explorer__toolbar > div,
+.workspace-tree__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.workspace-explorer__toolbar button,
+.workspace-tree__actions button {
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: #8fb7dc;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.68rem;
+  padding: 0.25rem 0.3rem;
+}
+
+.workspace-explorer__toolbar button:hover,
+.workspace-explorer__toolbar button:focus-visible,
+.workspace-tree__actions button:hover,
+.workspace-tree__actions button:focus-visible {
+  background: #1b304a;
+  color: #f1f7ff;
+}
+
+.workspace-tree {
+  display: grid;
+  gap: 0.1rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.workspace-tree--root {
+  padding-bottom: 0.4rem;
+}
+
+.workspace-tree__row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 1.8rem;
+  padding-left: calc(var(--tree-depth, 0) * 0.9rem);
+  border-radius: 0.35rem;
+}
+
+.workspace-tree__row:hover,
+.workspace-tree__row:focus-within,
+.workspace-tree__row--selected {
+  background: #17263b;
+}
+
+.workspace-tree__twisty {
+  flex: 0 0 1.25rem;
+  width: 1.25rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #87a7c6;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.workspace-tree__twisty--file {
+  cursor: default;
+  color: #4d7093;
+  text-align: center;
+}
+
+.workspace-tree__name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+  gap: 0.38rem;
+  padding: 0.25rem 0.2rem;
+  border: 0;
+  background: transparent;
+  color: #dbe8f7;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.workspace-tree__name:disabled {
+  color: #71859b;
+  cursor: not-allowed;
+}
+
+.workspace-tree__icon {
+  flex: 0 0 1rem;
+  color: #68c8ed;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.workspace-tree__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-tree__actions {
+  visibility: hidden;
+  margin-right: 0.2rem;
+}
+
+.workspace-tree__row:hover .workspace-tree__actions,
+.workspace-tree__row:focus-within .workspace-tree__actions {
+  visibility: visible;
+}
+
+.workspace-tree__empty {
+  margin: 0.6rem 0;
+  color: #8fa4bd;
+  font-size: 0.8rem;
+}
+
 .workspace-search-panel {
   gap: 0.55rem;
 }

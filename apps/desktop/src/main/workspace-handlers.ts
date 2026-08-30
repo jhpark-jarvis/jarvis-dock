@@ -1,5 +1,5 @@
 import type { IpcMain, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
-import { mkdir, readFile, realpath } from 'node:fs/promises';
+import { lstat, mkdir, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import {
   DocumentRequestSchema,
@@ -12,6 +12,11 @@ import {
   WorkspaceOpenFolderResultEnvelopeSchema,
   WorkspaceRequestSchema,
   WorkspaceFilesResultSchema,
+  WorkspaceEntriesResultSchema,
+  WorkspaceCreateEntryRequestSchema,
+  WorkspaceRenameEntryRequestSchema,
+  WorkspaceDeleteEntryRequestSchema,
+  WorkspaceMutationResultEnvelopeSchema,
   WriteResultEnvelopeSchema,
   type DockError,
 } from '../shared/ipc';
@@ -19,6 +24,10 @@ import {
   createDocument,
   createWorkspaceStore,
   listMarkdownFiles,
+  listWorkspaceEntries,
+  createWorkspaceDirectory,
+  renameWorkspaceEntry,
+  deleteWorkspaceEntry,
   readDocument,
   registerWorkspace,
   resolveWorkspacePath,
@@ -26,6 +35,7 @@ import {
   getDocumentRevision,
   type WorkspaceStore,
 } from './workspace-service';
+import { WorkspaceWatcher } from './workspace-watcher';
 
 type HandlerRegistrar = Pick<IpcMain, 'handle'>;
 type Dialog = {
@@ -41,6 +51,7 @@ export interface WorkspaceHandlerDependencies {
   store?: WorkspaceStore;
   documentWriter?: typeof writeDocument;
   openPath?: (path: string) => Promise<string>;
+  sendWorkspaceChanged?: (workspaceId: string) => void;
 }
 
 const error = (code: DockError['code'], message: string): DockError => ({
@@ -80,7 +91,18 @@ export const registerWorkspaceHandlers = ({
   store = createWorkspaceStore(),
   documentWriter = writeDocument,
   openPath = async () => '',
-}: WorkspaceHandlerDependencies): void => {
+  sendWorkspaceChanged,
+}: WorkspaceHandlerDependencies): (() => void) => {
+  const watchers = new Map<string, WorkspaceWatcher>();
+  const startWatcher = async (workspaceId: string, root: string) => {
+    if (!sendWorkspaceChanged) return;
+    watchers.get(workspaceId)?.dispose();
+    const watcher = new WorkspaceWatcher(root, () =>
+      sendWorkspaceChanged(workspaceId),
+    );
+    watchers.set(workspaceId, watcher);
+    await watcher.start();
+  };
   ipcMain.handle(IPC.WORKSPACE_CHOOSE, async (event, request) => {
     const guardError = guard(
       event,
@@ -103,9 +125,14 @@ export const registerWorkspaceHandlers = ({
       });
     }
     try {
+      const workspace = await registerWorkspace(store, result.filePaths[0]);
+      const registeredRoot = store.get(workspace.workspaceId);
+      if (!registeredRoot)
+        throw new Error('The workspace could not be registered.');
+      await startWatcher(workspace.workspaceId, registeredRoot);
       return WorkspaceChooseResultSchema.parse({
         ok: true,
-        value: await registerWorkspace(store, result.filePaths[0]),
+        value: workspace,
       });
     } catch (cause) {
       return WorkspaceChooseResultSchema.parse({
@@ -191,6 +218,199 @@ export const registerWorkspaceHandlers = ({
       });
     }
   });
+
+  ipcMain.handle(IPC.WORKSPACE_LIST_ENTRIES, async (event, request) => {
+    const guardError = guard(
+      event,
+      isTrustedSender,
+      request,
+      WorkspaceRequestSchema,
+    );
+    if (guardError)
+      return WorkspaceEntriesResultSchema.parse({
+        ok: false,
+        error: guardError,
+      });
+    const parsed = WorkspaceRequestSchema.parse(request);
+    const root = store.get(parsed.workspaceId);
+    if (!root)
+      return WorkspaceEntriesResultSchema.parse({
+        ok: false,
+        error: error(
+          'WORKSPACE_NOT_SELECTED',
+          'No document workspace is selected.',
+        ),
+      });
+    try {
+      return WorkspaceEntriesResultSchema.parse({
+        ok: true,
+        value: { entries: await listWorkspaceEntries(root) },
+      });
+    } catch (cause) {
+      return WorkspaceEntriesResultSchema.parse({
+        ok: false,
+        error: mapFsError(cause),
+      });
+    }
+  });
+
+  const workspaceMutation = async (
+    event: IpcMainInvokeEvent,
+    request: unknown,
+    operation: 'create' | 'rename' | 'delete',
+  ) => {
+    const schema =
+      operation === 'create'
+        ? WorkspaceCreateEntryRequestSchema
+        : operation === 'rename'
+          ? WorkspaceRenameEntryRequestSchema
+          : WorkspaceDeleteEntryRequestSchema;
+    const guardError = guard(event, isTrustedSender, request, schema);
+    if (guardError)
+      return WorkspaceMutationResultEnvelopeSchema.parse({
+        ok: false,
+        error: guardError,
+      });
+    const parsed = schema.parse(request) as {
+      workspaceId: string;
+      parentPath?: string;
+      relativePath?: string;
+      name?: string;
+      newName?: string;
+      kind?: 'file' | 'directory';
+    };
+    const root = store.get(parsed.workspaceId);
+    if (!root)
+      return WorkspaceMutationResultEnvelopeSchema.parse({
+        ok: false,
+        error: error(
+          'WORKSPACE_NOT_SELECTED',
+          'No document workspace is selected.',
+        ),
+      });
+    try {
+      if (operation === 'create') {
+        const parentPath = parsed.parentPath ?? '';
+        const name = parsed.name ?? '';
+        const kind = parsed.kind ?? 'file';
+        const parent = await resolveWorkspacePath(
+          store,
+          parsed.workspaceId,
+          parentPath || '.',
+          true,
+        );
+        if (!parent || !(await lstat(parent.absolutePath)).isDirectory())
+          return WorkspaceMutationResultEnvelopeSchema.parse({
+            ok: false,
+            error: error(
+              'DIRECTORY_NOT_FOUND',
+              'The parent folder was not found.',
+            ),
+          });
+        const relativePath = parentPath ? `${parentPath}/${name}` : name;
+        const target = await resolveWorkspacePath(
+          store,
+          parsed.workspaceId,
+          relativePath,
+          false,
+        );
+        if (!target) throw new Error('Target path is outside the workspace.');
+        if (kind === 'directory')
+          await createWorkspaceDirectory(target.absolutePath);
+        else {
+          if (!/\.(md|markdown)$/i.test(name))
+            return WorkspaceMutationResultEnvelopeSchema.parse({
+              ok: false,
+              error: error(
+                'UNSUPPORTED_FILE',
+                'Only Markdown files can be created.',
+              ),
+            });
+          await createDocument(target.absolutePath, relativePath);
+        }
+        return WorkspaceMutationResultEnvelopeSchema.parse({
+          ok: true,
+          value: { relativePath, kind },
+        });
+      }
+      const relativePath = parsed.relativePath ?? '';
+      const current = await resolveWorkspacePath(
+        store,
+        parsed.workspaceId,
+        relativePath,
+        true,
+      );
+      if (!current || current.absolutePath === current.root)
+        return WorkspaceMutationResultEnvelopeSchema.parse({
+          ok: false,
+          error: error(
+            'PATH_OUTSIDE_WORKSPACE',
+            'The workspace root cannot be changed.',
+          ),
+        });
+      const currentStats = await lstat(current.absolutePath);
+      if (operation === 'delete') {
+        await deleteWorkspaceEntry(current.absolutePath);
+        return WorkspaceMutationResultEnvelopeSchema.parse({
+          ok: true,
+          value: {
+            relativePath,
+            kind: currentStats.isDirectory() ? 'directory' : 'file',
+          },
+        });
+      }
+      const newName = parsed.newName ?? '';
+      const parentPath = path.posix.dirname(relativePath).replace(/^\.$/, '');
+      const destinationRelativePath = parentPath
+        ? `${parentPath}/${newName}`
+        : newName;
+      const destination = await resolveWorkspacePath(
+        store,
+        parsed.workspaceId,
+        destinationRelativePath,
+        false,
+      );
+      if (!destination)
+        throw new Error('Destination is outside the workspace.');
+      try {
+        await lstat(destination.absolutePath);
+        return WorkspaceMutationResultEnvelopeSchema.parse({
+          ok: false,
+          error: error(
+            'WRITE_FAILED',
+            'A file or folder with that name already exists.',
+          ),
+        });
+      } catch (cause) {
+        if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause;
+      }
+      await renameWorkspaceEntry(
+        current.absolutePath,
+        destination.absolutePath,
+      );
+      return WorkspaceMutationResultEnvelopeSchema.parse({
+        ok: true,
+        value: {
+          relativePath: destinationRelativePath,
+          kind: currentStats.isDirectory() ? 'directory' : 'file',
+        },
+      });
+    } catch (cause) {
+      return WorkspaceMutationResultEnvelopeSchema.parse({
+        ok: false,
+        error: mapFsError(cause),
+      });
+    }
+  };
+  ipcMain.handle(IPC.WORKSPACE_CREATE_ENTRY, (event, request) =>
+    workspaceMutation(event, request, 'create'),
+  );
+  ipcMain.handle(IPC.WORKSPACE_RENAME_ENTRY, (event, request) =>
+    workspaceMutation(event, request, 'rename'),
+  );
+  ipcMain.handle(IPC.WORKSPACE_DELETE_ENTRY, (event, request) =>
+    workspaceMutation(event, request, 'delete'),
+  );
 
   ipcMain.handle(IPC.DOCUMENT_READ, async (event, request) => {
     const guardError = guard(
@@ -308,4 +528,8 @@ export const registerWorkspaceHandlers = ({
   ipcMain.handle(IPC.DOCUMENT_WRITE, (event, request) =>
     handleWrite(event, request, false),
   );
+  return () => {
+    for (const watcher of watchers.values()) watcher.dispose();
+    watchers.clear();
+  };
 };

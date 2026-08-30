@@ -50,15 +50,83 @@ const createHarness = (
 describe('registerWorkspaceHandlers', () => {
   it('registers the workspace and document channels', () => {
     const { handle } = createHarness(undefined);
-    expect(handle).toHaveBeenCalledTimes(6);
+    expect(handle).toHaveBeenCalledTimes(10);
     expect(handle.mock.calls.map(([channel]) => channel)).toEqual([
       IPC.WORKSPACE_CHOOSE,
       IPC.WORKSPACE_OPEN_FOLDER,
       IPC.WORKSPACE_LIST_MARKDOWN_FILES,
+      IPC.WORKSPACE_LIST_ENTRIES,
+      IPC.WORKSPACE_CREATE_ENTRY,
+      IPC.WORKSPACE_RENAME_ENTRY,
+      IPC.WORKSPACE_DELETE_ENTRY,
       IPC.DOCUMENT_READ,
       IPC.DOCUMENT_CREATE,
       IPC.DOCUMENT_WRITE,
     ]);
+  });
+
+  it('supports Explorer CRUD without leaving the selected workspace', async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'jarvis-dock-handler-explorer-'),
+    );
+    const { invoke } = createHarness(root);
+    const chosen = (await invoke(IPC.WORKSPACE_CHOOSE, {})) as {
+      value: { workspaceId: string };
+    };
+    const { workspaceId } = chosen.value;
+
+    try {
+      await expect(
+        invoke(IPC.WORKSPACE_CREATE_ENTRY, {
+          workspaceId,
+          parentPath: '',
+          name: 'docs',
+          kind: 'directory',
+        }),
+      ).resolves.toEqual({
+        ok: true,
+        value: { relativePath: 'docs', kind: 'directory' },
+      });
+      await expect(
+        invoke(IPC.WORKSPACE_CREATE_ENTRY, {
+          workspaceId,
+          parentPath: 'docs',
+          name: 'note.md',
+          kind: 'file',
+        }),
+      ).resolves.toEqual({
+        ok: true,
+        value: { relativePath: 'docs/note.md', kind: 'file' },
+      });
+      await expect(
+        invoke(IPC.WORKSPACE_RENAME_ENTRY, {
+          workspaceId,
+          relativePath: 'docs/note.md',
+          newName: 'renamed.md',
+        }),
+      ).resolves.toEqual({
+        ok: true,
+        value: { relativePath: 'docs/renamed.md', kind: 'file' },
+      });
+      await expect(
+        invoke(IPC.WORKSPACE_DELETE_ENTRY, {
+          workspaceId,
+          relativePath: 'docs/renamed.md',
+        }),
+      ).resolves.toMatchObject({ ok: true });
+      await expect(
+        invoke(IPC.WORKSPACE_DELETE_ENTRY, {
+          workspaceId,
+          relativePath: '',
+        }),
+      ).resolves.toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_REQUEST' },
+      });
+      await expect(fs.stat(path.join(root, 'docs'))).resolves.toBeTruthy();
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
   });
 
   it('opens the selected document or assets folder without exposing a path', async () => {

@@ -5,6 +5,7 @@ import type {
   ResearchSearchResult,
   ResearchTabInfo,
   WorkspaceFile,
+  WorkspaceEntry,
 } from '../shared/ipc';
 import {
   extractWorkspaceImageAssets,
@@ -53,6 +54,7 @@ import {
   type BacklinkResult,
   type DocumentLinkResult,
 } from './backlinks';
+import { WorkspaceExplorer } from './WorkspaceExplorer';
 
 export type ShellState = 'empty' | 'error' | 'loading';
 
@@ -246,6 +248,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [workspaceName, setWorkspaceName] = useState<string>();
   const [workspaceFolderError, setWorkspaceFolderError] = useState('');
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
+  const [workspaceEntries, setWorkspaceEntries] = useState<WorkspaceEntry[]>(
+    [],
+  );
   const [openDocumentPaths, setOpenDocumentPaths] = useState<string[]>([]);
   const [selectedPath, setSelectedPath] = useState<string>();
   const [content, setContent] = useState('');
@@ -377,6 +382,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setWorkspaceId('11111111-1111-4111-8111-111111111111');
     setWorkspaceName('fixture');
     setFiles([{ relativePath: 'guide.md', displayName: 'guide.md' }]);
+    setWorkspaceEntries([
+      { relativePath: 'guide.md', displayName: 'guide.md', kind: 'file' },
+    ]);
     setOpenDocumentPaths(['guide.md']);
     setSelectedPath('guide.md');
     setContent('# Start');
@@ -631,7 +639,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     };
   }, [assetRefreshKey, workspaceId, workspacePanel]);
 
-  const refreshFiles = async (nextWorkspaceId: string) => {
+  const refreshFiles = useCallback(async (nextWorkspaceId: string) => {
     const listed = await window.dock.workspace.listMarkdownFiles({
       workspaceId: nextWorkspaceId,
     });
@@ -640,8 +648,49 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       return false;
     }
     setFiles(listed.value.files);
+    if (window.dock.workspace.listEntries) {
+      const entries = await window.dock.workspace.listEntries({
+        workspaceId: nextWorkspaceId,
+      });
+      if (!entries.ok) {
+        setState('error');
+        return false;
+      }
+      setWorkspaceEntries(entries.value.entries);
+    } else {
+      setWorkspaceEntries(
+        listed.value.files.map((file) => ({ ...file, kind: 'file' as const })),
+      );
+    }
     return true;
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!workspaceId || !window.dock.workspace.onChanged) return;
+    return window.dock.workspace.onChanged((event) => {
+      if (event.workspaceId === workspaceId) void refreshFiles(workspaceId);
+    });
+  }, [refreshFiles, workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId || !selectedPath) return;
+    if (files.some((file) => file.relativePath === selectedPath)) return;
+    if (content !== savedContent) {
+      setDocumentError(
+        '선택한 문서가 외부에서 삭제되거나 이름이 변경되었습니다. 미저장 내용은 유지됩니다.',
+      );
+      return;
+    }
+    setOpenDocumentPaths((current) =>
+      current.filter((path) => path !== selectedPath),
+    );
+    setSelectedPath(undefined);
+    setContent('');
+    setSavedContent('');
+    setDocumentRevision(undefined);
+    setDocumentError('외부 변경으로 현재 문서가 닫혔습니다.');
+    editorSelectionRef.current = { start: 0, end: 0 };
+  }, [content, files, savedContent, selectedPath, workspaceId]);
 
   const chooseWorkspace = async () => {
     setState('loading');
@@ -653,6 +702,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setWorkspaceId(chosen.value.workspaceId);
     setWorkspaceName(chosen.value.displayName);
     setOpenDocumentPaths([]);
+    setWorkspaceEntries([]);
     setSelectedPath(undefined);
     setContent('');
     setDocumentRevision(undefined);
@@ -668,6 +718,95 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setWorkspaceSearchStatus('idle');
     if (!(await refreshFiles(chosen.value.workspaceId))) return;
     setState('empty');
+  };
+
+  const createWorkspaceEntry = async (
+    parentPath: string,
+    kind: 'file' | 'directory',
+    name: string,
+  ) => {
+    if (!workspaceId || !window.dock.workspace.createEntry) return;
+    const result = await window.dock.workspace.createEntry({
+      workspaceId,
+      parentPath,
+      name,
+      kind,
+    });
+    if (result.ok === false) {
+      setWorkspaceFolderError(result.error.message);
+      return;
+    }
+    setWorkspaceFolderError('');
+    await refreshFiles(workspaceId);
+    if (kind === 'file') await openDocument(result.value.relativePath);
+  };
+
+  const renameWorkspaceEntry = async (
+    relativePath: string,
+    newName: string,
+  ) => {
+    if (!workspaceId || !window.dock.workspace.renameEntry) return;
+    const result = await window.dock.workspace.renameEntry({
+      workspaceId,
+      relativePath,
+      newName,
+    });
+    if (result.ok === false) {
+      setWorkspaceFolderError(result.error.message);
+      return;
+    }
+    const oldPrefix = `${relativePath}/`;
+    const newPrefix = `${result.value.relativePath}/`;
+    const movePath = (value: string) =>
+      value === relativePath
+        ? result.value.relativePath
+        : value.startsWith(oldPrefix)
+          ? `${newPrefix}${value.slice(oldPrefix.length)}`
+          : value;
+    setOpenDocumentPaths((current) => current.map(movePath));
+    setSelectedPath((current) => (current ? movePath(current) : current));
+    if (selectedPath) {
+      const moved = movePath(selectedPath);
+      if (moved !== selectedPath) setSelectedPath(moved);
+    }
+    setWorkspaceFolderError('');
+    await refreshFiles(workspaceId);
+  };
+
+  const deleteWorkspaceEntry = async (relativePath: string) => {
+    if (!workspaceId || !window.dock.workspace.deleteEntry) return;
+    const isSelected =
+      selectedPath === relativePath ||
+      selectedPath?.startsWith(`${relativePath}/`);
+    if (
+      isSelected &&
+      content !== savedContent &&
+      !window.confirm('저장하지 않은 변경 사항이 있습니다. 그래도 삭제할까요?')
+    )
+      return;
+    const result = await window.dock.workspace.deleteEntry({
+      workspaceId,
+      relativePath,
+    });
+    if (result.ok === false) {
+      setWorkspaceFolderError(result.error.message);
+      return;
+    }
+    setOpenDocumentPaths((current) =>
+      current.filter(
+        (value) =>
+          value !== relativePath && !value.startsWith(`${relativePath}/`),
+      ),
+    );
+    if (isSelected) {
+      setSelectedPath(undefined);
+      setContent('');
+      setSavedContent('');
+      setDocumentRevision(undefined);
+      editorSelectionRef.current = { start: 0, end: 0 };
+    }
+    setWorkspaceFolderError('');
+    await refreshFiles(workspaceId);
   };
 
   const openWorkspaceFolder = async (folder: 'document' | 'assets') => {
@@ -2605,20 +2744,17 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                         </form>
                       </>
                     )}
-                    {files.length > 0 ? (
-                      <ul className="file-list" aria-label="Markdown 파일 목록">
-                        {files.map((file) => (
-                          <li key={file.relativePath}>
-                            <button
-                              className="file-list__item"
-                              type="button"
-                              onClick={() => openDocument(file.relativePath)}
-                            >
-                              {file.relativePath}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
+                    {workspaceName ? (
+                      <WorkspaceExplorer
+                        entries={workspaceEntries}
+                        selectedPath={selectedPath}
+                        onOpen={(relativePath) =>
+                          void openDocument(relativePath)
+                        }
+                        onCreate={createWorkspaceEntry}
+                        onRename={renameWorkspaceEntry}
+                        onDelete={deleteWorkspaceEntry}
+                      />
                     ) : (
                       <WorkspaceState state={state} />
                     )}

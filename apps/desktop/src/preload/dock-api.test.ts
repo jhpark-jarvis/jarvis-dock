@@ -224,6 +224,28 @@ describe('createDockApi', () => {
     expect(invoke).toHaveBeenCalledWith(IPC.WORKSPACE_OPEN_FOLDER, request);
   });
 
+  it('validates workspace change events and removes the listener', () => {
+    const invoke = vi.fn();
+    const on = vi.fn();
+    const removeListener = vi.fn();
+    const dock = createDockApi({ invoke, on, removeListener });
+    const listener = vi.fn();
+    const unsubscribe = dock.workspace.onChanged?.(listener);
+    const registered = on.mock.calls[0]?.[1] as
+      | ((event: unknown, payload: unknown) => void)
+      | undefined;
+
+    registered?.({}, { workspaceId: 'not-a-uuid' });
+    registered?.({}, { workspaceId: '11111111-1111-4111-8111-111111111111' });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe?.();
+    expect(removeListener).toHaveBeenCalledWith(
+      IPC.WORKSPACE_CHANGED,
+      registered,
+    );
+  });
+
   it('validates and invokes ADR creation through the fixed architecture channel', async () => {
     const invoke = vi.fn().mockResolvedValue({
       ok: true,

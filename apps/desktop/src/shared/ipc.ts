@@ -6,6 +6,11 @@ export const IPC = {
   WORKSPACE_CHOOSE: 'workspace:choose',
   WORKSPACE_OPEN_FOLDER: 'workspace:open-folder',
   WORKSPACE_LIST_MARKDOWN_FILES: 'workspace:list-markdown-files',
+  WORKSPACE_LIST_ENTRIES: 'workspace:list-entries',
+  WORKSPACE_CREATE_ENTRY: 'workspace:create-entry',
+  WORKSPACE_RENAME_ENTRY: 'workspace:rename-entry',
+  WORKSPACE_DELETE_ENTRY: 'workspace:delete-entry',
+  WORKSPACE_CHANGED: 'workspace:changed',
   DOCUMENT_READ: 'document:read',
   DOCUMENT_CREATE: 'document:create',
   DOCUMENT_WRITE: 'document:write',
@@ -38,6 +43,9 @@ export const DockErrorSchema = z
       'INVALID_REQUEST',
       'UNAUTHORIZED_SENDER',
       'WORKSPACE_NOT_SELECTED',
+      'INVALID_NAME',
+      'DIRECTORY_NOT_FOUND',
+      'DIRECTORY_NOT_EMPTY',
       'FOLDER_OPEN_FAILED',
       'PATH_OUTSIDE_WORKSPACE',
       'UNSUPPORTED_FILE',
@@ -114,6 +122,32 @@ export const WorkspaceFileSchema = z
     displayName: z.string().min(1),
   })
   .strict();
+const WorkspaceRelativePathSchema = z
+  .string()
+  .max(400)
+  .refine((value) => !value.includes('\0'), 'null bytes are not allowed')
+  .refine((value) => !/^[\\/]/.test(value), 'absolute paths are not allowed')
+  .refine((value) => !/^[A-Za-z]:/.test(value), 'drive paths are not allowed')
+  .refine(
+    (value) => !value.split(/[\\/]/).includes('..'),
+    'parent paths are not allowed',
+  );
+export const WorkspaceEntryNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .refine((value) => !value.includes('\0'), 'null bytes are not allowed')
+  .refine((value) => !/[\\/]/.test(value), 'a name must be one path segment')
+  .refine((value) => value !== '.' && value !== '..', 'invalid name')
+  .refine((value) => !value.startsWith('.'), 'hidden names are not allowed');
+export const WorkspaceEntrySchema = z
+  .object({
+    relativePath: RelativeMarkdownPathSchema,
+    displayName: z.string().min(1),
+    kind: z.enum(['file', 'directory']),
+  })
+  .strict();
 export const DocumentDataSchema = z
   .object({
     relativePath: RelativeMarkdownPathSchema,
@@ -157,6 +191,54 @@ export const WorkspaceFilesResultSchema = z.discriminatedUnion('ok', [
     .strict(),
   z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
 ]);
+export const WorkspaceEntriesResultSchema = z.discriminatedUnion('ok', [
+  z
+    .object({
+      ok: z.literal(true),
+      value: z.object({ entries: z.array(WorkspaceEntrySchema) }).strict(),
+    })
+    .strict(),
+  z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+]);
+export const WorkspaceCreateEntryRequestSchema = z
+  .object({
+    workspaceId: WorkspaceIdSchema,
+    parentPath: WorkspaceRelativePathSchema.default(''),
+    name: WorkspaceEntryNameSchema,
+    kind: z.enum(['file', 'directory']),
+  })
+  .strict();
+export const WorkspaceRenameEntryRequestSchema = z
+  .object({
+    workspaceId: WorkspaceIdSchema,
+    relativePath: RelativeMarkdownPathSchema,
+    newName: WorkspaceEntryNameSchema,
+  })
+  .strict();
+export const WorkspaceDeleteEntryRequestSchema = z
+  .object({
+    workspaceId: WorkspaceIdSchema,
+    relativePath: RelativeMarkdownPathSchema,
+  })
+  .strict();
+export const WorkspaceMutationResultSchema = z
+  .object({
+    relativePath: RelativeMarkdownPathSchema,
+    kind: z.enum(['file', 'directory']),
+  })
+  .strict();
+export const WorkspaceMutationResultEnvelopeSchema = z.discriminatedUnion(
+  'ok',
+  [
+    z
+      .object({ ok: z.literal(true), value: WorkspaceMutationResultSchema })
+      .strict(),
+    z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
+  ],
+);
+export const WorkspaceChangedEventSchema = z
+  .object({ workspaceId: WorkspaceIdSchema })
+  .strict();
 export const DocumentResultSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), value: DocumentDataSchema }).strict(),
   z.object({ ok: z.literal(false), error: DockErrorSchema }).strict(),
@@ -489,6 +571,7 @@ export type HealthResult = z.infer<typeof HealthResultSchema>;
 export type VersionResult = z.infer<typeof VersionResultSchema>;
 export type WorkspaceSummary = z.infer<typeof WorkspaceSummarySchema>;
 export type WorkspaceFile = z.infer<typeof WorkspaceFileSchema>;
+export type WorkspaceEntry = z.infer<typeof WorkspaceEntrySchema>;
 export type DocumentData = z.infer<typeof DocumentDataSchema>;
 export type WriteResult = z.infer<typeof WriteResultSchema>;
 export type WorkspaceChooseResult = z.infer<typeof WorkspaceChooseResultSchema>;
@@ -496,6 +579,13 @@ export type WorkspaceOpenFolderResultEnvelope = z.infer<
   typeof WorkspaceOpenFolderResultEnvelopeSchema
 >;
 export type WorkspaceFilesResult = z.infer<typeof WorkspaceFilesResultSchema>;
+export type WorkspaceEntriesResult = z.infer<
+  typeof WorkspaceEntriesResultSchema
+>;
+export type WorkspaceMutationResultEnvelope = z.infer<
+  typeof WorkspaceMutationResultEnvelopeSchema
+>;
+export type WorkspaceChangedEvent = z.infer<typeof WorkspaceChangedEventSchema>;
 export type DocumentResult = z.infer<typeof DocumentResultSchema>;
 export type WriteResultEnvelope = z.infer<typeof WriteResultEnvelopeSchema>;
 export type ArchitectureCreateProjectRequest = z.infer<
@@ -570,6 +660,27 @@ export interface DockApi {
     listMarkdownFiles: (request: {
       workspaceId: string;
     }) => Promise<WorkspaceFilesResult>;
+    listEntries?: (request: {
+      workspaceId: string;
+    }) => Promise<WorkspaceEntriesResult>;
+    createEntry?: (request: {
+      workspaceId: string;
+      parentPath?: string;
+      name: string;
+      kind: 'file' | 'directory';
+    }) => Promise<WorkspaceMutationResultEnvelope>;
+    renameEntry?: (request: {
+      workspaceId: string;
+      relativePath: string;
+      newName: string;
+    }) => Promise<WorkspaceMutationResultEnvelope>;
+    deleteEntry?: (request: {
+      workspaceId: string;
+      relativePath: string;
+    }) => Promise<WorkspaceMutationResultEnvelope>;
+    onChanged?: (
+      listener: (event: WorkspaceChangedEvent) => void,
+    ) => () => void;
     openFolder: (request: {
       workspaceId: string;
       folder: 'document' | 'assets';

@@ -7,6 +7,7 @@ import {
   createDocument,
   createWorkspaceStore,
   listMarkdownFiles,
+  listWorkspaceEntries,
   readDocument,
   registerWorkspace,
   resolveWorkspacePath,
@@ -29,6 +30,29 @@ describe('workspace service', () => {
     ]);
     expect(summary.displayName).toBe(path.basename(root));
     expect(store.get(summary.workspaceId)).toBe(await fs.realpath(root));
+  });
+
+  it('lists visible files and folders for the Explorer', async () => {
+    const root = await makeTempDir();
+    await fs.mkdir(path.join(root, 'docs', 'nested'), { recursive: true });
+    await fs.writeFile(path.join(root, 'docs', 'nested', 'note.md'), '# Note');
+    await fs.writeFile(path.join(root, 'readme.txt'), 'readme');
+    await fs.writeFile(path.join(root, '.hidden.md'), 'hidden');
+
+    await expect(listWorkspaceEntries(root)).resolves.toEqual([
+      { relativePath: 'docs', displayName: 'docs', kind: 'directory' },
+      {
+        relativePath: 'docs/nested',
+        displayName: 'nested',
+        kind: 'directory',
+      },
+      {
+        relativePath: 'docs/nested/note.md',
+        displayName: 'note.md',
+        kind: 'file',
+      },
+      { relativePath: 'readme.txt', displayName: 'readme.txt', kind: 'file' },
+    ]);
   });
 
   it('rejects absolute and parent paths at the shared contract boundary', () => {

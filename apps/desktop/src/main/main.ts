@@ -38,6 +38,7 @@ import { registerWorkspaceHandlers } from './workspace-handlers';
 import { registerArchitectureWorkspaceHandlers } from './architecture-workspace-handlers';
 import { createWorkspaceStore, type WorkspaceStore } from './workspace-service';
 import type { ImageDownloadResult } from '../shared/ipc';
+import { IPC } from '../shared/ipc';
 
 const E2E_WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const E2E_DOCUMENT_WORKSPACE_ROOT = 'DOCK_E2E_DOCUMENT_WORKSPACE_ROOT';
@@ -71,6 +72,7 @@ const E2E_RESEARCH_POPUP_HTML = `<!doctype html>
 </html>`;
 
 let cleanupE2eWorkspace: (() => void) | undefined;
+let cleanupWorkspaceHandlers: (() => void) | undefined;
 let researchController: ResearchController | undefined;
 let e2eDocumentWorkspaceRoot: string | undefined;
 
@@ -334,7 +336,7 @@ const registerIpcHandlers = () => {
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
   });
-  registerWorkspaceHandlers({
+  cleanupWorkspaceHandlers = registerWorkspaceHandlers({
     ipcMain,
     dialog: isE2eDocumentDialogMode() ? createE2eDocumentDialog() : dialog,
     documentWriter: process.argv.includes('--dock-e2e-document-write-failure')
@@ -344,6 +346,11 @@ const registerIpcHandlers = () => {
     isTrustedSender: (senderUrl) =>
       isTrustedRendererUrl(senderUrl, getRendererUrl()),
     openPath: (folderPath) => shell.openPath(folderPath),
+    sendWorkspaceChanged: (workspaceId) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send(IPC.WORKSPACE_CHANGED, { workspaceId });
+      }
+    },
   });
   registerArchitectureWorkspaceHandlers({
     ipcMain,
@@ -398,6 +405,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+  cleanupWorkspaceHandlers?.();
+  cleanupWorkspaceHandlers = undefined;
   cleanupE2eWorkspace?.();
   cleanupE2eWorkspace = undefined;
 });

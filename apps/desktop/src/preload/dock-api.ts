@@ -33,6 +33,12 @@ import {
   WorkspaceOpenFolderRequestSchema,
   WorkspaceOpenFolderResultEnvelopeSchema,
   WorkspaceFilesResultSchema,
+  WorkspaceEntriesResultSchema,
+  WorkspaceCreateEntryRequestSchema,
+  WorkspaceRenameEntryRequestSchema,
+  WorkspaceDeleteEntryRequestSchema,
+  WorkspaceMutationResultEnvelopeSchema,
+  WorkspaceChangedEventSchema,
   WorkspaceRequestSchema,
   WriteResultEnvelopeSchema,
   ArchitectureCreateProjectRequestSchema,
@@ -45,6 +51,9 @@ import {
   type WorkspaceChooseResult,
   type WorkspaceOpenFolderResultEnvelope,
   type WorkspaceFilesResult,
+  type WorkspaceEntriesResult,
+  type WorkspaceMutationResultEnvelope,
+  type WorkspaceChangedEvent,
   type WriteResultEnvelope,
   type ResearchCloseResultEnvelope,
   type ResearchCurrentLinkResultEnvelope,
@@ -61,8 +70,12 @@ import {
   type ArchitectureCreateAdrResultEnvelope,
 } from '../shared/ipc';
 
+type IpcListener = (event: unknown, ...args: unknown[]) => void;
+
 export interface IpcInvoker {
   invoke: (channel: string, request: unknown) => Promise<unknown>;
+  on?: (channel: string, listener: IpcListener) => void;
+  removeListener?: (channel: string, listener: IpcListener) => void;
 }
 
 const invokeHealth = async (ipcRenderer: IpcInvoker): Promise<HealthResult> => {
@@ -126,6 +139,48 @@ const invokeWorkspaceOpenFolder = async (
     };
   const result = WorkspaceOpenFolderResultEnvelopeSchema.safeParse(
     await ipcRenderer.invoke(IPC.WORKSPACE_OPEN_FOLDER, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
+const invokeWorkspaceEntries = async (
+  ipcRenderer: IpcInvoker,
+  request: unknown,
+): Promise<WorkspaceEntriesResult> => {
+  const parsed = WorkspaceRequestSchema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = WorkspaceEntriesResultSchema.safeParse(
+    await ipcRenderer.invoke(IPC.WORKSPACE_LIST_ENTRIES, parsed.data),
+  );
+  return result.success ? result.data : { ok: false, error: internalError() };
+};
+
+const invokeWorkspaceMutation = async (
+  ipcRenderer: IpcInvoker,
+  channel: string,
+  schema: {
+    safeParse: (value: unknown) => { success: boolean; data?: unknown };
+  },
+  request: unknown,
+): Promise<WorkspaceMutationResultEnvelope> => {
+  const parsed = schema.safeParse(request);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'The Dock request is invalid.',
+      },
+    };
+  const result = WorkspaceMutationResultEnvelopeSchema.safeParse(
+    await ipcRenderer.invoke(channel, parsed.data),
   );
   return result.success ? result.data : { ok: false, error: internalError() };
 };
@@ -428,6 +483,38 @@ export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
   workspace: {
     choose: () => invokeWorkspaceChoose(ipcRenderer),
     listMarkdownFiles: (request) => invokeWorkspaceFiles(ipcRenderer, request),
+    listEntries: (request) => invokeWorkspaceEntries(ipcRenderer, request),
+    createEntry: (request) =>
+      invokeWorkspaceMutation(
+        ipcRenderer,
+        IPC.WORKSPACE_CREATE_ENTRY,
+        WorkspaceCreateEntryRequestSchema,
+        request,
+      ),
+    renameEntry: (request) =>
+      invokeWorkspaceMutation(
+        ipcRenderer,
+        IPC.WORKSPACE_RENAME_ENTRY,
+        WorkspaceRenameEntryRequestSchema,
+        request,
+      ),
+    deleteEntry: (request) =>
+      invokeWorkspaceMutation(
+        ipcRenderer,
+        IPC.WORKSPACE_DELETE_ENTRY,
+        WorkspaceDeleteEntryRequestSchema,
+        request,
+      ),
+    onChanged: (listener: (event: WorkspaceChangedEvent) => void) => {
+      if (!ipcRenderer.on || !ipcRenderer.removeListener)
+        return () => undefined;
+      const handler: IpcListener = (_event, ...args) => {
+        const parsed = WorkspaceChangedEventSchema.safeParse(args[0]);
+        if (parsed.success) listener(parsed.data);
+      };
+      ipcRenderer.on(IPC.WORKSPACE_CHANGED, handler);
+      return () => ipcRenderer.removeListener?.(IPC.WORKSPACE_CHANGED, handler);
+    },
     openFolder: (request) => invokeWorkspaceOpenFolder(ipcRenderer, request),
   },
   document: {

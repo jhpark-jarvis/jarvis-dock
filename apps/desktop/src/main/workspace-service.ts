@@ -6,6 +6,7 @@ import type {
   WorkspaceSummary,
   WriteResult,
   DocumentData,
+  WorkspaceEntry,
 } from '../shared/ipc';
 
 export type WorkspaceStore = Map<string, string>;
@@ -90,6 +91,35 @@ const collectMarkdownFiles = async (
 export const listMarkdownFiles = (root: string): Promise<WorkspaceFile[]> =>
   collectMarkdownFiles(root, root);
 
+const collectWorkspaceEntries = async (
+  root: string,
+  current: string,
+): Promise<WorkspaceEntry[]> => {
+  const entries = await fs.readdir(current, { withFileTypes: true });
+  const result: WorkspaceEntry[] = [];
+  for (const entry of entries) {
+    if (entry.name.startsWith('.') || (!entry.isDirectory() && !entry.isFile()))
+      continue;
+    const absolutePath = path.join(current, entry.name);
+    const relativePath = path
+      .relative(root, absolutePath)
+      .split(path.sep)
+      .join('/');
+    const kind = entry.isDirectory() ? 'directory' : 'file';
+    result.push({ relativePath, displayName: entry.name, kind });
+    if (entry.isDirectory()) {
+      result.push(...(await collectWorkspaceEntries(root, absolutePath)));
+    }
+  }
+  return result.sort((a, b) => {
+    const kindOrder = a.kind === b.kind ? 0 : a.kind === 'directory' ? -1 : 1;
+    return kindOrder || a.relativePath.localeCompare(b.relativePath);
+  });
+};
+
+export const listWorkspaceEntries = (root: string): Promise<WorkspaceEntry[]> =>
+  collectWorkspaceEntries(root, root);
+
 export const getDocumentRevision = (content: string): string =>
   createHash('sha256').update(content, 'utf8').digest('hex');
 
@@ -143,6 +173,20 @@ export const createDocument = (
     savedAt: new Date().toISOString(),
     revision: getDocumentRevision(''),
   }));
+
+export const createWorkspaceDirectory = async (
+  absolutePath: string,
+): Promise<void> => {
+  await fs.mkdir(absolutePath);
+};
+
+export const renameWorkspaceEntry = (
+  absolutePath: string,
+  destinationPath: string,
+): Promise<void> => fs.rename(absolutePath, destinationPath);
+
+export const deleteWorkspaceEntry = (absolutePath: string): Promise<void> =>
+  fs.rm(absolutePath, { recursive: true, force: false });
 
 export const createDocumentWithContent = (
   absolutePath: string,
