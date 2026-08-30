@@ -12,5 +12,6 @@ describe('createMainWindowOptions', () => {
       sandbox: true,
       webSecurity: true,
     });
+    expect(options).toMatchObject({ minWidth: 720, minHeight: 480 });
   });
 });

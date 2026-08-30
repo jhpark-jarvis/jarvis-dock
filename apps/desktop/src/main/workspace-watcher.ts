@@ -1,6 +1,7 @@
 import { watch, type FSWatcher } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { DEFAULT_IGNORED_DIRECTORIES } from './workspace-service';
 
 type ChangeListener = () => void;
 
@@ -27,7 +28,12 @@ export class WorkspaceWatcher {
       return directories;
     }
     for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      if (
+        !entry.isDirectory() ||
+        entry.name.startsWith('.') ||
+        DEFAULT_IGNORED_DIRECTORIES.has(entry.name)
+      )
+        continue;
       directories.push(
         ...(await this.findDirectories(path.join(current, entry.name))),
       );

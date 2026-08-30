@@ -291,6 +291,47 @@ test('Dock can restore local work when an edited document is deleted externally'
   }
 });
 
+test('Dock creates files and folders from the Explorer controls', async () => {
+  const workspaceRoot = mkdtempSync(
+    path.join(os.tmpdir(), 'dock-e2e-explorer-create-'),
+  );
+  const app = await launchDock(['--dock-e2e-document'], {
+    DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot,
+  });
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: '폴더 선택' }).click();
+
+    await page.getByRole('button', { name: '+ 폴더', exact: true }).click();
+    const folderDialog = page.getByRole('dialog', { name: '새 폴더 만들기' });
+    await folderDialog.getByRole('textbox', { name: '이름' }).fill('notes');
+    await folderDialog.getByRole('button', { name: '생성' }).click();
+    await expect(
+      page.getByRole('button', { name: 'notes', exact: true }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'notes에 파일 추가' }).click();
+    const fileDialog = page.getByRole('dialog', {
+      name: '새 Markdown 파일 만들기',
+    });
+    await fileDialog.getByRole('textbox', { name: '이름' }).fill('note.md');
+    await fileDialog.getByRole('button', { name: '생성' }).click();
+    await expect(
+      page.getByRole('button', { name: 'notes/note.md' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('textbox', { name: 'Markdown 편집기' }),
+    ).toHaveValue('');
+    expect(
+      readFileSync(path.join(workspaceRoot, 'notes', 'note.md'), 'utf8'),
+    ).toBe('');
+  } finally {
+    await app.close();
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test('Dock refreshes the Explorer after external file and folder changes', async () => {
   test.setTimeout(45_000);
   const workspaceRoot = mkdtempSync(

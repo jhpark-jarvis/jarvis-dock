@@ -1095,9 +1095,63 @@ input:focus-visible {
 }
 
 .workspace-explorer {
+  position: relative;
   display: grid;
   gap: 0.35rem;
   min-width: 0;
+}
+
+.workspace-create-dialog {
+  position: absolute;
+  z-index: 2;
+  top: 2.2rem;
+  right: 0.25rem;
+  left: 0.25rem;
+  padding: 0.8rem;
+  border: 1px solid #3e83b5;
+  border-radius: 0.5rem;
+  background: #101d30;
+  box-shadow: 0 0.75rem 1.5rem rgb(0 0 0 / 28%);
+}
+
+.workspace-create-dialog h2 {
+  margin: 0 0 0.65rem;
+  color: #f1f7ff;
+  font-size: 0.85rem;
+}
+
+.workspace-create-dialog form {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.workspace-create-dialog label {
+  color: #aebed1;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.workspace-create-dialog input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid #3a4b66;
+  border-radius: 0.3rem;
+  background: #0b1220;
+  color: #f1f7ff;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.workspace-create-dialog .workspace-folder-error {
+  margin: 0.1rem 0 0;
+}
+
+.workspace-create-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
 }
 
 .workspace-explorer__toolbar {

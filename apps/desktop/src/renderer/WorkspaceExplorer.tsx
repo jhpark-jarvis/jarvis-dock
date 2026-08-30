@@ -12,9 +12,10 @@ interface WorkspaceExplorerProps {
     parentPath: string,
     kind: EntryKind,
     name: string,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   onRename: (relativePath: string, newName: string) => Promise<boolean>;
   onDelete: (relativePath: string) => Promise<void>;
+  createError?: string;
 }
 
 const isMarkdown = (entry: WorkspaceEntry): boolean =>
@@ -68,6 +69,7 @@ export const WorkspaceExplorer = ({
   onCreate,
   onRename,
   onDelete,
+  createError,
 }: WorkspaceExplorerProps) => {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
     () => new Set(['']),
@@ -76,6 +78,12 @@ export const WorkspaceExplorer = ({
   const [editingName, setEditingName] = useState('');
   const [renamePending, setRenamePending] = useState(false);
   const [contextMenuPath, setContextMenuPath] = useState<string>();
+  const [createDraft, setCreateDraft] = useState<{
+    parentPath: string;
+    kind: EntryKind;
+  }>();
+  const [createName, setCreateName] = useState('');
+  const [createPending, setCreatePending] = useState(false);
   useEffect(() => {
     setExpandedPaths((current) => {
       const next = new Set(current);
@@ -98,12 +106,34 @@ export const WorkspaceExplorer = ({
 
   const askCreate = (parentPath: string, kind: EntryKind) => {
     const defaultName = kind === 'directory' ? '새 폴더' : '새 문서.md';
-    const name = window.prompt(
-      kind === 'directory' ? '새 폴더 이름' : '새 Markdown 파일 이름',
-      defaultName,
-    );
-    if (!name?.trim()) return;
-    void onCreate(parentPath, kind, name.trim());
+    setCreateDraft({ parentPath, kind });
+    setCreateName(defaultName);
+  };
+
+  const cancelCreate = () => {
+    if (createPending) return;
+    setCreateDraft(undefined);
+    setCreateName('');
+  };
+
+  const submitCreate = async () => {
+    if (!createDraft || createPending) return;
+    const name = createName.trim();
+    if (!name) return;
+    setCreatePending(true);
+    try {
+      const created = await onCreate(
+        createDraft.parentPath,
+        createDraft.kind,
+        name,
+      );
+      if (created) {
+        setCreateDraft(undefined);
+        setCreateName('');
+      }
+    } finally {
+      setCreatePending(false);
+    }
   };
 
   const beginRename = (entry: WorkspaceEntry) => {
@@ -403,6 +433,57 @@ export const WorkspaceExplorer = ({
         <p className="workspace-tree__empty">
           표시할 파일이나 폴더가 없습니다.
         </p>
+      )}
+      {createDraft && (
+        <div
+          className="workspace-create-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="workspace-create-dialog-title"
+        >
+          <h2 id="workspace-create-dialog-title">
+            {createDraft.kind === 'directory'
+              ? '새 폴더 만들기'
+              : '새 Markdown 파일 만들기'}
+          </h2>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitCreate();
+            }}
+          >
+            <label htmlFor="workspace-entry-name">이름</label>
+            <input
+              id="workspace-entry-name"
+              value={createName}
+              autoFocus
+              disabled={createPending}
+              onChange={(event) => setCreateName(event.target.value)}
+            />
+            {createError && (
+              <p className="workspace-folder-error" role="alert">
+                {createError}
+              </p>
+            )}
+            <div className="workspace-create-dialog__actions">
+              <button
+                type="submit"
+                className="button button--primary"
+                disabled={createPending || !createName.trim()}
+              >
+                생성
+              </button>
+              <button
+                type="button"
+                className="button button--quiet"
+                onClick={cancelCreate}
+                disabled={createPending}
+              >
+                취소
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </section>
   );

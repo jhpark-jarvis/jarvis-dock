@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { WorkspaceExplorer } from './WorkspaceExplorer';
@@ -82,5 +82,58 @@ describe('WorkspaceExplorer', () => {
     expect(
       screen.getByRole('menuitem', { name: '이름 변경' }),
     ).toBeInTheDocument();
+  });
+
+  it('uses an in-app create dialog for toolbar and context actions', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn(async () => true);
+    render(
+      <WorkspaceExplorer
+        entries={entries}
+        onOpen={vi.fn()}
+        onCreate={onCreate}
+        onRename={vi.fn(async () => true)}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '+ 파일' }));
+    const dialog = screen.getByRole('dialog', {
+      name: '새 Markdown 파일 만들기',
+    });
+    const input = within(dialog).getByRole('textbox', { name: '이름' });
+    await user.clear(input);
+    await user.type(input, 'new.md');
+    await user.click(within(dialog).getByRole('button', { name: '생성' }));
+    expect(onCreate).toHaveBeenCalledWith('', 'file', 'new.md');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'docs' }));
+    await user.click(screen.getByRole('menuitem', { name: '새 파일' }));
+    expect(
+      screen.getByRole('dialog', { name: '새 Markdown 파일 만들기' }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the create dialog open when the mutation fails', async () => {
+    const user = userEvent.setup();
+    render(
+      <WorkspaceExplorer
+        entries={entries}
+        onOpen={vi.fn()}
+        onCreate={vi.fn(async () => false)}
+        onRename={vi.fn(async () => true)}
+        onDelete={vi.fn()}
+        createError="같은 이름의 파일 또는 폴더가 이미 있습니다."
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '+ 폴더' }));
+    const dialog = screen.getByRole('dialog', { name: '새 폴더 만들기' });
+    await user.click(within(dialog).getByRole('button', { name: '생성' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('같은 이름');
+    expect(
+      screen.getByRole('dialog', { name: '새 폴더 만들기' }),
+    ).toBeVisible();
   });
 });

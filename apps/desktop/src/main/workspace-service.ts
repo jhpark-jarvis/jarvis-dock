@@ -9,6 +9,18 @@ import type {
   WorkspaceEntry,
 } from '../shared/ipc';
 
+// Generated and dependency-owned trees do not contain document workspace
+// entries. Excluding them keeps repository-sized folders from expanding the
+// initial recursive scan with irrelevant files.
+export const DEFAULT_IGNORED_DIRECTORIES = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'out',
+  'coverage',
+  '.cache',
+]);
+
 export type WorkspaceStore = Map<string, string>;
 
 export const createWorkspaceStore = (): WorkspaceStore => new Map();
@@ -76,6 +88,7 @@ const collectMarkdownFiles = async (
     if (entry.name.startsWith('.')) continue;
     const absolute = path.join(current, entry.name);
     if (entry.isDirectory()) {
+      if (DEFAULT_IGNORED_DIRECTORIES.has(entry.name)) continue;
       files.push(...(await collectMarkdownFiles(root, absolute)));
     } else if (entry.isFile() && /\.(md|markdown)$/i.test(entry.name)) {
       const relativePath = path
@@ -98,7 +111,11 @@ const collectWorkspaceEntries = async (
   const entries = await fs.readdir(current, { withFileTypes: true });
   const result: WorkspaceEntry[] = [];
   for (const entry of entries) {
-    if (entry.name.startsWith('.') || (!entry.isDirectory() && !entry.isFile()))
+    if (
+      entry.name.startsWith('.') ||
+      (entry.isDirectory() && DEFAULT_IGNORED_DIRECTORIES.has(entry.name)) ||
+      (!entry.isDirectory() && !entry.isFile())
+    )
       continue;
     const absolutePath = path.join(current, entry.name);
     const relativePath = path

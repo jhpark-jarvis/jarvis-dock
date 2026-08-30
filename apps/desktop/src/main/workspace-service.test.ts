@@ -55,6 +55,29 @@ describe('workspace service', () => {
     ]);
   });
 
+  it('skips dependency and generated directories during workspace scans', async () => {
+    const root = await makeTempDir();
+    await fs.mkdir(path.join(root, 'docs'));
+    await fs.mkdir(path.join(root, 'node_modules', 'package'), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join(root, 'dist'), { recursive: true });
+    await fs.writeFile(path.join(root, 'docs', 'guide.md'), '# Guide');
+    await fs.writeFile(
+      path.join(root, 'node_modules', 'package', 'index.md'),
+      '# Dependency',
+    );
+    await fs.writeFile(path.join(root, 'dist', 'generated.md'), '# Generated');
+
+    await expect(listMarkdownFiles(root)).resolves.toEqual([
+      { relativePath: 'docs/guide.md', displayName: 'guide.md' },
+    ]);
+    await expect(listWorkspaceEntries(root)).resolves.toEqual([
+      { relativePath: 'docs', displayName: 'docs', kind: 'directory' },
+      { relativePath: 'docs/guide.md', displayName: 'guide.md', kind: 'file' },
+    ]);
+  });
+
   it('rejects absolute and parent paths at the shared contract boundary', () => {
     expect(RelativeMarkdownPathSchema.safeParse('../outside.md').success).toBe(
       false,

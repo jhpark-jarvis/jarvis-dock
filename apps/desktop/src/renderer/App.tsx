@@ -6,6 +6,7 @@ import type {
   ResearchTabInfo,
   WorkspaceFile,
   WorkspaceEntry,
+  DockError,
 } from '../shared/ipc';
 import {
   extractWorkspaceImageAssets,
@@ -110,6 +111,27 @@ const WorkspaceState = ({ state }: Required<AppProps>) => {
       description="로컬 문서 폴더를 선택하면 Markdown 파일이 여기에 표시됩니다."
     />
   );
+};
+
+const documentCreationError = (code: DockError['code']): string => {
+  switch (code) {
+    case 'WRITE_FAILED':
+      return '같은 이름의 문서가 이미 있습니다. 다른 경로 또는 파일명을 입력해 주세요.';
+    case 'DIRECTORY_NOT_FOUND':
+    case 'NOT_FOUND':
+      return '문서를 만들 상위 폴더를 찾을 수 없습니다. 경로를 확인해 주세요.';
+    case 'INVALID_NAME':
+    case 'INVALID_REQUEST':
+      return '문서 경로가 올바르지 않습니다. 파일명과 폴더명을 확인해 주세요.';
+    case 'UNSUPPORTED_FILE':
+      return 'Markdown 파일(.md 또는 .markdown)만 만들 수 있습니다.';
+    case 'PERMISSION_DENIED':
+      return '문서를 만들 폴더에 대한 권한이 없습니다.';
+    case 'WORKSPACE_NOT_SELECTED':
+      return '먼저 문서 폴더를 선택해 주세요.';
+    default:
+      return '문서를 만들지 못했습니다. 입력을 확인하고 다시 시도해 주세요.';
+  }
 };
 
 const ExplorerIcon = () => (
@@ -253,7 +275,16 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const commandTriggerRef = useRef<HTMLButtonElement>(null);
+  const documentMessageTimerRef = useRef<number | undefined>(undefined);
   const editorSelectionRef = useRef({ start: 0, end: 0 });
+  const imageInsertionContextRef = useRef<
+    | {
+        workspaceId: string;
+        selectedPath: string;
+        selection: { start: number; end: number };
+      }
+    | undefined
+  >(undefined);
   const expectedRevisionRef = useRef<string | undefined>(undefined);
   const scrollSyncLockRef = useRef<'editor' | 'preview' | undefined>(undefined);
   const [state, setState] = useState<ShellState>(initialState);
@@ -382,6 +413,25 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     | 'diagnostics'
     | undefined
   >('explorer');
+
+  const showTransientDocumentMessage = (message: string) => {
+    if (documentMessageTimerRef.current !== undefined) {
+      window.clearTimeout(documentMessageTimerRef.current);
+    }
+    setDocumentError(message);
+    documentMessageTimerRef.current = window.setTimeout(() => {
+      setDocumentError('');
+      documentMessageTimerRef.current = undefined;
+    }, 2500);
+  };
+
+  useEffect(
+    () => () => {
+      if (documentMessageTimerRef.current !== undefined)
+        window.clearTimeout(documentMessageTimerRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     setState(initialState);
@@ -654,14 +704,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   }, [assetRefreshKey, workspaceId, workspacePanel]);
 
   const refreshFiles = useCallback(async (nextWorkspaceId: string) => {
-    const listed = await window.dock.workspace.listMarkdownFiles({
-      workspaceId: nextWorkspaceId,
-    });
-    if (!listed.ok) {
-      setState('error');
-      return false;
-    }
-    setFiles(listed.value.files);
+    let files: WorkspaceFile[];
     let entries: WorkspaceEntry[];
     if (window.dock.workspace.listEntries) {
       const listedEntries = await window.dock.workspace.listEntries({
@@ -672,14 +715,33 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         return false;
       }
       entries = listedEntries.value.entries;
+      files = entries
+        .filter(
+          (entry) =>
+            entry.kind === 'file' &&
+            /\.(md|markdown)$/i.test(entry.displayName),
+        )
+        .map(({ relativePath, displayName }) => ({
+          relativePath,
+          displayName,
+        }));
     } else {
-      entries = listed.value.files.map((file) => ({
+      const listed = await window.dock.workspace.listMarkdownFiles({
+        workspaceId: nextWorkspaceId,
+      });
+      if (!listed.ok) {
+        setState('error');
+        return false;
+      }
+      files = listed.value.files;
+      entries = files.map((file) => ({
         ...file,
         kind: 'file' as const,
       }));
     }
+    setFiles(files);
     setWorkspaceEntries(entries);
-    return { files: listed.value.files, entries };
+    return { files, entries };
   }, []);
 
   const handleWorkspaceChanged = useCallback(
@@ -791,21 +853,38 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     parentPath: string,
     kind: 'file' | 'directory',
     name: string,
-  ) => {
-    if (!workspaceId || !window.dock.workspace.createEntry) return;
-    const result = await window.dock.workspace.createEntry({
-      workspaceId,
-      parentPath,
-      name,
-      kind,
-    });
-    if (result.ok === false) {
-      setWorkspaceFolderError(result.error.message);
-      return;
+  ): Promise<boolean> => {
+    if (!workspaceId || !window.dock.workspace.createEntry) {
+      setWorkspaceFolderError('먼저 문서 폴더를 선택해 주세요.');
+      return false;
     }
-    setWorkspaceFolderError('');
-    await refreshFiles(workspaceId);
-    if (kind === 'file') await openDocument(result.value.relativePath);
+    try {
+      const result = await window.dock.workspace.createEntry({
+        workspaceId,
+        parentPath,
+        name,
+        kind,
+      });
+      if (result.ok === false) {
+        setWorkspaceFolderError(
+          result.error.code === 'WRITE_FAILED'
+            ? '같은 이름의 파일 또는 폴더가 이미 있습니다.'
+            : result.error.code === 'DIRECTORY_NOT_FOUND'
+              ? '파일 또는 폴더를 만들 상위 폴더를 찾을 수 없습니다.'
+              : result.error.message,
+        );
+        return false;
+      }
+      setWorkspaceFolderError('');
+      if (!(await refreshFiles(workspaceId))) return false;
+      if (kind === 'file') await openDocument(result.value.relativePath);
+      return true;
+    } catch {
+      setWorkspaceFolderError(
+        '파일 또는 폴더를 만들지 못했습니다. 다시 시도해 주세요.',
+      );
+      return false;
+    }
   };
 
   const renameWorkspaceEntry = async (
@@ -813,6 +892,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     newName: string,
   ): Promise<boolean> => {
     if (!workspaceId || !window.dock.workspace.renameEntry) return false;
+    setWorkspaceFolderError('');
     const result = await window.dock.workspace.renameEntry({
       workspaceId,
       relativePath,
@@ -913,7 +993,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         workspaceId,
         relativePath,
       });
-      if (!result.ok) {
+      if (result.ok === false) {
         setDocumentError(
           '문서를 열지 못했습니다. 파일이 존재하고 Markdown 파일인지 확인해 주세요.',
         );
@@ -1042,7 +1122,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setSavedContent(documentConflict.externalContent);
     setDocumentRevision(documentConflict.externalRevision);
     setDocumentConflict(undefined);
-    setDocumentError('외부 변경 내용을 불러왔습니다.');
+    showTransientDocumentMessage('외부 변경 내용을 불러왔습니다.');
     setSaveError('');
     editorSelectionRef.current = {
       start: documentConflict.externalContent.length,
@@ -1067,51 +1147,73 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   };
 
   const createDocument = async () => {
-    if (!workspaceId) return;
+    if (!workspaceId) {
+      setDocumentError('먼저 문서 폴더를 선택해 주세요.');
+      return;
+    }
     const relativePath = newDocumentPath.trim();
     if (!relativePath) {
-      setState('error');
+      setDocumentError('새 문서 경로를 입력해 주세요.');
       return;
     }
     setState('loading');
-    const result = await window.dock.document.create({
-      workspaceId,
-      relativePath,
-    });
-    if (!result.ok) {
-      setState('error');
-      return;
-    }
-    const templateContent = getDocumentTemplate(newDocumentTemplate);
-    let createdRevision = result.value.revision;
-    if (templateContent) {
-      const written = await window.dock.document.write({
+    setDocumentError('');
+    try {
+      const result = await window.dock.document.create({
         workspaceId,
         relativePath,
-        content: templateContent,
       });
-      if (!written.ok) {
-        setState('error');
+      if (result.ok === false) {
+        setDocumentError(
+          documentCreationError(
+            'error' in result ? result.error.code : 'INTERNAL',
+          ),
+        );
+        setState('empty');
         return;
       }
-      createdRevision = written.value.revision;
+      const templateContent = getDocumentTemplate(newDocumentTemplate);
+      let createdRevision = result.value.revision;
+      if (templateContent) {
+        const written = await window.dock.document.write({
+          workspaceId,
+          relativePath,
+          content: templateContent,
+        });
+        if (written.ok === false) {
+          setDocumentError(documentCreationError(written.error.code));
+          setState('empty');
+          return;
+        }
+        createdRevision = written.value.revision;
+      }
+      if (!(await refreshFiles(workspaceId))) {
+        setDocumentError('문서는 만들었지만 문서 목록을 갱신하지 못했습니다.');
+        return;
+      }
+      setOpenDocumentPaths((current) =>
+        current.includes(relativePath) ? current : [...current, relativePath],
+      );
+      setSelectedPath(relativePath);
+      setContent(templateContent);
+      setSavedContent(templateContent);
+      setDocumentRevision(createdRevision);
+      setDocumentConflict(undefined);
+      setDocumentError('');
+      editorSelectionRef.current = {
+        start: templateContent.length,
+        end: templateContent.length,
+      };
+      setSaveError('');
+      setNewDocumentPath('');
+      setNewDocumentTemplate('blank');
+      setState('empty');
+    } catch {
+      setDocumentError(
+        '문서를 만들지 못했습니다. 입력을 확인하고 다시 시도해 주세요.',
+      );
+      setState('empty');
     }
-    if (!(await refreshFiles(workspaceId))) return;
-    setOpenDocumentPaths((current) => [...current, relativePath]);
-    setSelectedPath(relativePath);
-    setContent(templateContent);
-    setSavedContent(templateContent);
-    setDocumentRevision(createdRevision);
-    setDocumentConflict(undefined);
-    setDocumentError('');
-    editorSelectionRef.current = {
-      start: templateContent.length,
-      end: templateContent.length,
-    };
-    setSaveError('');
-    setNewDocumentPath('');
-    setNewDocumentTemplate('blank');
-    setState('empty');
   };
 
   const dirty = content !== savedContent;
@@ -1325,10 +1427,15 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
    * dialog state and restore it after an async Research open completes.
    */
   const openCommandPalette = (selection?: { start: number; end: number }) => {
-    if (selection) {
-      editorSelectionRef.current = selection;
+    const capturedSelection = selection ?? rememberEditorSelection();
+    if (workspaceId && selectedPath) {
+      imageInsertionContextRef.current = {
+        workspaceId,
+        selectedPath,
+        selection: capturedSelection,
+      };
     } else {
-      rememberEditorSelection();
+      imageInsertionContextRef.current = undefined;
     }
     setEditorCommandSuggestion(undefined);
     setResearchViewVisibility(false);
@@ -1715,13 +1822,34 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         setImageStatus('error');
         return;
       }
+      const insertionContext = imageInsertionContextRef.current;
+      if (
+        !insertionContext ||
+        insertionContext.workspaceId !== workspaceId ||
+        insertionContext.selectedPath !== selectedPath
+      ) {
+        try {
+          await window.dock.image.delete({
+            workspaceId,
+            assetPath: response.value.assetPath,
+          });
+        } catch {
+          // Keep the user-facing insertion error even if cleanup also fails.
+        }
+        setImageErrorCode('DOCUMENT_CHANGED');
+        setImageError(
+          '이미지는 저장했지만 원래 문서가 바뀌어 Markdown을 삽입하지 못했습니다. 이미지를 다시 선택해 주세요.',
+        );
+        setImageStatus('error');
+        return;
+      }
       const altText = imageAltText.trim() || selectedImage.title;
       const markdown = formatMarkdownImage(
         altText,
         response.value.assetPath,
         selectedPath,
       );
-      const selection = editorSelectionRef.current;
+      const selection = insertionContext.selection;
       const nextContent = insertMarkdownImage(
         content,
         altText,
@@ -2873,6 +3001,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                         onCreate={createWorkspaceEntry}
                         onRename={renameWorkspaceEntry}
                         onDelete={deleteWorkspaceEntry}
+                        createError={workspaceFolderError}
                       />
                     ) : (
                       <WorkspaceState state={state} />
@@ -3526,6 +3655,14 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               onKeyUp={rememberEditorSelection}
               onSelect={rememberEditorSelection}
               onKeyDown={(event) => {
+                if (
+                  (event.ctrlKey || event.metaKey) &&
+                  event.key.toLowerCase() === 's'
+                ) {
+                  event.preventDefault();
+                  void saveDocument();
+                  return;
+                }
                 const command = editorCommandSuggestion?.command;
                 if (command && (event.key === 'Tab' || event.key === 'Enter')) {
                   event.preventDefault();

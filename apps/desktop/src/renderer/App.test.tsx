@@ -240,6 +240,51 @@ describe('App', () => {
     );
   });
 
+  it('shows document creation errors while preserving the entered path', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'dock', {
+      configurable: true,
+      value: {
+        workspace: {
+          choose: async () => ({
+            ok: true as const,
+            value: {
+              workspaceId: '11111111-1111-4111-8111-111111111111',
+              displayName: 'notes',
+            },
+          }),
+          listMarkdownFiles: async () => ({
+            ok: true as const,
+            value: {
+              files: [{ relativePath: 'today.md', displayName: 'today.md' }],
+            },
+          }),
+        },
+        document: {
+          create: async () => ({
+            ok: false as const,
+            error: {
+              code: 'WRITE_FAILED' as const,
+              message: 'The document already exists.',
+            },
+          }),
+        },
+      },
+    });
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '폴더 선택' }));
+    const input = screen.getByRole('textbox', { name: '새 문서 경로' });
+    await user.clear(input);
+    await user.type(input, 'today.md');
+    await user.click(screen.getByRole('button', { name: '새 문서 생성' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '같은 이름의 문서가 이미 있습니다.',
+    );
+    expect(input).toHaveValue('today.md');
+  });
+
   it('opens the architecture document panel from the Activity Bar', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -814,10 +859,10 @@ describe('App', () => {
       ok: true as const,
       value: { relativePath: 'today.md', content: '# Today' },
     });
-    const write = async () => ({
+    const write = vi.fn(async () => ({
       ok: true as const,
       value: { relativePath: 'today.md', bytesWritten: 8 },
-    });
+    }));
     const create = async ({ relativePath }: { relativePath: string }) => {
       files = [...files, { relativePath, displayName: relativePath }];
       return {
@@ -935,10 +980,11 @@ describe('App', () => {
       screen.getByRole('textbox', { name: 'Markdown 편집기' }),
       '\nEdited',
     );
-    await user.click(screen.getByRole('button', { name: '저장' }));
+    await user.keyboard('{Control>}s{/Control}');
     expect(
       await screen.findByRole('button', { name: '저장됨' }),
     ).toBeDisabled();
+    expect(write).toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: '명령 팔레트 열기' }));
     await user.click(screen.getByRole('button', { name: /\/link/ }));
     await user.click(screen.getByRole('button', { name: '취소' }));

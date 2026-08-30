@@ -5,6 +5,8 @@ export const createMainWindowOptions = (
 ): BrowserWindowConstructorOptions => ({
   width: 800,
   height: 600,
+  minWidth: 720,
+  minHeight: 480,
   webPreferences: {
     preload: preloadPath,
     contextIsolation: true,
