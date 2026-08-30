@@ -9,6 +9,7 @@ export const IPC = {
   WORKSPACE_LIST_ENTRIES: 'workspace:list-entries',
   WORKSPACE_CREATE_ENTRY: 'workspace:create-entry',
   WORKSPACE_RENAME_ENTRY: 'workspace:rename-entry',
+  WORKSPACE_MOVE_ENTRY: 'workspace:move-entry',
   WORKSPACE_DELETE_ENTRY: 'workspace:delete-entry',
   WORKSPACE_CHANGED: 'workspace:changed',
   DOCUMENT_READ: 'document:read',
@@ -213,6 +214,13 @@ export const WorkspaceRenameEntryRequestSchema = z
     workspaceId: WorkspaceIdSchema,
     relativePath: RelativeMarkdownPathSchema,
     newName: WorkspaceEntryNameSchema,
+  })
+  .strict();
+export const WorkspaceMoveEntryRequestSchema = z
+  .object({
+    workspaceId: WorkspaceIdSchema,
+    relativePath: WorkspaceRelativePathSchema.min(1),
+    destinationParentPath: WorkspaceRelativePathSchema.default(''),
   })
   .strict();
 export const WorkspaceDeleteEntryRequestSchema = z
@@ -673,6 +681,11 @@ export interface DockApi {
       workspaceId: string;
       relativePath: string;
       newName: string;
+    }) => Promise<WorkspaceMutationResultEnvelope>;
+    moveEntry?: (request: {
+      workspaceId: string;
+      relativePath: string;
+      destinationParentPath?: string;
     }) => Promise<WorkspaceMutationResultEnvelope>;
     deleteEntry?: (request: {
       workspaceId: string;

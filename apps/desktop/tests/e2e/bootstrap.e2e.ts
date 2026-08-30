@@ -328,6 +328,27 @@ test('Dock creates files and folders from the Explorer controls', async () => {
     expect(
       readFileSync(path.join(workspaceRoot, 'notes', 'note.md'), 'utf8'),
     ).toBe('');
+
+    await page.getByRole('button', { name: '+ 폴더', exact: true }).click();
+    const archiveDialog = page.getByRole('dialog', { name: '새 폴더 만들기' });
+    await archiveDialog.getByRole('textbox', { name: '이름' }).fill('archive');
+    await archiveDialog.getByRole('button', { name: '생성' }).click();
+    const explorer = page.getByRole('region', { name: '파일 탐색기' });
+    await expect(
+      explorer.getByRole('button', { name: 'archive', exact: true }),
+    ).toBeVisible();
+    await explorer
+      .getByRole('button', { name: 'notes/note.md' })
+      .dragTo(explorer.getByRole('button', { name: 'archive', exact: true }));
+    await expect(
+      explorer.getByRole('button', { name: 'archive/note.md' }),
+    ).toBeVisible();
+    await expect(
+      explorer.getByRole('button', { name: 'notes/note.md' }),
+    ).not.toBeVisible();
+    expect(
+      readFileSync(path.join(workspaceRoot, 'archive', 'note.md'), 'utf8'),
+    ).toBe('');
   } finally {
     await app.close();
     rmSync(workspaceRoot, { recursive: true, force: true });

@@ -6,6 +6,11 @@ import { WorkspaceExplorer } from './WorkspaceExplorer';
 const entries = [
   { relativePath: 'docs', displayName: 'docs', kind: 'directory' as const },
   {
+    relativePath: 'archive',
+    displayName: 'archive',
+    kind: 'directory' as const,
+  },
+  {
     relativePath: 'docs/note.md',
     displayName: 'note.md',
     kind: 'file' as const,
@@ -28,6 +33,7 @@ describe('WorkspaceExplorer', () => {
         onCreate={vi.fn()}
         onRename={vi.fn(async () => true)}
         onDelete={vi.fn()}
+        onMove={vi.fn(async () => true)}
       />,
     );
 
@@ -62,6 +68,7 @@ describe('WorkspaceExplorer', () => {
         onCreate={vi.fn()}
         onRename={onRename}
         onDelete={vi.fn()}
+        onMove={vi.fn(async () => true)}
       />,
     );
 
@@ -94,6 +101,7 @@ describe('WorkspaceExplorer', () => {
         onCreate={onCreate}
         onRename={vi.fn(async () => true)}
         onDelete={vi.fn()}
+        onMove={vi.fn(async () => true)}
       />,
     );
 
@@ -124,6 +132,7 @@ describe('WorkspaceExplorer', () => {
         onCreate={vi.fn(async () => false)}
         onRename={vi.fn(async () => true)}
         onDelete={vi.fn()}
+        onMove={vi.fn(async () => true)}
         createError="같은 이름의 파일 또는 폴더가 이미 있습니다."
       />,
     );
@@ -135,5 +144,38 @@ describe('WorkspaceExplorer', () => {
     expect(
       screen.getByRole('dialog', { name: '새 폴더 만들기' }),
     ).toBeVisible();
+  });
+
+  it('moves a file when it is dropped on another folder', () => {
+    const onMove = vi.fn(async () => true);
+    render(
+      <WorkspaceExplorer
+        entries={entries}
+        onOpen={vi.fn()}
+        onCreate={vi.fn()}
+        onRename={vi.fn(async () => true)}
+        onDelete={vi.fn()}
+        onMove={onMove}
+      />,
+    );
+
+    const source = screen.getByRole('button', { name: 'docs/note.md' });
+    const target = screen.getByRole('button', { name: 'archive' });
+    const sourceRow = source.closest('.workspace-tree__row');
+    const targetRow = target.closest('.workspace-tree__row');
+    if (!sourceRow || !targetRow) throw new Error('Explorer rows not found.');
+
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData: vi.fn(),
+      getData: vi.fn(() => 'docs/note.md'),
+    };
+    fireEvent.dragStart(sourceRow, { dataTransfer });
+    fireEvent.dragOver(targetRow, { dataTransfer });
+    expect(targetRow).toHaveClass('workspace-tree__row--drop-target');
+    fireEvent.drop(targetRow, { dataTransfer });
+
+    expect(onMove).toHaveBeenCalledWith('docs/note.md', 'archive');
   });
 });

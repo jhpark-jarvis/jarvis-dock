@@ -5,8 +5,10 @@ export const createMainWindowOptions = (
 ): BrowserWindowConstructorOptions => ({
   width: 800,
   height: 600,
-  minWidth: 720,
-  minHeight: 480,
+  // Electron applies these values to the outer window frame. Keep the
+  // content viewport at roughly 720x480 on Windows after frame insets.
+  minWidth: 736,
+  minHeight: 545,
   webPreferences: {
     preload: preloadPath,
     contextIsolation: true,

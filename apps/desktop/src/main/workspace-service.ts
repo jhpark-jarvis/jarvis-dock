@@ -44,7 +44,7 @@ export const registerWorkspace = async (
   return { workspaceId, displayName: path.basename(root) || root };
 };
 
-const isInside = (root: string, candidate: string): boolean => {
+export const isInside = (root: string, candidate: string): boolean => {
   const relative = path.relative(
     comparablePath(root),
     comparablePath(candidate),
@@ -198,6 +198,11 @@ export const createWorkspaceDirectory = async (
 };
 
 export const renameWorkspaceEntry = (
+  absolutePath: string,
+  destinationPath: string,
+): Promise<void> => fs.rename(absolutePath, destinationPath);
+
+export const moveWorkspaceEntry = (
   absolutePath: string,
   destinationPath: string,
 ): Promise<void> => fs.rename(absolutePath, destinationPath);

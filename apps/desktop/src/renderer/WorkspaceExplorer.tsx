@@ -15,6 +15,10 @@ interface WorkspaceExplorerProps {
   ) => Promise<boolean>;
   onRename: (relativePath: string, newName: string) => Promise<boolean>;
   onDelete: (relativePath: string) => Promise<void>;
+  onMove: (
+    relativePath: string,
+    destinationParentPath: string,
+  ) => Promise<boolean>;
   createError?: string;
 }
 
@@ -69,6 +73,7 @@ export const WorkspaceExplorer = ({
   onCreate,
   onRename,
   onDelete,
+  onMove,
   createError,
 }: WorkspaceExplorerProps) => {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
@@ -84,6 +89,8 @@ export const WorkspaceExplorer = ({
   }>();
   const [createName, setCreateName] = useState('');
   const [createPending, setCreatePending] = useState(false);
+  const [draggedPath, setDraggedPath] = useState<string>();
+  const [dropTargetPath, setDropTargetPath] = useState<string>();
   useEffect(() => {
     setExpandedPaths((current) => {
       const next = new Set(current);
@@ -200,8 +207,51 @@ export const WorkspaceExplorer = ({
               selectedPath === entry.relativePath
                 ? ' workspace-tree__row--selected'
                 : ''
+            }${
+              draggedPath === entry.relativePath
+                ? ' workspace-tree__row--dragging'
+                : ''
+            }${
+              dropTargetPath === entry.relativePath
+                ? ' workspace-tree__row--drop-target'
+                : ''
             }`}
             style={{ '--tree-depth': depth } as CSSProperties}
+            draggable={!editing}
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', entry.relativePath);
+              setDraggedPath(entry.relativePath);
+            }}
+            onDragEnd={() => {
+              setDraggedPath(undefined);
+              setDropTargetPath(undefined);
+            }}
+            onDragOver={(event) => {
+              if (entry.kind !== 'directory') return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
+              setDropTargetPath(entry.relativePath);
+            }}
+            onDragLeave={(event) => {
+              if (
+                !event.currentTarget.contains(
+                  event.relatedTarget as Node | null,
+                )
+              ) {
+                setDropTargetPath(undefined);
+              }
+            }}
+            onDrop={(event) => {
+              if (entry.kind !== 'directory') return;
+              event.preventDefault();
+              const sourcePath = event.dataTransfer.getData('text/plain');
+              setDraggedPath(undefined);
+              setDropTargetPath(undefined);
+              if (sourcePath && sourcePath !== entry.relativePath) {
+                void onMove(sourcePath, entry.relativePath);
+              }
+            }}
             onContextMenu={(event) => {
               event.preventDefault();
               setContextMenuPath(entry.relativePath);

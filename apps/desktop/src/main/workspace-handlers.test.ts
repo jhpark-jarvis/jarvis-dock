@@ -50,7 +50,7 @@ const createHarness = (
 describe('registerWorkspaceHandlers', () => {
   it('registers the workspace and document channels', () => {
     const { handle } = createHarness(undefined);
-    expect(handle).toHaveBeenCalledTimes(10);
+    expect(handle).toHaveBeenCalledTimes(11);
     expect(handle.mock.calls.map(([channel]) => channel)).toEqual([
       IPC.WORKSPACE_CHOOSE,
       IPC.WORKSPACE_OPEN_FOLDER,
@@ -58,6 +58,7 @@ describe('registerWorkspaceHandlers', () => {
       IPC.WORKSPACE_LIST_ENTRIES,
       IPC.WORKSPACE_CREATE_ENTRY,
       IPC.WORKSPACE_RENAME_ENTRY,
+      IPC.WORKSPACE_MOVE_ENTRY,
       IPC.WORKSPACE_DELETE_ENTRY,
       IPC.DOCUMENT_READ,
       IPC.DOCUMENT_CREATE,
@@ -99,19 +100,40 @@ describe('registerWorkspaceHandlers', () => {
         value: { relativePath: 'docs/note.md', kind: 'file' },
       });
       await expect(
-        invoke(IPC.WORKSPACE_RENAME_ENTRY, {
+        invoke(IPC.WORKSPACE_CREATE_ENTRY, {
+          workspaceId,
+          parentPath: '',
+          name: 'archive',
+          kind: 'directory',
+        }),
+      ).resolves.toEqual({
+        ok: true,
+        value: { relativePath: 'archive', kind: 'directory' },
+      });
+      await expect(
+        invoke(IPC.WORKSPACE_MOVE_ENTRY, {
           workspaceId,
           relativePath: 'docs/note.md',
+          destinationParentPath: 'archive',
+        }),
+      ).resolves.toEqual({
+        ok: true,
+        value: { relativePath: 'archive/note.md', kind: 'file' },
+      });
+      await expect(
+        invoke(IPC.WORKSPACE_RENAME_ENTRY, {
+          workspaceId,
+          relativePath: 'archive/note.md',
           newName: 'renamed.md',
         }),
       ).resolves.toEqual({
         ok: true,
-        value: { relativePath: 'docs/renamed.md', kind: 'file' },
+        value: { relativePath: 'archive/renamed.md', kind: 'file' },
       });
       await expect(
         invoke(IPC.WORKSPACE_DELETE_ENTRY, {
           workspaceId,
-          relativePath: 'docs/renamed.md',
+          relativePath: 'archive/renamed.md',
         }),
       ).resolves.toMatchObject({ ok: true });
       await expect(
@@ -124,6 +146,51 @@ describe('registerWorkspaceHandlers', () => {
         error: { code: 'INVALID_REQUEST' },
       });
       await expect(fs.stat(path.join(root, 'docs'))).resolves.toBeTruthy();
+      await expect(
+        fs.stat(path.join(root, 'docs', 'note.md')),
+      ).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects moves into a missing folder or into a directory descendant', async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'jarvis-dock-handler-move-validation-'),
+    );
+    await fs.mkdir(path.join(root, 'docs', 'nested'), { recursive: true });
+    await fs.writeFile(path.join(root, 'docs', 'note.md'), '# Note', 'utf8');
+    const { invoke } = createHarness(root);
+    const chosen = (await invoke(IPC.WORKSPACE_CHOOSE, {})) as {
+      value: { workspaceId: string };
+    };
+
+    try {
+      await expect(
+        invoke(IPC.WORKSPACE_MOVE_ENTRY, {
+          workspaceId: chosen.value.workspaceId,
+          relativePath: 'docs/note.md',
+          destinationParentPath: 'missing',
+        }),
+      ).resolves.toMatchObject({
+        ok: false,
+        error: { code: 'DIRECTORY_NOT_FOUND' },
+      });
+      await expect(
+        invoke(IPC.WORKSPACE_MOVE_ENTRY, {
+          workspaceId: chosen.value.workspaceId,
+          relativePath: 'docs',
+          destinationParentPath: 'docs/nested',
+        }),
+      ).resolves.toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_REQUEST' },
+      });
+      await expect(
+        fs.readFile(path.join(root, 'docs', 'note.md'), 'utf8'),
+      ).resolves.toBe('# Note');
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }

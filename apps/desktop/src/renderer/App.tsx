@@ -920,6 +920,50 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     return Boolean(await refreshFiles(workspaceId));
   };
 
+  const moveWorkspaceEntry = async (
+    relativePath: string,
+    destinationParentPath: string,
+  ): Promise<boolean> => {
+    if (!workspaceId || !window.dock.workspace.moveEntry) return false;
+    setWorkspaceFolderError('');
+    try {
+      const result = await window.dock.workspace.moveEntry({
+        workspaceId,
+        relativePath,
+        destinationParentPath,
+      });
+      if (result.ok === false) {
+        setWorkspaceFolderError(
+          result.error.code === 'WRITE_FAILED'
+            ? '대상 폴더에 같은 이름의 파일 또는 폴더가 이미 있습니다.'
+            : result.error.code === 'DIRECTORY_NOT_FOUND'
+              ? '파일 또는 폴더를 이동할 대상 폴더를 찾을 수 없습니다.'
+              : result.error.code === 'INVALID_REQUEST'
+                ? '폴더를 자기 자신이나 내부 폴더로 이동할 수 없습니다.'
+                : result.error.message,
+        );
+        return false;
+      }
+      const oldPrefix = `${relativePath}/`;
+      const newPrefix = `${result.value.relativePath}/`;
+      const movePath = (value: string) =>
+        value === relativePath
+          ? result.value.relativePath
+          : value.startsWith(oldPrefix)
+            ? `${newPrefix}${value.slice(oldPrefix.length)}`
+            : value;
+      setOpenDocumentPaths((current) => current.map(movePath));
+      setSelectedPath((current) => (current ? movePath(current) : current));
+      setWorkspaceFolderError('');
+      return Boolean(await refreshFiles(workspaceId));
+    } catch {
+      setWorkspaceFolderError(
+        '파일 또는 폴더를 이동하지 못했습니다. 다시 시도해 주세요.',
+      );
+      return false;
+    }
+  };
+
   const deleteWorkspaceEntry = async (relativePath: string) => {
     if (!workspaceId || !window.dock.workspace.deleteEntry) return;
     const isSelected =
@@ -3001,6 +3045,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                         onCreate={createWorkspaceEntry}
                         onRename={renameWorkspaceEntry}
                         onDelete={deleteWorkspaceEntry}
+                        onMove={moveWorkspaceEntry}
                         createError={workspaceFolderError}
                       />
                     ) : (

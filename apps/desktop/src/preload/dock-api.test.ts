@@ -224,6 +224,24 @@ describe('createDockApi', () => {
     expect(invoke).toHaveBeenCalledWith(IPC.WORKSPACE_OPEN_FOLDER, request);
   });
 
+  it('validates and invokes the workspace move channel', async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { relativePath: 'archive/note.md', kind: 'file' },
+    });
+    const dock = createDockApi({ invoke });
+    const request = {
+      workspaceId: '11111111-1111-4111-8111-111111111111',
+      relativePath: 'docs/note.md',
+      destinationParentPath: 'archive',
+    };
+
+    await expect(dock.workspace.moveEntry?.(request)).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(invoke).toHaveBeenCalledWith(IPC.WORKSPACE_MOVE_ENTRY, request);
+  });
+
   it('validates workspace change events and removes the listener', () => {
     const invoke = vi.fn();
     const on = vi.fn();

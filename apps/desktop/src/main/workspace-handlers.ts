@@ -15,6 +15,7 @@ import {
   WorkspaceEntriesResultSchema,
   WorkspaceCreateEntryRequestSchema,
   WorkspaceRenameEntryRequestSchema,
+  WorkspaceMoveEntryRequestSchema,
   WorkspaceDeleteEntryRequestSchema,
   WorkspaceMutationResultEnvelopeSchema,
   WriteResultEnvelopeSchema,
@@ -27,10 +28,12 @@ import {
   listWorkspaceEntries,
   createWorkspaceDirectory,
   renameWorkspaceEntry,
+  moveWorkspaceEntry,
   deleteWorkspaceEntry,
   readDocument,
   registerWorkspace,
   resolveWorkspacePath,
+  isInside,
   writeDocument,
   getDocumentRevision,
   type WorkspaceStore,
@@ -257,14 +260,16 @@ export const registerWorkspaceHandlers = ({
   const workspaceMutation = async (
     event: IpcMainInvokeEvent,
     request: unknown,
-    operation: 'create' | 'rename' | 'delete',
+    operation: 'create' | 'rename' | 'move' | 'delete',
   ) => {
     const schema =
       operation === 'create'
         ? WorkspaceCreateEntryRequestSchema
         : operation === 'rename'
           ? WorkspaceRenameEntryRequestSchema
-          : WorkspaceDeleteEntryRequestSchema;
+          : operation === 'move'
+            ? WorkspaceMoveEntryRequestSchema
+            : WorkspaceDeleteEntryRequestSchema;
     const guardError = guard(event, isTrustedSender, request, schema);
     if (guardError)
       return WorkspaceMutationResultEnvelopeSchema.parse({
@@ -277,6 +282,7 @@ export const registerWorkspaceHandlers = ({
       relativePath?: string;
       name?: string;
       newName?: string;
+      destinationParentPath?: string;
       kind?: 'file' | 'directory';
     };
     const root = store.get(parsed.workspaceId);
@@ -349,6 +355,98 @@ export const registerWorkspaceHandlers = ({
           ),
         });
       const currentStats = await lstat(current.absolutePath);
+      if (operation === 'move') {
+        const destinationParentPath = parsed.destinationParentPath ?? '';
+        let destinationParent:
+          | { root: string; absolutePath: string }
+          | undefined;
+        try {
+          destinationParent = await resolveWorkspacePath(
+            store,
+            parsed.workspaceId,
+            destinationParentPath || '.',
+            true,
+          );
+        } catch (cause) {
+          if ((cause as NodeJS.ErrnoException).code === 'ENOENT') {
+            return WorkspaceMutationResultEnvelopeSchema.parse({
+              ok: false,
+              error: error(
+                'DIRECTORY_NOT_FOUND',
+                'The destination folder was not found.',
+              ),
+            });
+          }
+          throw cause;
+        }
+        if (
+          !destinationParent ||
+          !(await lstat(destinationParent.absolutePath)).isDirectory()
+        )
+          return WorkspaceMutationResultEnvelopeSchema.parse({
+            ok: false,
+            error: error(
+              'DIRECTORY_NOT_FOUND',
+              'The destination folder was not found.',
+            ),
+          });
+        const currentRealPath = await realpath(current.absolutePath);
+        const destinationParentRealPath = await realpath(
+          destinationParent.absolutePath,
+        );
+        if (
+          currentStats.isDirectory() &&
+          isInside(currentRealPath, destinationParentRealPath)
+        )
+          return WorkspaceMutationResultEnvelopeSchema.parse({
+            ok: false,
+            error: error(
+              'INVALID_REQUEST',
+              'An entry cannot be moved into itself or one of its children.',
+            ),
+          });
+        const destinationRelativePath = path
+          .relative(
+            current.root,
+            path.join(
+              destinationParent.absolutePath,
+              path.basename(current.absolutePath),
+            ),
+          )
+          .split(path.sep)
+          .join('/');
+        const destination = await resolveWorkspacePath(
+          store,
+          parsed.workspaceId,
+          destinationRelativePath,
+          false,
+        );
+        if (!destination)
+          throw new Error('Destination is outside the workspace.');
+        try {
+          await lstat(destination.absolutePath);
+          return WorkspaceMutationResultEnvelopeSchema.parse({
+            ok: false,
+            error: error(
+              'WRITE_FAILED',
+              'A file or folder with that name already exists.',
+            ),
+          });
+        } catch (cause) {
+          if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause;
+        }
+        await moveWorkspaceEntry(
+          current.absolutePath,
+          destination.absolutePath,
+        );
+        return WorkspaceMutationResultEnvelopeSchema.parse({
+          ok: true,
+          value: {
+            relativePath: destinationRelativePath,
+            kind: currentStats.isDirectory() ? 'directory' : 'file',
+          },
+        });
+      }
       if (operation === 'delete') {
         await deleteWorkspaceEntry(current.absolutePath);
         return WorkspaceMutationResultEnvelopeSchema.parse({
@@ -407,6 +505,9 @@ export const registerWorkspaceHandlers = ({
   );
   ipcMain.handle(IPC.WORKSPACE_RENAME_ENTRY, (event, request) =>
     workspaceMutation(event, request, 'rename'),
+  );
+  ipcMain.handle(IPC.WORKSPACE_MOVE_ENTRY, (event, request) =>
+    workspaceMutation(event, request, 'move'),
   );
   ipcMain.handle(IPC.WORKSPACE_DELETE_ENTRY, (event, request) =>
     workspaceMutation(event, request, 'delete'),

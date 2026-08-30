@@ -36,6 +36,7 @@ import {
   WorkspaceEntriesResultSchema,
   WorkspaceCreateEntryRequestSchema,
   WorkspaceRenameEntryRequestSchema,
+  WorkspaceMoveEntryRequestSchema,
   WorkspaceDeleteEntryRequestSchema,
   WorkspaceMutationResultEnvelopeSchema,
   WorkspaceChangedEventSchema,
@@ -496,6 +497,13 @@ export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
         ipcRenderer,
         IPC.WORKSPACE_RENAME_ENTRY,
         WorkspaceRenameEntryRequestSchema,
+        request,
+      ),
+    moveEntry: (request) =>
+      invokeWorkspaceMutation(
+        ipcRenderer,
+        IPC.WORKSPACE_MOVE_ENTRY,
+        WorkspaceMoveEntryRequestSchema,
         request,
       ),
     deleteEntry: (request) =>

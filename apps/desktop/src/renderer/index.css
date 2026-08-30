@@ -1220,6 +1220,24 @@ input:focus-visible {
   background: #17263b;
 }
 
+.workspace-tree__row[draggable='true'] {
+  cursor: grab;
+}
+
+.workspace-tree__row[draggable='true']:active {
+  cursor: grabbing;
+}
+
+.workspace-tree__row--dragging {
+  opacity: 0.5;
+}
+
+.workspace-tree__row--drop-target {
+  outline: 1px solid #52c7ef;
+  outline-offset: -1px;
+  background: #1d4564;
+}
+
 .workspace-tree__twisty {
   display: grid;
   place-items: center;
