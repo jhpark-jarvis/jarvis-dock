@@ -318,7 +318,9 @@ test('Dock creates files and folders from the Explorer controls', async () => {
     await fileDialog.getByRole('textbox', { name: '이름' }).fill('note.md');
     await fileDialog.getByRole('button', { name: '생성' }).click();
     await expect(
-      page.getByRole('button', { name: 'notes/note.md' }),
+      page
+        .getByRole('region', { name: '파일 탐색기' })
+        .getByRole('button', { name: 'notes/note.md' }),
     ).toBeVisible();
     await expect(
       page.getByRole('textbox', { name: 'Markdown 편집기' }),
