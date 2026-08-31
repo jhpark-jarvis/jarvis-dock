@@ -178,4 +178,36 @@ describe('WorkspaceExplorer', () => {
 
     expect(onMove).toHaveBeenCalledWith('docs/note.md', 'archive');
   });
+
+  it('moves a nested file to the workspace root drop zone', () => {
+    const onMove = vi.fn(async () => true);
+    render(
+      <WorkspaceExplorer
+        entries={entries}
+        onOpen={vi.fn()}
+        onCreate={vi.fn()}
+        onRename={vi.fn(async () => true)}
+        onDelete={vi.fn()}
+        onMove={onMove}
+      />,
+    );
+
+    const source = screen.getByRole('button', { name: 'docs/note.md' });
+    const sourceRow = source.closest('.workspace-tree__row');
+    const rootDropzone =
+      screen.getByLabelText('워크스페이스 최상위 폴더로 이동');
+    if (!sourceRow) throw new Error('Explorer source row not found.');
+
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData: vi.fn(),
+      getData: vi.fn(() => 'docs/note.md'),
+    };
+    fireEvent.dragStart(sourceRow, { dataTransfer });
+    fireEvent.dragOver(rootDropzone, { dataTransfer });
+    fireEvent.drop(rootDropzone, { dataTransfer });
+
+    expect(onMove).toHaveBeenCalledWith('docs/note.md', '');
+  });
 });

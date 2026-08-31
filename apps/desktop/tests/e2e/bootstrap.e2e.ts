@@ -311,7 +311,15 @@ test('Dock creates files and folders from the Explorer controls', async () => {
       page.getByRole('button', { name: 'notes', exact: true }),
     ).toBeVisible();
 
-    await page.getByRole('button', { name: 'notes에 파일 추가' }).click();
+    const notesButton = page.getByRole('button', {
+      name: 'notes',
+      exact: true,
+    });
+    await notesButton.click({ button: 'right' });
+    await page
+      .getByRole('menu', { name: 'notes 메뉴' })
+      .getByRole('menuitem', { name: '새 파일' })
+      .click();
     const fileDialog = page.getByRole('dialog', {
       name: '새 Markdown 파일 만들기',
     });
@@ -349,6 +357,39 @@ test('Dock creates files and folders from the Explorer controls', async () => {
     expect(
       readFileSync(path.join(workspaceRoot, 'archive', 'note.md'), 'utf8'),
     ).toBe('');
+    await explorer
+      .getByRole('button', { name: 'archive/note.md' })
+      .waitFor();
+    await page.evaluate(() => {
+      const source = document.querySelector(
+        '[aria-label="archive/note.md"]',
+      );
+      const target = document.querySelector('.workspace-tree__root-dropzone');
+      const sourceRow = source?.closest('.workspace-tree__row');
+      if (!sourceRow || !target) throw new Error('Root drop targets not found.');
+      const dataTransfer = new DataTransfer();
+      dataTransfer.effectAllowed = 'move';
+      dataTransfer.setData('text/plain', 'archive/note.md');
+      sourceRow.dispatchEvent(
+        new DragEvent('dragstart', { bubbles: true, dataTransfer }),
+      );
+      target.dispatchEvent(
+        new DragEvent('dragover', { bubbles: true, dataTransfer }),
+      );
+      target.dispatchEvent(
+        new DragEvent('drop', { bubbles: true, dataTransfer }),
+      );
+      sourceRow.dispatchEvent(
+        new DragEvent('dragend', { bubbles: true, dataTransfer }),
+      );
+    });
+    await expect(
+      explorer.getByRole('button', { name: 'note.md' }),
+    ).toBeVisible();
+    await expect(
+      explorer.getByRole('button', { name: 'archive/note.md' }),
+    ).not.toBeVisible();
+    expect(readFileSync(path.join(workspaceRoot, 'note.md'), 'utf8')).toBe('');
   } finally {
     await app.close();
     rmSync(workspaceRoot, { recursive: true, force: true });

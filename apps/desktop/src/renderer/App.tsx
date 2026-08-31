@@ -291,6 +291,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [workspaceId, setWorkspaceId] = useState<string>();
   const [workspaceName, setWorkspaceName] = useState<string>();
   const [workspaceFolderError, setWorkspaceFolderError] = useState('');
+  const [workspaceMoveError, setWorkspaceMoveError] = useState('');
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
   const [workspaceEntries, setWorkspaceEntries] = useState<WorkspaceEntry[]>(
     [],
@@ -432,6 +433,12 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     },
     [],
   );
+
+  useEffect(() => {
+    if (!workspaceMoveError) return;
+    const timer = window.setTimeout(() => setWorkspaceMoveError(''), 4500);
+    return () => window.clearTimeout(timer);
+  }, [workspaceMoveError]);
 
   useEffect(() => {
     setState(initialState);
@@ -924,8 +931,12 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     relativePath: string,
     destinationParentPath: string,
   ): Promise<boolean> => {
-    if (!workspaceId || !window.dock.workspace.moveEntry) return false;
+    if (!workspaceId || !window.dock.workspace.moveEntry) {
+      setWorkspaceMoveError('먼저 문서 폴더를 선택해 주세요.');
+      return false;
+    }
     setWorkspaceFolderError('');
+    setWorkspaceMoveError('');
     try {
       const result = await window.dock.workspace.moveEntry({
         workspaceId,
@@ -933,7 +944,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         destinationParentPath,
       });
       if (result.ok === false) {
-        setWorkspaceFolderError(
+        setWorkspaceMoveError(
           result.error.code === 'WRITE_FAILED'
             ? '대상 폴더에 같은 이름의 파일 또는 폴더가 이미 있습니다.'
             : result.error.code === 'DIRECTORY_NOT_FOUND'
@@ -955,9 +966,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       setOpenDocumentPaths((current) => current.map(movePath));
       setSelectedPath((current) => (current ? movePath(current) : current));
       setWorkspaceFolderError('');
+      setWorkspaceMoveError('');
       return Boolean(await refreshFiles(workspaceId));
     } catch {
-      setWorkspaceFolderError(
+      setWorkspaceMoveError(
         '파일 또는 폴더를 이동하지 못했습니다. 다시 시도해 주세요.',
       );
       return false;
@@ -2063,6 +2075,19 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
           </button>
         </div>
       </header>
+
+      {workspaceMoveError && (
+        <div className="workspace-operation-toast" role="alert">
+          <span>{workspaceMoveError}</span>
+          <button
+            type="button"
+            aria-label="파일 이동 오류 닫기"
+            onClick={() => setWorkspaceMoveError('')}
+          >
+            닫기
+          </button>
+        </div>
+      )}
 
       {researchOpen && (
         <section className="research-workbench" aria-label="Research View">

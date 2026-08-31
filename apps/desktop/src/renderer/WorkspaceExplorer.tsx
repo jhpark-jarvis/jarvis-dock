@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, DragEvent, ReactNode } from 'react';
 import type { WorkspaceEntry } from '../shared/ipc';
 
 type EntryKind = 'file' | 'directory';
@@ -91,6 +91,30 @@ export const WorkspaceExplorer = ({
   const [createPending, setCreatePending] = useState(false);
   const [draggedPath, setDraggedPath] = useState<string>();
   const [dropTargetPath, setDropTargetPath] = useState<string>();
+
+  const handleDrop = (
+    event: DragEvent<HTMLElement>,
+    destinationParentPath: string,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const sourcePath = event.dataTransfer.getData('text/plain');
+    setDraggedPath(undefined);
+    setDropTargetPath(undefined);
+    if (sourcePath && sourcePath !== destinationParentPath) {
+      void onMove(sourcePath, destinationParentPath);
+    }
+  };
+
+  const handleDropTargetDragOver = (
+    event: DragEvent<HTMLElement>,
+    destinationParentPath: string,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'move';
+    setDropTargetPath(destinationParentPath);
+  };
   useEffect(() => {
     setExpandedPaths((current) => {
       const next = new Set(current);
@@ -229,9 +253,7 @@ export const WorkspaceExplorer = ({
             }}
             onDragOver={(event) => {
               if (entry.kind !== 'directory') return;
-              event.preventDefault();
-              event.dataTransfer.dropEffect = 'move';
-              setDropTargetPath(entry.relativePath);
+              handleDropTargetDragOver(event, entry.relativePath);
             }}
             onDragLeave={(event) => {
               if (
@@ -244,13 +266,7 @@ export const WorkspaceExplorer = ({
             }}
             onDrop={(event) => {
               if (entry.kind !== 'directory') return;
-              event.preventDefault();
-              const sourcePath = event.dataTransfer.getData('text/plain');
-              setDraggedPath(undefined);
-              setDropTargetPath(undefined);
-              if (sourcePath && sourcePath !== entry.relativePath) {
-                void onMove(sourcePath, entry.relativePath);
-              }
+              handleDrop(event, entry.relativePath);
             }}
             onContextMenu={(event) => {
               event.preventDefault();
@@ -471,6 +487,23 @@ export const WorkspaceExplorer = ({
             + 폴더
           </button>
         </div>
+      </div>
+      <div
+        className={`workspace-tree__root-dropzone${
+          dropTargetPath === '' ? ' workspace-tree__root-dropzone--active' : ''
+        }`}
+        aria-label="워크스페이스 최상위 폴더로 이동"
+        onDragOver={(event) => handleDropTargetDragOver(event, '')}
+        onDragLeave={(event) => {
+          if (
+            !event.currentTarget.contains(event.relatedTarget as Node | null)
+          ) {
+            setDropTargetPath(undefined);
+          }
+        }}
+        onDrop={(event) => handleDrop(event, '')}
+      >
+        최상위 폴더로 이동하려면 여기에 놓으세요
       </div>
       {entries.length > 0 ? (
         <ul

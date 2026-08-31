@@ -45,12 +45,54 @@ input:focus-visible {
 }
 
 .app-shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
   overflow: hidden;
   background: #0b1220;
+}
+
+.workspace-operation-toast {
+  position: absolute;
+  z-index: 50;
+  right: 1rem;
+  bottom: 3.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: min(30rem, calc(100% - 2rem));
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #f59e0b;
+  border-radius: 0.5rem;
+  background: #351b16;
+  box-shadow: 0 0.75rem 1.5rem rgb(0 0 0 / 32%);
+  color: #ffedd5;
+  font-size: 0.8rem;
+}
+
+.workspace-operation-toast span {
+  min-width: 0;
+  flex: 1;
+}
+
+.workspace-operation-toast button {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid #9a5b26;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: #fed7aa;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+}
+
+.workspace-operation-toast button:hover,
+.workspace-operation-toast button:focus-visible {
+  background: #542519;
+  color: #fff7ed;
 }
 
 .app-header,
@@ -1191,6 +1233,27 @@ input:focus-visible {
 .workspace-tree__actions button:focus-visible {
   background: #1b304a;
   color: #f1f7ff;
+}
+
+.workspace-tree__root-dropzone {
+  min-height: 1.8rem;
+  margin: 0.1rem 0 0.25rem;
+  padding: 0.42rem 0.55rem;
+  border: 1px dashed #38536f;
+  border-radius: 0.35rem;
+  color: #7f9bb8;
+  font-size: 0.7rem;
+  text-align: center;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.workspace-tree__root-dropzone--active {
+  border-color: #52c7ef;
+  background: #1d4564;
+  color: #effaff;
 }
 
 .workspace-tree {
