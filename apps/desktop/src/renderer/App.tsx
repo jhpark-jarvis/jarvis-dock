@@ -277,6 +277,13 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const commandTriggerRef = useRef<HTMLButtonElement>(null);
   const documentMessageTimerRef = useRef<number | undefined>(undefined);
   const editorSelectionRef = useRef({ start: 0, end: 0 });
+  const workspaceMutationRef = useRef<
+    | {
+        workspaceId: string;
+        sourcePath: string;
+      }
+    | undefined
+  >(undefined);
   const documentScrollRatiosRef = useRef<
     Record<string, { editor: number; preview: number }>
   >({});
@@ -443,6 +450,23 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       editor: getScrollRatio(editor),
       preview: getScrollRatio(preview),
     };
+  };
+
+  const restoreEditorPosition = (
+    selection = editorSelectionRef.current,
+    scrollTop?: number,
+  ) => {
+    const nextSelection = { ...selection };
+    const applyPosition = () => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      editor.focus();
+      editor.setSelectionRange(nextSelection.start, nextSelection.end);
+      if (scrollTop !== undefined) editor.scrollTop = scrollTop;
+    };
+    window.setTimeout(() => {
+      window.requestAnimationFrame(applyPosition);
+    }, 0);
   };
 
   useEffect(
@@ -772,7 +796,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
 
   const handleWorkspaceChanged = useCallback(
     async (changedWorkspaceId: string) => {
+      if (workspaceMutationRef.current?.workspaceId === changedWorkspaceId)
+        return;
       const refreshed = await refreshFiles(changedWorkspaceId);
+      if (workspaceMutationRef.current?.workspaceId === changedWorkspaceId)
+        return;
       if (!refreshed || changedWorkspaceId !== workspaceId || !selectedPath)
         return;
 
@@ -923,37 +951,54 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       selectedPath &&
       (selectedPath === relativePath || selectedPath.startsWith(oldPrefix)),
     );
-    setWorkspaceFolderError('');
-    const result = await window.dock.workspace.renameEntry({
+    const editorScrollTop = editorRef.current?.scrollTop;
+    const editorSelection = { ...editorSelectionRef.current };
+    const mutation = {
       workspaceId,
-      relativePath,
-      newName,
-    });
-    if (result.ok === false) {
-      setWorkspaceFolderError(result.error.message);
-      return false;
-    }
-    const newPrefix = `${result.value.relativePath}/`;
-    const movePath = (value: string) =>
-      value === relativePath
-        ? result.value.relativePath
-        : value.startsWith(oldPrefix)
-          ? `${newPrefix}${value.slice(oldPrefix.length)}`
-          : value;
-    setOpenDocumentPaths((current) => current.map(movePath));
-    setSelectedPath((current) => (current ? movePath(current) : current));
-    if (selectedPath) {
-      const moved = movePath(selectedPath);
-      if (moved !== selectedPath) setSelectedPath(moved);
-    }
+      sourcePath: relativePath,
+    };
+    workspaceMutationRef.current = mutation;
     setWorkspaceFolderError('');
-    const refreshed = Boolean(await refreshFiles(workspaceId));
-    if (refreshed && shouldRestoreEditorFocus) {
-      requestAnimationFrame(() => {
-        editorRef.current?.focus();
+    try {
+      const result = await window.dock.workspace.renameEntry({
+        workspaceId,
+        relativePath,
+        newName,
       });
+      if (result.ok === false) {
+        setWorkspaceFolderError(result.error.message);
+        return false;
+      }
+      const newPrefix = `${result.value.relativePath}/`;
+      const movePath = (value: string) =>
+        value === relativePath
+          ? result.value.relativePath
+          : value.startsWith(oldPrefix)
+            ? `${newPrefix}${value.slice(oldPrefix.length)}`
+            : value;
+      setOpenDocumentPaths((current) => current.map(movePath));
+      setSelectedPath((current) => (current ? movePath(current) : current));
+      if (selectedPath) {
+        const moved = movePath(selectedPath);
+        if (moved !== selectedPath) setSelectedPath(moved);
+      }
+      setWorkspaceFolderError('');
+      const refreshed = Boolean(await refreshFiles(workspaceId));
+      if (refreshed && shouldRestoreEditorFocus) {
+        restoreEditorPosition(editorSelection, editorScrollTop);
+      }
+      return refreshed;
+    } catch {
+      setWorkspaceFolderError(
+        '파일 또는 폴더 이름을 변경하지 못했습니다. 다시 시도해 주세요.',
+      );
+      return false;
+    } finally {
+      window.setTimeout(() => {
+        if (workspaceMutationRef.current === mutation)
+          workspaceMutationRef.current = undefined;
+      }, 100);
     }
-    return refreshed;
   };
 
   const moveWorkspaceEntry = async (
@@ -966,6 +1011,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     }
     setWorkspaceFolderError('');
     setWorkspaceMoveError('');
+    const mutation = {
+      workspaceId,
+      sourcePath: relativePath,
+    };
+    workspaceMutationRef.current = mutation;
     try {
       const result = await window.dock.workspace.moveEntry({
         workspaceId,
@@ -1002,6 +1052,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         '파일 또는 폴더를 이동하지 못했습니다. 다시 시도해 주세요.',
       );
       return false;
+    } finally {
+      window.setTimeout(() => {
+        if (workspaceMutationRef.current === mutation)
+          workspaceMutationRef.current = undefined;
+      }, 100);
     }
   };
 
@@ -1071,9 +1126,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       content !== savedContent &&
       !window.confirm('저장하지 않은 변경 사항이 있습니다. 다른 문서를 열까요?')
     ) {
-      requestAnimationFrame(() => {
-        editorRef.current?.focus();
-      });
+      restoreEditorPosition();
       return;
     }
     if (selectedPath && selectedPath !== relativePath) {
@@ -1118,9 +1171,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       content !== savedContent &&
       !window.confirm('저장하지 않은 변경 사항을 버리고 문서를 닫을까요?')
     ) {
-      requestAnimationFrame(() => {
-        editorRef.current?.focus();
-      });
+      restoreEditorPosition();
       return;
     }
     const remainingPaths = openDocumentPaths.filter(
@@ -1783,6 +1834,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const insertResearchLink = (result: LinkInsertTarget) => {
     try {
       const selection = editorSelectionRef.current;
+      const editorScrollTop = editorRef.current?.scrollTop;
       const nextContent = insertMarkdownLink(
         content,
         result,
@@ -1793,10 +1845,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       setResearchError('');
       const cursor = selection.start + formatMarkdownLink(result).length;
       editorSelectionRef.current = { start: cursor, end: cursor };
-      requestAnimationFrame(() => {
-        editorRef.current?.focus();
-        editorRef.current?.setSelectionRange(cursor, cursor);
-      });
+      restoreEditorPosition({ start: cursor, end: cursor }, editorScrollTop);
     } catch {
       setResearchError('허용되지 않은 URL이라 링크를 삽입할 수 없습니다.');
     }
@@ -1974,6 +2023,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         selectedPath,
       );
       const selection = insertionContext.selection;
+      const editorScrollTop = editorRef.current?.scrollTop;
       const nextContent = insertMarkdownImage(
         content,
         altText,
@@ -1987,10 +2037,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       closeCommandPalette();
       const cursor = selection.start + markdown.length;
       editorSelectionRef.current = { start: cursor, end: cursor };
-      requestAnimationFrame(() => {
-        editorRef.current?.focus();
-        editorRef.current?.setSelectionRange(cursor, cursor);
-      });
+      restoreEditorPosition({ start: cursor, end: cursor }, editorScrollTop);
     } catch {
       setImageErrorCode('INTERNAL');
       setImageError('이미지를 다운로드하거나 저장하지 못했습니다.');
@@ -2031,6 +2078,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         selectedPath,
       );
       const selection = editorSelectionRef.current;
+      const editorScrollTop = editorRef.current?.scrollTop;
       setContent(
         insertMarkdownImage(
           content,
@@ -2045,10 +2093,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       setAssetRefreshKey((current) => current + 1);
       const cursor = selection.start + markdown.length;
       editorSelectionRef.current = { start: cursor, end: cursor };
-      requestAnimationFrame(() => {
-        editorRef.current?.focus();
-        editorRef.current?.setSelectionRange(cursor, cursor);
-      });
+      restoreEditorPosition({ start: cursor, end: cursor }, editorScrollTop);
     } catch {
       setSaveError('클립보드 이미지를 저장하지 못했습니다.');
     }
@@ -2057,6 +2102,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const insertExistingAsset = (asset: ImageAssetItem) => {
     const altText = asset.displayName.replace(/\.[^.]+$/, '');
     const selection = editorSelectionRef.current;
+    const editorScrollTop = editorRef.current?.scrollTop;
     const nextContent = insertMarkdownImage(
       content,
       altText,
@@ -2073,10 +2119,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setContent(nextContent);
     const cursor = selection.start + markdown.length;
     editorSelectionRef.current = { start: cursor, end: cursor };
-    requestAnimationFrame(() => {
-      editorRef.current?.focus();
-      editorRef.current?.setSelectionRange(cursor, cursor);
-    });
+    restoreEditorPosition({ start: cursor, end: cursor }, editorScrollTop);
   };
 
   const handleEditorPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {

@@ -82,13 +82,14 @@ input:focus-visible {
 }
 
 .workspace-operation-toast {
-  flex: 0 0 auto;
-  align-self: flex-end;
+  position: absolute;
+  z-index: 20;
+  top: 4.35rem;
+  right: 1rem;
   display: flex;
   align-items: center;
   gap: 0.7rem;
   width: min(30rem, calc(100% - 2rem));
-  margin: 0.55rem 1rem 0;
   padding: 0.7rem 0.8rem;
   border: 1px solid #f59e0b;
   border-radius: 0.5rem;
@@ -96,6 +97,8 @@ input:focus-visible {
   box-shadow: 0 0.75rem 1.5rem rgb(0 0 0 / 32%);
   color: #ffedd5;
   font-size: 0.8rem;
+  line-height: 1.45;
+  pointer-events: auto;
 }
 
 .workspace-operation-toast span {

@@ -539,11 +539,14 @@ describe('App', () => {
       name: /diagram\.png assets\/diagram\.png/,
     });
     expect(assetButton).toBeVisible();
+    const editor = screen.getByRole('textbox', {
+      name: 'Markdown 편집기',
+    }) as HTMLTextAreaElement;
+    editor.scrollTop = 240;
     await user.click(assetButton);
 
-    expect(
-      screen.getByRole('textbox', { name: 'Markdown 편집기' }),
-    ).toHaveValue('# Guide![diagram](./assets/diagram.png)');
+    expect(editor).toHaveValue('# Guide![diagram](./assets/diagram.png)');
+    await waitFor(() => expect(editor.scrollTop).toBe(240));
   });
 
   it('opens the command palette as a dialog and closes it with Escape', async () => {
