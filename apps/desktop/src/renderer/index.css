@@ -804,7 +804,9 @@ input:focus-visible {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding-right: 0.4rem;
   overflow: hidden auto;
+  scrollbar-gutter: stable;
 }
 
 .workspace-create {
