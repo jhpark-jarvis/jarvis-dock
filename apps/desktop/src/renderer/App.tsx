@@ -7,6 +7,8 @@ import type {
   WorkspaceFile,
   WorkspaceEntry,
   DockError,
+  RuntimeEventName,
+  RuntimeRecordEventRequest,
 } from '../shared/ipc';
 import {
   extractWorkspaceImageAssets,
@@ -297,6 +299,17 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   >(undefined);
   const expectedRevisionRef = useRef<string | undefined>(undefined);
   const scrollSyncLockRef = useRef<'editor' | 'preview' | undefined>(undefined);
+  const editorInputTelemetryRef = useRef<{
+    count: number;
+    startedAt: number;
+    maxLatencyMs: number;
+    timer?: number;
+  }>({ count: 0, startedAt: 0, maxLatencyMs: 0 });
+  const previewRenderDurationRef = useRef(0);
+  const previewTelemetryRef = useRef<{
+    count: number;
+    timer?: number;
+  }>({ count: 0 });
   const [state, setState] = useState<ShellState>(initialState);
   const [workspaceId, setWorkspaceId] = useState<string>();
   const [workspaceName, setWorkspaceName] = useState<string>();
@@ -431,6 +444,48 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     | undefined
   >('explorer');
 
+  const recordRuntimeEvent = useCallback(
+    (
+      event: RuntimeEventName,
+      details?: RuntimeRecordEventRequest['details'],
+    ) => {
+      const recordEvent = window.dock?.runtime?.recordEvent;
+      if (!recordEvent) return;
+      void recordEvent({ event, details }).catch(() => undefined);
+    },
+    [],
+  );
+
+  const scheduleEditorInputTelemetry = (bytes: number) => {
+    const telemetry = editorInputTelemetryRef.current;
+    if (telemetry.count === 0) {
+      telemetry.startedAt = performance.now();
+      telemetry.maxLatencyMs = 0;
+    }
+    telemetry.count += 1;
+    if (telemetry.timer !== undefined) window.clearTimeout(telemetry.timer);
+    const inputStartedAt = performance.now();
+    window.requestAnimationFrame(() => {
+      telemetry.maxLatencyMs = Math.max(
+        telemetry.maxLatencyMs,
+        performance.now() - inputStartedAt,
+      );
+    });
+    telemetry.timer = window.setTimeout(() => {
+      recordRuntimeEvent('editor-input-burst', {
+        bytes,
+        count: telemetry.count,
+        durationMs: performance.now() - telemetry.startedAt,
+        latencyMs: telemetry.maxLatencyMs,
+        outcome: 'success',
+      });
+      telemetry.count = 0;
+      telemetry.startedAt = 0;
+      telemetry.maxLatencyMs = 0;
+      telemetry.timer = undefined;
+    }, 750);
+  };
+
   const showTransientDocumentMessage = (message: string) => {
     if (documentMessageTimerRef.current !== undefined) {
       window.clearTimeout(documentMessageTimerRef.current);
@@ -473,6 +528,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     () => () => {
       if (documentMessageTimerRef.current !== undefined)
         window.clearTimeout(documentMessageTimerRef.current);
+      if (editorInputTelemetryRef.current.timer !== undefined)
+        window.clearTimeout(editorInputTelemetryRef.current.timer);
+      if (previewTelemetryRef.current.timer !== undefined)
+        window.clearTimeout(previewTelemetryRef.current.timer);
     },
     [],
   );
@@ -572,13 +631,21 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       }),
     ).then((sources) => {
       if (cancelled) return;
-      setPreviewImageSources(Object.fromEntries(sources.filter(Boolean)));
+      const loadedSources = sources.filter(Boolean);
+      setPreviewImageSources(Object.fromEntries(loadedSources));
+      if (assetPaths.length > 0) {
+        recordRuntimeEvent('image-loaded', {
+          count: loadedSources.length,
+          outcome:
+            loadedSources.length === assetPaths.length ? 'success' : 'failure',
+        });
+      }
     });
 
     return () => {
       cancelled = true;
     };
-  }, [content, selectedPath, workspaceId]);
+  }, [content, recordRuntimeEvent, selectedPath, workspaceId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -753,46 +820,53 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     };
   }, [assetRefreshKey, workspaceId, workspacePanel]);
 
-  const refreshFiles = useCallback(async (nextWorkspaceId: string) => {
-    let files: WorkspaceFile[];
-    let entries: WorkspaceEntry[];
-    if (window.dock.workspace.listEntries) {
-      const listedEntries = await window.dock.workspace.listEntries({
-        workspaceId: nextWorkspaceId,
-      });
-      if (!listedEntries.ok) {
-        setState('error');
-        return false;
-      }
-      entries = listedEntries.value.entries;
-      files = entries
-        .filter(
-          (entry) =>
-            entry.kind === 'file' &&
-            /\.(md|markdown)$/i.test(entry.displayName),
-        )
-        .map(({ relativePath, displayName }) => ({
-          relativePath,
-          displayName,
+  const refreshFiles = useCallback(
+    async (nextWorkspaceId: string) => {
+      let files: WorkspaceFile[];
+      let entries: WorkspaceEntry[];
+      if (window.dock.workspace.listEntries) {
+        const listedEntries = await window.dock.workspace.listEntries({
+          workspaceId: nextWorkspaceId,
+        });
+        if (!listedEntries.ok) {
+          setState('error');
+          return false;
+        }
+        entries = listedEntries.value.entries;
+        files = entries
+          .filter(
+            (entry) =>
+              entry.kind === 'file' &&
+              /\.(md|markdown)$/i.test(entry.displayName),
+          )
+          .map(({ relativePath, displayName }) => ({
+            relativePath,
+            displayName,
+          }));
+      } else {
+        const listed = await window.dock.workspace.listMarkdownFiles({
+          workspaceId: nextWorkspaceId,
+        });
+        if (!listed.ok) {
+          setState('error');
+          return false;
+        }
+        files = listed.value.files;
+        entries = files.map((file) => ({
+          ...file,
+          kind: 'file' as const,
         }));
-    } else {
-      const listed = await window.dock.workspace.listMarkdownFiles({
-        workspaceId: nextWorkspaceId,
-      });
-      if (!listed.ok) {
-        setState('error');
-        return false;
       }
-      files = listed.value.files;
-      entries = files.map((file) => ({
-        ...file,
-        kind: 'file' as const,
-      }));
-    }
-    setFiles(files);
-    setWorkspaceEntries(entries);
-    return { files, entries };
-  }, []);
+      setFiles(files);
+      setWorkspaceEntries(entries);
+      recordRuntimeEvent('workspace-refreshed', {
+        count: entries.length,
+        outcome: 'success',
+      });
+      return { files, entries };
+    },
+    [recordRuntimeEvent],
+  );
 
   const handleWorkspaceChanged = useCallback(
     async (changedWorkspaceId: string) => {
@@ -899,7 +973,12 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setWorkspaceSearchQuery('');
     setWorkspaceSearchResults([]);
     setWorkspaceSearchStatus('idle');
-    if (!(await refreshFiles(chosen.value.workspaceId))) return;
+    const refreshed = await refreshFiles(chosen.value.workspaceId);
+    if (!refreshed) return;
+    recordRuntimeEvent('workspace-selected', {
+      count: refreshed.entries.length,
+      outcome: 'success',
+    });
     setState('empty');
   };
 
@@ -1158,6 +1237,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         end: result.value.content.length,
       };
       setSaveError('');
+      recordRuntimeEvent('document-opened', {
+        bytes: result.value.content.length,
+        outcome: 'success',
+      });
     } catch {
       setDocumentError(
         '문서를 열지 못했습니다. 파일이 존재하고 Markdown 파일인지 확인해 주세요.',
@@ -1217,6 +1300,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         return;
       }
     }
+    const saveStartedAt = performance.now();
     const result = await window.dock.document.write({
       workspaceId,
       relativePath: selectedPath,
@@ -1251,7 +1335,16 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
           );
         }
       }
+      recordRuntimeEvent('document-saved', {
+        bytes: content.length,
+        durationMs: performance.now() - saveStartedAt,
+        outcome: 'success',
+      });
     } else {
+      recordRuntimeEvent('document-save-failed', {
+        durationMs: performance.now() - saveStartedAt,
+        outcome: 'failure',
+      });
       setSaveError(
         result.ok === false && result.error.code === 'WRITE_CONFLICT'
           ? '문서가 외부에서 변경되었습니다. 다시 불러온 뒤 저장해 주세요.'
@@ -1378,6 +1471,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         new Set(files.map((file) => file.relativePath)),
       )
     : [];
+  const previewStartedAt = performance.now();
   const previewHtml = selectedPath
     ? renderMarkdownPreview(content, {
         documentPath: selectedPath,
@@ -1385,6 +1479,31 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         mermaidRenders,
       })
     : '';
+  previewRenderDurationRef.current = selectedPath
+    ? performance.now() - previewStartedAt
+    : 0;
+
+  useEffect(() => {
+    const telemetry = previewTelemetryRef.current;
+    if (!selectedPath) {
+      if (telemetry.timer !== undefined) window.clearTimeout(telemetry.timer);
+      telemetry.count = 0;
+      telemetry.timer = undefined;
+      return;
+    }
+    telemetry.count += 1;
+    if (telemetry.timer !== undefined) window.clearTimeout(telemetry.timer);
+    telemetry.timer = window.setTimeout(() => {
+      recordRuntimeEvent('preview-rendered', {
+        bytes: content.length,
+        count: telemetry.count,
+        durationMs: previewRenderDurationRef.current,
+        outcome: 'success',
+      });
+      telemetry.count = 0;
+      telemetry.timer = undefined;
+    }, 750);
+  }, [content, recordRuntimeEvent, selectedPath]);
 
   useEffect(() => {
     if (!selectedPath) return;
@@ -1414,6 +1533,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
             }));
             return;
           }
+          const mermaidStartedAt = performance.now();
           try {
             const svg = await renderMermaidDiagram(source);
             if (cancelled) return;
@@ -1421,6 +1541,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               ...current,
               [index]: { source, svg },
             }));
+            recordRuntimeEvent('mermaid-rendered', {
+              durationMs: performance.now() - mermaidStartedAt,
+              outcome: 'success',
+            });
           } catch {
             if (cancelled) return;
             setMermaidRenders((current) => ({
@@ -1431,6 +1555,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   'Mermaid 미리보기를 생성하지 못했습니다. 원문을 확인해 주세요.',
               },
             }));
+            recordRuntimeEvent('mermaid-rendered', {
+              durationMs: performance.now() - mermaidStartedAt,
+              outcome: 'failure',
+            });
           }
         }),
       );
@@ -1439,7 +1567,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [previewHtml, selectedPath, mermaidRenders]);
+  }, [previewHtml, recordRuntimeEvent, selectedPath, mermaidRenders]);
 
   useEffect(() => {
     if (!selectedPath) return;
@@ -1810,6 +1938,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
         if (!wasResearchOpen) setResearchOpen(false);
         setLinkError('Research View를 열지 못했습니다. 다시 시도해 주세요.');
         setLinkStatus('error');
+        recordRuntimeEvent('research-opened', { outcome: 'failure' });
         return;
       }
       setResearchError('');
@@ -1823,11 +1952,16 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       } else {
         setResearchResults(response.value.results);
       }
+      recordRuntimeEvent('research-opened', {
+        count: response.value.results.length,
+        outcome: 'success',
+      });
       closeCommandPalette();
     } catch {
       if (!wasResearchOpen) setResearchOpen(false);
       setLinkError('Research View를 열지 못했습니다. 다시 시도해 주세요.');
       setLinkStatus('error');
+      recordRuntimeEvent('research-opened', { outcome: 'failure' });
     }
   };
 
@@ -1874,6 +2008,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     setActiveResearchTabId(undefined);
     setResearchUrl('');
     setResearchLoading(false);
+    recordRuntimeEvent('research-closed', { outcome: 'success' });
   };
 
   const selectResearchTab = async (tabId: string) => {
@@ -1946,16 +2081,22 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               : '이미지 검색에 실패했습니다. 다시 시도해 주세요.',
           );
           setImageStatus('error');
+          recordRuntimeEvent('image-search', { outcome: 'failure' });
           return;
         }
         results = response.value.results;
       }
       setImageResults(results);
       setImageStatus(results.length > 0 ? 'results' : 'empty');
+      recordRuntimeEvent('image-search', {
+        count: results.length,
+        outcome: 'success',
+      });
     } catch {
       setImageResults([]);
       setImageError('이미지 검색에 실패했습니다. 다시 시도해 주세요.');
       setImageStatus('error');
+      recordRuntimeEvent('image-search', { outcome: 'failure' });
     }
   };
 
@@ -2034,6 +2175,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       );
       setContent(nextContent);
       setAssetRefreshKey((current) => current + 1);
+      recordRuntimeEvent('image-inserted', {
+        bytes: response.value.bytesWritten,
+        outcome: 'success',
+      });
       closeCommandPalette();
       const cursor = selection.start + markdown.length;
       editorSelectionRef.current = { start: cursor, end: cursor };
@@ -2042,6 +2187,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       setImageErrorCode('INTERNAL');
       setImageError('이미지를 다운로드하거나 저장하지 못했습니다.');
       setImageStatus('error');
+      recordRuntimeEvent('image-inserted', { outcome: 'failure' });
     }
   };
 
@@ -2091,11 +2237,16 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       );
       setSaveError('');
       setAssetRefreshKey((current) => current + 1);
+      recordRuntimeEvent('image-inserted', {
+        bytes: response.value.bytesWritten,
+        outcome: 'success',
+      });
       const cursor = selection.start + markdown.length;
       editorSelectionRef.current = { start: cursor, end: cursor };
       restoreEditorPosition({ start: cursor, end: cursor }, editorScrollTop);
     } catch {
       setSaveError('클립보드 이미지를 저장하지 못했습니다.');
+      recordRuntimeEvent('image-inserted', { outcome: 'failure' });
     }
   };
 
@@ -2117,6 +2268,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       selectedPath,
     );
     setContent(nextContent);
+    recordRuntimeEvent('image-inserted', { outcome: 'success' });
     const cursor = selection.start + markdown.length;
     editorSelectionRef.current = { start: cursor, end: cursor };
     restoreEditorPosition({ start: cursor, end: cursor }, editorScrollTop);
@@ -3866,6 +4018,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
               onChange={(event) => {
                 const nextContent = event.target.value;
                 setContent(nextContent);
+                scheduleEditorInputTelemetry(nextContent.length);
                 editorSelectionRef.current = {
                   start: event.target.selectionStart,
                   end: event.target.selectionEnd,

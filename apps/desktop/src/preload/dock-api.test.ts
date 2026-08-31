@@ -291,4 +291,22 @@ describe('createDockApi', () => {
     });
     expect(invoke).toHaveBeenCalledWith(IPC.ARCHITECTURE_CREATE_ADR, request);
   });
+
+  it('exposes only the bounded runtime event recorder', async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { recorded: true },
+    });
+    const dock = createDockApi({ invoke });
+
+    await dock.runtime.recordEvent({
+      event: 'preview-rendered',
+      details: { bytes: 2048, durationMs: 18, outcome: 'success' },
+    });
+
+    expect(invoke).toHaveBeenCalledWith(IPC.RUNTIME_RECORD_EVENT, {
+      event: 'preview-rendered',
+      details: { bytes: 2048, durationMs: 18, outcome: 'success' },
+    });
+  });
 });

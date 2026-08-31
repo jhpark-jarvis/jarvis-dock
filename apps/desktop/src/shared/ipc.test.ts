@@ -12,6 +12,7 @@ import {
   DocumentWriteRequestSchema,
   ResearchOpenResultEnvelopeSchema,
   VersionResultSchema,
+  RuntimeRecordEventRequestSchema,
 } from './ipc';
 
 describe('IPC contract schemas', () => {
@@ -199,6 +200,26 @@ describe('IPC contract schemas', () => {
           opened: true,
           results: [{ title: 'Insecure', url: 'http://example.com' }],
         },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('allows only bounded runtime event measurements', () => {
+    expect(
+      RuntimeRecordEventRequestSchema.safeParse({
+        event: 'editor-input-burst',
+        details: { count: 3, latencyMs: 24, outcome: 'success' },
+      }).success,
+    ).toBe(true);
+    expect(
+      RuntimeRecordEventRequestSchema.safeParse({
+        event: 'editor-input-burst',
+        details: { content: 'document body' },
+      }).success,
+    ).toBe(false);
+    expect(
+      RuntimeRecordEventRequestSchema.safeParse({
+        event: 'unknown-action',
       }).success,
     ).toBe(false);
   });

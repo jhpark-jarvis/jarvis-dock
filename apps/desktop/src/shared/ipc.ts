@@ -33,6 +33,7 @@ export const IPC = {
   ARCHITECTURE_CREATE_PROJECT: 'architecture:create-project',
   ARCHITECTURE_CHECK_PROJECT: 'architecture:check-project',
   ARCHITECTURE_CREATE_ADR: 'architecture:create-adr',
+  RUNTIME_RECORD_EVENT: 'runtime:record-event',
 } as const;
 
 export const EmptyRequestSchema = z.object({}).strict();
@@ -574,6 +575,41 @@ export const ImageClipboardSaveRequestSchema = z
   })
   .strict();
 
+export const RuntimeEventNameSchema = z.enum([
+  'workspace-selected',
+  'workspace-refreshed',
+  'document-opened',
+  'document-saved',
+  'document-save-failed',
+  'editor-input-burst',
+  'preview-rendered',
+  'mermaid-rendered',
+  'research-opened',
+  'research-closed',
+  'image-search',
+  'image-loaded',
+  'image-inserted',
+  'image-deleted',
+]);
+export const RuntimeEventDetailsSchema = z
+  .object({
+    durationMs: z.number().finite().nonnegative().max(600_000).optional(),
+    latencyMs: z.number().finite().nonnegative().max(600_000).optional(),
+    bytes: z.number().int().nonnegative().max(50_000_000).optional(),
+    count: z.number().int().nonnegative().max(10_000).optional(),
+    outcome: z.enum(['success', 'failure', 'cancelled']).optional(),
+  })
+  .strict();
+export const RuntimeRecordEventRequestSchema = z
+  .object({
+    event: RuntimeEventNameSchema,
+    details: RuntimeEventDetailsSchema.optional(),
+  })
+  .strict();
+export const RuntimeRecordEventResultSchema = z
+  .object({ recorded: z.boolean() })
+  .strict();
+
 export type DockError = z.infer<typeof DockErrorSchema>;
 export type HealthResult = z.infer<typeof HealthResultSchema>;
 export type VersionResult = z.infer<typeof VersionResultSchema>;
@@ -656,6 +692,10 @@ export type ImageAssetDeleteResultEnvelope = z.infer<
 >;
 export type ImageClipboardSaveRequest = z.infer<
   typeof ImageClipboardSaveRequestSchema
+>;
+export type RuntimeEventName = z.infer<typeof RuntimeEventNameSchema>;
+export type RuntimeRecordEventRequest = z.infer<
+  typeof RuntimeRecordEventRequestSchema
 >;
 
 export interface DockApi {
@@ -757,6 +797,9 @@ export interface DockApi {
     saveClipboard: (
       request: ImageClipboardSaveRequest,
     ) => Promise<ImageDownloadResultEnvelope>;
+  };
+  runtime: {
+    recordEvent: (request: RuntimeRecordEventRequest) => Promise<void>;
   };
 }
 

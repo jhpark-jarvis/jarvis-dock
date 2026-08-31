@@ -48,6 +48,7 @@ import {
   ArchitectureCheckProjectResultEnvelopeSchema,
   ArchitectureCreateAdrRequestSchema,
   ArchitectureCreateAdrResultEnvelopeSchema,
+  RuntimeRecordEventRequestSchema,
   type DocumentResult,
   type WorkspaceChooseResult,
   type WorkspaceOpenFolderResultEnvelope,
@@ -69,6 +70,7 @@ import {
   type ArchitectureCreateProjectResultEnvelope,
   type ArchitectureCheckProjectResultEnvelope,
   type ArchitectureCreateAdrResultEnvelope,
+  type RuntimeRecordEventRequest,
 } from '../shared/ipc';
 
 type IpcListener = (event: unknown, ...args: unknown[]) => void;
@@ -476,6 +478,15 @@ const invokeImageClipboardSave = async (
   return result.success ? result.data : { ok: false, error: internalError() };
 };
 
+const invokeRuntimeEvent = async (
+  ipcRenderer: IpcInvoker,
+  request: RuntimeRecordEventRequest,
+): Promise<void> => {
+  const parsed = RuntimeRecordEventRequestSchema.safeParse(request);
+  if (!parsed.success) return;
+  await ipcRenderer.invoke(IPC.RUNTIME_RECORD_EVENT, parsed.data);
+};
+
 export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
   system: {
     health: () => invokeHealth(ipcRenderer),
@@ -575,5 +586,8 @@ export const createDockApi = (ipcRenderer: IpcInvoker): DockApi => ({
     read: (request) => invokeImageAssetRead(ipcRenderer, request),
     delete: (request) => invokeImageAssetDelete(ipcRenderer, request),
     saveClipboard: (request) => invokeImageClipboardSave(ipcRenderer, request),
+  },
+  runtime: {
+    recordEvent: (request) => invokeRuntimeEvent(ipcRenderer, request),
   },
 });

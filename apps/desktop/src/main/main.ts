@@ -36,6 +36,8 @@ import { registerImageAssetHandlers } from './image-asset-handlers';
 import { WIKIMEDIA_IMAGE_HOSTS } from './image-search-service';
 import { registerWorkspaceHandlers } from './workspace-handlers';
 import { registerArchitectureWorkspaceHandlers } from './architecture-workspace-handlers';
+import { registerRuntimeHandlers } from './runtime-handlers';
+import { RuntimeTelemetry } from './runtime-telemetry';
 import { createWorkspaceStore, type WorkspaceStore } from './workspace-service';
 import type { ImageDownloadResult } from '../shared/ipc';
 import { IPC } from '../shared/ipc';
@@ -75,6 +77,7 @@ let cleanupE2eWorkspace: (() => void) | undefined;
 let cleanupWorkspaceHandlers: (() => void) | undefined;
 let researchController: ResearchController | undefined;
 let e2eDocumentWorkspaceRoot: string | undefined;
+let runtimeTelemetry: RuntimeTelemetry | undefined;
 
 const isE2eDocumentDialogMode = (): boolean =>
   process.argv.includes('--dock-e2e-document') ||
@@ -329,6 +332,40 @@ const createWindow = () => {
 
 const registerIpcHandlers = () => {
   const workspaceStore = createWorkspaceStore();
+  runtimeTelemetry = new RuntimeTelemetry({
+    enabled:
+      Boolean(MAIN_WINDOW_VITE_DEV_SERVER_URL) ||
+      process.argv.includes('--dock-runtime-telemetry'),
+    logDirectory: path.join(app.getPath('logs'), 'dock-runtime'),
+    getMetrics: () =>
+      app.getAppMetrics().map((metric) => ({
+        pid: metric.pid,
+        type: metric.type,
+        name: metric.name,
+        serviceName: metric.serviceName,
+        memory: {
+          workingSetSize: metric.memory.workingSetSize,
+          privateBytes: metric.memory.privateBytes,
+          peakWorkingSetSize: metric.memory.peakWorkingSetSize,
+        },
+        cpuPercent: metric.cpu.percentCPUUsage,
+      })),
+    getMainMemory: () => {
+      const memory = process.memoryUsage();
+      return {
+        rss: memory.rss,
+        heapUsed: memory.heapUsed,
+        external: memory.external,
+      };
+    },
+  });
+  runtimeTelemetry.start();
+  registerRuntimeHandlers({
+    ipcMain,
+    telemetry: runtimeTelemetry,
+    isTrustedSender: (senderUrl) =>
+      isTrustedRendererUrl(senderUrl, getRendererUrl()),
+  });
   cleanupE2eWorkspace = setupE2eWorkspace(workspaceStore);
   registerSystemHandlers({
     ipcMain,
@@ -405,6 +442,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+  runtimeTelemetry?.stop();
+  runtimeTelemetry = undefined;
   cleanupWorkspaceHandlers?.();
   cleanupWorkspaceHandlers = undefined;
   cleanupE2eWorkspace?.();
