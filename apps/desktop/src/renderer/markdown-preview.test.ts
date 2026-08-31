@@ -75,6 +75,22 @@ describe('renderMarkdownPreview', () => {
     expect(html).toContain('align="right"');
   });
 
+  it('preserves GitHub-flavored task list checkboxes as disabled controls', () => {
+    const html = renderMarkdownPreview(
+      '- [ ] 문서 작성\n- [x] QA 완료\n\n- [not-a-checkbox] 일반 항목',
+    );
+
+    expect(html).toMatch(
+      /<input(?=[^>]*type="checkbox")(?=[^>]*disabled)[^>]*>/,
+    );
+    expect(html).toMatch(
+      /<input(?=[^>]*checked="")(?=[^>]*type="checkbox")(?=[^>]*disabled)[^>]*>/,
+    );
+    expect(html).toContain('문서 작성');
+    expect(html).toContain('QA 완료');
+    expect(html).toContain('[not-a-checkbox] 일반 항목');
+  });
+
   it('keeps blockquotes as semantic preview elements', () => {
     const html = renderMarkdownPreview(
       '> 중요한 결정은 배경과 함께 기록합니다.\n>\n> 다음 작업에서 다시 확인합니다.',

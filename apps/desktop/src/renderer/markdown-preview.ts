@@ -114,6 +114,7 @@ export const renderMarkdownPreview = (
       'strong',
       'em',
       'del',
+      'input',
       'a',
       'img',
       'br',
@@ -125,6 +126,9 @@ export const renderMarkdownPreview = (
       'src',
       'alt',
       'class',
+      'type',
+      'checked',
+      'disabled',
       'align',
       'colspan',
       'rowspan',
@@ -164,6 +168,13 @@ export const renderMarkdownPreview = (
     } else {
       anchor.removeAttribute('href');
     }
+  }
+  for (const input of template.content.querySelectorAll('input')) {
+    if (input.getAttribute('type') !== 'checkbox') {
+      input.remove();
+      continue;
+    }
+    input.setAttribute('disabled', '');
   }
   for (const image of template.content.querySelectorAll('img')) {
     const source = image.getAttribute('src') ?? '';

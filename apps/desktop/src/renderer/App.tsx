@@ -277,6 +277,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const commandTriggerRef = useRef<HTMLButtonElement>(null);
   const documentMessageTimerRef = useRef<number | undefined>(undefined);
   const editorSelectionRef = useRef({ start: 0, end: 0 });
+  const documentScrollRatiosRef = useRef<
+    Record<string, { editor: number; preview: number }>
+  >({});
   const imageInsertionContextRef = useRef<
     | {
         workspaceId: string;
@@ -333,7 +336,13 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   const [researchLoading, setResearchLoading] = useState(false);
   const [imageQuery, setImageQuery] = useState('');
   const [imageStatus, setImageStatus] = useState<
-    'idle' | 'search' | 'loading' | 'results' | 'empty' | 'error' | 'selected'
+    | 'idle'
+    | 'searching'
+    | 'downloading'
+    | 'results'
+    | 'empty'
+    | 'error'
+    | 'selected'
   >('idle');
   const [imageResults, setImageResults] = useState<ImageSearchResult[]>([]);
   const [imageError, setImageError] = useState('');
@@ -424,6 +433,16 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       setDocumentError('');
       documentMessageTimerRef.current = undefined;
     }, 2500);
+  };
+
+  const rememberDocumentScrollPosition = (path = selectedPath) => {
+    const editor = editorRef.current;
+    const preview = previewRef.current;
+    if (!path || !editor || !preview) return;
+    documentScrollRatiosRef.current[path] = {
+      editor: getScrollRatio(editor),
+      preview: getScrollRatio(preview),
+    };
   };
 
   useEffect(
@@ -899,6 +918,11 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     newName: string,
   ): Promise<boolean> => {
     if (!workspaceId || !window.dock.workspace.renameEntry) return false;
+    const oldPrefix = `${relativePath}/`;
+    const shouldRestoreEditorFocus = Boolean(
+      selectedPath &&
+      (selectedPath === relativePath || selectedPath.startsWith(oldPrefix)),
+    );
     setWorkspaceFolderError('');
     const result = await window.dock.workspace.renameEntry({
       workspaceId,
@@ -909,7 +933,6 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       setWorkspaceFolderError(result.error.message);
       return false;
     }
-    const oldPrefix = `${relativePath}/`;
     const newPrefix = `${result.value.relativePath}/`;
     const movePath = (value: string) =>
       value === relativePath
@@ -924,7 +947,13 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       if (moved !== selectedPath) setSelectedPath(moved);
     }
     setWorkspaceFolderError('');
-    return Boolean(await refreshFiles(workspaceId));
+    const refreshed = Boolean(await refreshFiles(workspaceId));
+    if (refreshed && shouldRestoreEditorFocus) {
+      requestAnimationFrame(() => {
+        editorRef.current?.focus();
+      });
+    }
+    return refreshed;
   };
 
   const moveWorkspaceEntry = async (
@@ -1042,7 +1071,13 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       content !== savedContent &&
       !window.confirm('저장하지 않은 변경 사항이 있습니다. 다른 문서를 열까요?')
     ) {
+      requestAnimationFrame(() => {
+        editorRef.current?.focus();
+      });
       return;
+    }
+    if (selectedPath && selectedPath !== relativePath) {
+      rememberDocumentScrollPosition(selectedPath);
     }
     try {
       const result = await window.dock.document.read({
@@ -1083,6 +1118,9 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       content !== savedContent &&
       !window.confirm('저장하지 않은 변경 사항을 버리고 문서를 닫을까요?')
     ) {
+      requestAnimationFrame(() => {
+        editorRef.current?.focus();
+      });
       return;
     }
     const remainingPaths = openDocumentPaths.filter(
@@ -1353,9 +1391,23 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   }, [previewHtml, selectedPath, mermaidRenders]);
 
   useEffect(() => {
+    if (!selectedPath) return;
+    const position = documentScrollRatiosRef.current[selectedPath];
+    if (!position) return;
+    const frame = requestAnimationFrame(() => {
+      const editor = editorRef.current;
+      const preview = previewRef.current;
+      if (!editor || !preview) return;
+      setScrollRatio(editor, position.editor);
+      setScrollRatio(preview, position.preview);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selectedPath]);
+
+  useEffect(() => {
     const editor = editorRef.current;
     const preview = previewRef.current;
-    if (!scrollSyncEnabled || !editor || !preview) return;
+    if (!editor || !preview) return;
 
     let unlockTimer: number | undefined;
     const lockTarget = (target: 'editor' | 'preview') => {
@@ -1369,20 +1421,36 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     };
 
     const handleEditorScroll = () => {
+      const ratio = getScrollRatio(editor);
+      if (selectedPath) {
+        documentScrollRatiosRef.current[selectedPath] = {
+          editor: ratio,
+          preview: scrollSyncEnabled ? ratio : getScrollRatio(preview),
+        };
+      }
+      if (!scrollSyncEnabled) return;
       if (scrollSyncLockRef.current === 'editor') {
         scrollSyncLockRef.current = undefined;
         return;
       }
       lockTarget('preview');
-      setScrollRatio(preview, getScrollRatio(editor));
+      setScrollRatio(preview, ratio);
     };
     const handlePreviewScroll = () => {
+      const ratio = getScrollRatio(preview);
+      if (selectedPath) {
+        documentScrollRatiosRef.current[selectedPath] = {
+          editor: scrollSyncEnabled ? ratio : getScrollRatio(editor),
+          preview: ratio,
+        };
+      }
+      if (!scrollSyncEnabled) return;
       if (scrollSyncLockRef.current === 'preview') {
         scrollSyncLockRef.current = undefined;
         return;
       }
       lockTarget('editor');
-      setScrollRatio(editor, getScrollRatio(preview));
+      setScrollRatio(editor, ratio);
     };
 
     editor.addEventListener('scroll', handleEditorScroll);
@@ -1531,7 +1599,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
     if (command === 'link') {
       setLinkStatus('search');
     } else {
-      setImageStatus('search');
+      setImageStatus('idle');
     }
   };
 
@@ -1808,7 +1876,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
   };
 
   const searchImages = async () => {
-    setImageStatus('loading');
+    setImageStatus('searching');
     setImageError('');
     setSelectedImage(undefined);
     setImageThumbnailErrors({});
@@ -1855,7 +1923,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
       setImageStatus('error');
       return;
     }
-    setImageStatus('loading');
+    setImageStatus('downloading');
     setImageError('');
     setImageErrorCode('');
     try {
@@ -2250,7 +2318,7 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   type="button"
                   onClick={() => {
                     setActiveCommand('image');
-                    setImageStatus('search');
+                    setImageStatus('idle');
                     setImageQuery('');
                   }}
                 >
@@ -2343,7 +2411,10 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                   <button
                     className="button button--primary"
                     type="submit"
-                    disabled={imageStatus === 'loading'}
+                    disabled={
+                      imageStatus === 'searching' ||
+                      imageStatus === 'downloading'
+                    }
                   >
                     검색
                   </button>
@@ -2622,9 +2693,14 @@ const App = ({ state: initialState = 'empty' }: AppProps) => {
                 {linkError}
               </p>
             )}
-            {activeCommand === 'image' && imageStatus === 'loading' && (
+            {activeCommand === 'image' && imageStatus === 'searching' && (
               <p className="dialog-message" role="status">
                 이미지를 검색하고 있습니다.
+              </p>
+            )}
+            {activeCommand === 'image' && imageStatus === 'downloading' && (
+              <p className="dialog-message" role="status">
+                이미지를 다운로드하고 문서에 삽입하고 있습니다.
               </p>
             )}
             {activeCommand === 'image' && imageStatus === 'empty' && (

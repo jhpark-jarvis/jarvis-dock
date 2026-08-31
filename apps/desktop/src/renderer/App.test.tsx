@@ -1396,6 +1396,15 @@ describe('App', () => {
 
   it('downloads a selected mock image before inserting its relative Markdown path', async () => {
     const user = userEvent.setup();
+    const downloadResult = {
+      ok: true as const,
+      value: {
+        assetPath: 'assets/electron-process-model.png',
+        bytesWritten: 8,
+        mimeType: 'image/png' as const,
+      },
+    };
+    let resolveDownload: ((result: typeof downloadResult) => void) | undefined;
     const openFolder = vi.fn(async () => ({
       ok: true as const,
       value: { opened: true as const },
@@ -1443,14 +1452,10 @@ describe('App', () => {
               ],
             },
           }),
-          download: async () => ({
-            ok: true as const,
-            value: {
-              assetPath: 'assets/electron-process-model.png',
-              bytesWritten: 8,
-              mimeType: 'image/png' as const,
-            },
-          }),
+          download: () =>
+            new Promise<typeof downloadResult>((resolve) => {
+              resolveDownload = resolve;
+            }),
         },
       },
     });
@@ -1489,10 +1494,16 @@ describe('App', () => {
       screen.getByRole('textbox', { name: 'Markdown 편집기' }),
     ).toHaveValue('# Today');
     await user.click(screen.getByRole('button', { name: '다운로드 및 삽입' }));
-    expect(
-      screen.getByRole('textbox', { name: 'Markdown 편집기' }),
-    ).toHaveValue(
-      '# Today![Electron process model](./assets/electron-process-model.png)',
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '이미지를 다운로드하고 문서에 삽입하고 있습니다.',
+    );
+    resolveDownload?.(downloadResult);
+    await waitFor(() =>
+      expect(
+        screen.getByRole('textbox', { name: 'Markdown 편집기' }),
+      ).toHaveValue(
+        '# Today![Electron process model](./assets/electron-process-model.png)',
+      ),
     );
   });
 });
