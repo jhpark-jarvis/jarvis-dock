@@ -19,6 +19,17 @@ export const DEFAULT_IGNORED_DIRECTORIES = new Set([
   'out',
   'coverage',
   '.cache',
+  '.vite',
+  '.next',
+  '.nuxt',
+  '.parcel-cache',
+  '.serverless',
+  '.webpack',
+  'test-results',
+  'playwright-report',
+  'lib-cov',
+  '.nyc_output',
+  'jspm_packages',
 ]);
 
 export type WorkspaceStore = Map<string, string>;

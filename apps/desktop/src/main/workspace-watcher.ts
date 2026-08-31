@@ -7,6 +7,7 @@ type ChangeListener = () => void;
 
 export class WorkspaceWatcher {
   private readonly watchers = new Map<string, FSWatcher>();
+  private recursiveWatcher: FSWatcher | undefined;
   private timer: NodeJS.Timeout | undefined;
   private disposed = false;
 
@@ -16,7 +17,34 @@ export class WorkspaceWatcher {
   ) {}
 
   public async start(): Promise<void> {
+    if (
+      (process.platform === 'win32' || process.platform === 'darwin') &&
+      this.startRecursiveWatcher()
+    ) {
+      return;
+    }
     await this.refreshDirectories();
+  }
+
+  private startRecursiveWatcher(): boolean {
+    try {
+      const watcher = watch(
+        this.root,
+        { persistent: false, recursive: true },
+        () => this.scheduleChange(),
+      );
+      watcher.on('error', () => {
+        if (this.recursiveWatcher !== watcher) return;
+        this.recursiveWatcher = undefined;
+        watcher.close();
+        void this.refreshDirectories();
+        this.scheduleChange();
+      });
+      this.recursiveWatcher = watcher;
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async findDirectories(current: string): Promise<string[]> {
@@ -42,7 +70,7 @@ export class WorkspaceWatcher {
   }
 
   private async refreshDirectories(): Promise<void> {
-    if (this.disposed) return;
+    if (this.disposed || this.recursiveWatcher) return;
     const directories = new Set(await this.findDirectories(this.root));
     for (const [directory, watcher] of this.watchers) {
       if (!directories.has(directory)) {
@@ -72,6 +100,10 @@ export class WorkspaceWatcher {
     if (this.disposed || this.timer) return;
     this.timer = setTimeout(() => {
       this.timer = undefined;
+      if (this.recursiveWatcher) {
+        this.onChange();
+        return;
+      }
       void this.refreshDirectories().finally(() => {
         if (!this.disposed) this.onChange();
       });
@@ -82,6 +114,8 @@ export class WorkspaceWatcher {
     this.disposed = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
+    this.recursiveWatcher?.close();
+    this.recursiveWatcher = undefined;
     for (const watcher of this.watchers.values()) watcher.close();
     this.watchers.clear();
   }

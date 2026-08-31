@@ -62,12 +62,19 @@ describe('workspace service', () => {
       recursive: true,
     });
     await fs.mkdir(path.join(root, 'dist'), { recursive: true });
+    await fs.mkdir(path.join(root, 'test-results'), { recursive: true });
+    await fs.mkdir(path.join(root, '.vite'), { recursive: true });
     await fs.writeFile(path.join(root, 'docs', 'guide.md'), '# Guide');
     await fs.writeFile(
       path.join(root, 'node_modules', 'package', 'index.md'),
       '# Dependency',
     );
     await fs.writeFile(path.join(root, 'dist', 'generated.md'), '# Generated');
+    await fs.writeFile(
+      path.join(root, 'test-results', 'generated.md'),
+      '# Test result',
+    );
+    await fs.writeFile(path.join(root, '.vite', 'generated.md'), '# Vite');
 
     await expect(listMarkdownFiles(root)).resolves.toEqual([
       { relativePath: 'docs/guide.md', displayName: 'guide.md' },
