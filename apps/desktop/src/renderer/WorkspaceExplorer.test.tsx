@@ -110,6 +110,7 @@ describe('WorkspaceExplorer', () => {
       name: '새 Markdown 파일 만들기',
     });
     const input = within(dialog).getByRole('textbox', { name: '이름' });
+    expect(input).toHaveFocus();
     await user.clear(input);
     await user.type(input, 'new.md');
     await user.click(within(dialog).getByRole('button', { name: '생성' }));

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent, ReactNode } from 'react';
 import type { WorkspaceEntry } from '../shared/ipc';
 
@@ -89,6 +89,7 @@ export const WorkspaceExplorer = ({
   }>();
   const [createName, setCreateName] = useState('');
   const [createPending, setCreatePending] = useState(false);
+  const createInputRef = useRef<HTMLInputElement>(null);
   const [draggedPath, setDraggedPath] = useState<string>();
   const [dropTargetPath, setDropTargetPath] = useState<string>();
 
@@ -140,6 +141,11 @@ export const WorkspaceExplorer = ({
     setCreateDraft({ parentPath, kind });
     setCreateName(defaultName);
   };
+
+  useEffect(() => {
+    if (!createDraft) return;
+    createInputRef.current?.focus();
+  }, [createDraft]);
 
   const cancelCreate = () => {
     if (createPending) return;
@@ -538,6 +544,7 @@ export const WorkspaceExplorer = ({
             <label htmlFor="workspace-entry-name">이름</label>
             <input
               id="workspace-entry-name"
+              ref={createInputRef}
               value={createName}
               autoFocus
               disabled={createPending}

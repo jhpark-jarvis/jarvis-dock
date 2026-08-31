@@ -480,6 +480,44 @@ test('Dock shows backlinks for the selected Markdown document', async () => {
   }
 });
 
+test('Dock keeps the Explorer create input editable after cancelling a dirty-document switch', async () => {
+  const workspaceRoot = mkdtempSync(
+    path.join(os.tmpdir(), 'dock-e2e-create-after-cancel-'),
+  );
+  writeFileSync(path.join(workspaceRoot, 'guide.md'), '# Guide', 'utf8');
+  writeFileSync(path.join(workspaceRoot, 'other.md'), '# Other', 'utf8');
+  const app = await launchDock(['--dock-e2e-document'], {
+    DOCK_E2E_DOCUMENT_WORKSPACE_ROOT: workspaceRoot,
+  });
+
+  try {
+    const page = await app.firstWindow();
+    const editor = page.getByRole('textbox', { name: 'Markdown 편집기' });
+    await page.getByRole('button', { name: '폴더 선택' }).click();
+    await page.getByRole('button', { name: 'guide.md' }).click();
+    await editor.fill('# Local work');
+    const localContent = await editor.inputValue();
+
+    await page.evaluate(() => {
+      window.confirm = () => false;
+    });
+    await page.getByRole('button', { name: 'other.md' }).click();
+    await expect(editor).toHaveValue(localContent);
+
+    await page.getByRole('button', { name: '+ 파일', exact: true }).click();
+    const createDialog = page.getByRole('dialog', {
+      name: '새 Markdown 파일 만들기',
+    });
+    const input = createDialog.getByRole('textbox', { name: '이름' });
+    await expect(input).toBeEditable();
+    await input.fill('qa-after-cancel.md');
+    await expect(input).toHaveValue('qa-after-cancel.md');
+  } finally {
+    await app.close();
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test('Dock selects, creates, saves, and reopens a document workspace after relaunch', async () => {
   const workspaceRoot = mkdtempSync(
     path.join(os.tmpdir(), 'dock-e2e-document-'),
