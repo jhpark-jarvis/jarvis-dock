@@ -76,4 +76,21 @@ describe('workspace image asset service', () => {
       { assetPath: 'assets/nested/diagram.webp', displayName: 'diagram.webp' },
     ]);
   });
+
+  it('does not scan ignored generated or dependency directories', async () => {
+    const root = await createAssetWorkspace('# Guide');
+    await fs.mkdir(path.join(root, 'assets', 'node_modules', 'nested'), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join(root, 'assets', 'dist'), { recursive: true });
+    await fs.writeFile(
+      path.join(root, 'assets', 'node_modules', 'nested', 'dependency.png'),
+      PNG,
+    );
+    await fs.writeFile(path.join(root, 'assets', 'dist', 'generated.jpg'), PNG);
+
+    await expect(listImageAssetsFromWorkspace(root)).resolves.toEqual([
+      { assetPath: 'assets/image.png', displayName: 'image.png' },
+    ]);
+  });
 });

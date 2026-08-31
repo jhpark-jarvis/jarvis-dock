@@ -8,7 +8,10 @@ import {
   extractWorkspaceImageAssets,
   normalizeWorkspaceAssetPath,
 } from '../shared/image-assets';
-import { listMarkdownFiles } from './workspace-service';
+import {
+  DEFAULT_IGNORED_DIRECTORIES,
+  listMarkdownFiles,
+} from './workspace-service';
 import { MAX_IMAGE_BYTES } from './image-download-service';
 
 const isInside = (root: string, candidate: string): boolean => {
@@ -81,6 +84,7 @@ const collectImageAssets = async (
     if (entry.name.startsWith('.')) continue;
     const absolutePath = path.join(current, entry.name);
     if (entry.isDirectory()) {
+      if (DEFAULT_IGNORED_DIRECTORIES.has(entry.name)) continue;
       assets.push(...(await collectImageAssets(root, absolutePath)));
       continue;
     }
