@@ -118,10 +118,15 @@ export const WorkspaceExplorer = ({
   };
   useEffect(() => {
     setExpandedPaths((current) => {
-      const next = new Set(current);
-      for (const entry of entries) {
-        if (entry.kind === 'directory') next.add(entry.relativePath);
-      }
+      const directories = new Set(
+        entries
+          .filter((entry) => entry.kind === 'directory')
+          .map((entry) => entry.relativePath),
+      );
+      const next = new Set(
+        [...current].filter((path) => path === '' || directories.has(path)),
+      );
+      next.add('');
       return next;
     });
   }, [entries]);

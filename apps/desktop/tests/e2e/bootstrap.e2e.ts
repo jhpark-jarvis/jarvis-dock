@@ -315,6 +315,7 @@ test('Dock creates files and folders from the Explorer controls', async () => {
       name: 'notes',
       exact: true,
     });
+    await notesButton.click();
     await notesButton.click({ button: 'right' });
     await page
       .getByRole('menu', { name: 'notes 메뉴' })
@@ -346,6 +347,9 @@ test('Dock creates files and folders from the Explorer controls', async () => {
       explorer.getByRole('button', { name: 'archive', exact: true }),
     ).toBeVisible();
     await explorer
+      .getByRole('button', { name: 'archive', exact: true })
+      .click();
+    await explorer
       .getByRole('button', { name: 'notes/note.md' })
       .dragTo(explorer.getByRole('button', { name: 'archive', exact: true }));
     await expect(
@@ -357,16 +361,13 @@ test('Dock creates files and folders from the Explorer controls', async () => {
     expect(
       readFileSync(path.join(workspaceRoot, 'archive', 'note.md'), 'utf8'),
     ).toBe('');
-    await explorer
-      .getByRole('button', { name: 'archive/note.md' })
-      .waitFor();
+    await explorer.getByRole('button', { name: 'archive/note.md' }).waitFor();
     await page.evaluate(() => {
-      const source = document.querySelector(
-        '[aria-label="archive/note.md"]',
-      );
+      const source = document.querySelector('[aria-label="archive/note.md"]');
       const target = document.querySelector('.workspace-tree__root-dropzone');
       const sourceRow = source?.closest('.workspace-tree__row');
-      if (!sourceRow || !target) throw new Error('Root drop targets not found.');
+      if (!sourceRow || !target)
+        throw new Error('Root drop targets not found.');
       const dataTransfer = new DataTransfer();
       dataTransfer.effectAllowed = 'move';
       dataTransfer.setData('text/plain', 'archive/note.md');
@@ -432,6 +433,7 @@ test('Dock refreshes the Explorer after external file and folder changes', async
     await expect(
       page.getByRole('button', { name: 'notes', exact: true }),
     ).toBeVisible();
+    await page.getByRole('button', { name: 'notes', exact: true }).click();
     await expect(
       page.getByRole('button', { name: 'notes/nested.md' }),
     ).toBeVisible();
@@ -588,6 +590,12 @@ test('Dock initializes an Architecture Workspace without overwriting existing do
       .fill('로컬 Markdown 기술 문서를 작성하고 관리합니다.');
     await page.getByLabel('사용 기술').fill('Electron, React, TypeScript');
     await page.getByRole('button', { name: '문서 세트 생성' }).click();
+
+    const explorer = page.getByRole('region', { name: '파일 탐색기' });
+    await explorer.getByRole('button', { name: 'docs', exact: true }).click();
+    await explorer
+      .getByRole('button', { name: 'architecture', exact: true })
+      .click();
 
     await expect(
       page.getByRole('heading', { name: 'docs/architecture/arc42.md' }),

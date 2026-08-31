@@ -38,6 +38,10 @@ describe('WorkspaceExplorer', () => {
     );
 
     expect(
+      screen.queryByRole('button', { name: 'docs/note.md' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'docs 폴더 펼치기' }));
+    expect(
       screen.getByRole('button', { name: 'docs/note.md' }),
     ).toBeInTheDocument();
     expect(
@@ -72,6 +76,7 @@ describe('WorkspaceExplorer', () => {
       />,
     );
 
+    await user.click(screen.getByRole('button', { name: 'docs 폴더 펼치기' }));
     const file = screen.getByRole('button', { name: 'docs/note.md' });
     await user.dblClick(file);
     const input = screen.getByRole('textbox', {
@@ -147,7 +152,8 @@ describe('WorkspaceExplorer', () => {
     ).toBeVisible();
   });
 
-  it('moves a file when it is dropped on another folder', () => {
+  it('moves a file when it is dropped on another folder', async () => {
+    const user = userEvent.setup();
     const onMove = vi.fn(async () => true);
     render(
       <WorkspaceExplorer
@@ -160,6 +166,7 @@ describe('WorkspaceExplorer', () => {
       />,
     );
 
+    await user.click(screen.getByRole('button', { name: 'docs 폴더 펼치기' }));
     const source = screen.getByRole('button', { name: 'docs/note.md' });
     const target = screen.getByRole('button', { name: 'archive' });
     const sourceRow = source.closest('.workspace-tree__row');
@@ -180,7 +187,8 @@ describe('WorkspaceExplorer', () => {
     expect(onMove).toHaveBeenCalledWith('docs/note.md', 'archive');
   });
 
-  it('moves a nested file to the workspace root drop zone', () => {
+  it('moves a nested file to the workspace root drop zone', async () => {
+    const user = userEvent.setup();
     const onMove = vi.fn(async () => true);
     render(
       <WorkspaceExplorer
@@ -193,6 +201,7 @@ describe('WorkspaceExplorer', () => {
       />,
     );
 
+    await user.click(screen.getByRole('button', { name: 'docs 폴더 펼치기' }));
     const source = screen.getByRole('button', { name: 'docs/note.md' });
     const sourceRow = source.closest('.workspace-tree__row');
     const rootDropzone =
