@@ -736,6 +736,7 @@ test('Dock starts with a narrow preload API and no Renderer Node.js globals', as
       'architecture',
       'research',
       'image',
+      'runtime',
     ]);
     expect(rendererState.health).toEqual({ ok: true, value: { status: 'ok' } });
     expect(rendererState.version).toEqual({
